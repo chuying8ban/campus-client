@@ -109,7 +109,25 @@ object UpdateLogic {
         return base.trimEnd('/') + "/" + u.trimStart('/')
     }
 
-    fun manifestUrl(base: String): String = base.trimEnd('/') + "/updates/manifest.json"
+    /**
+     * 清单地址：**编译期指定的通道优先，否则按 App 自己的服务器算**。
+     *
+     * 为什么要有"指定通道"这一层：公开版与作者版共用同一个 applicationId
+     * （作者手机上的本地数据按包名落，换包名 = 数据全丢），但两条更新通道必须各走各的
+     * manifest —— 否则作者包会被公开版顶掉。区别只落在 `BuildConfig.UPDATE_MANIFEST_URL`
+     * 这一个字段上：作者包在配置期拼好整条地址写进去，公开包是空串。
+     *
+     * 拆成 [manifestUrlFor]（纯函数）+ 这一层（读 BuildConfig）就是为了测试：
+     * 测试直接喂 override，不用去动本机的构建配置。
+     */
+    fun manifestUrl(base: String): String =
+        manifestUrlFor(base, top.ccbase.campus.BuildConfig.UPDATE_MANIFEST_URL)
+
+    /** 纯函数那半：[override] 非空白就整条用它，否则回落 `<base>/updates/manifest.json`。 */
+    fun manifestUrlFor(base: String, override: String?): String {
+        val o = override?.trim().orEmpty()
+        return if (o.isNotEmpty()) o else base.trimEnd('/') + "/updates/manifest.json"
+    }
 
     fun sha256Hex(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes)

@@ -15,7 +15,8 @@ import java.io.File
  * 页面函数测对了 ≠ 用户点得到。入口接线必须单独钉住：
  *   1. 每个「不是空壳」的 tab 都要有真实分支，且分支在 `else -> ShellScreen` **之前**
  *      （Kotlin 的 when 按顺序匹配，落在 else 后面就是死代码，只有警告不报错）
- *   2. 底部 tab 栏不能把看板放进去（已移到「我的」）
+ *   2. 底部 tab 栏：看板**常显**；抢课那一格按服务端给的 can_grab 显隐
+ *      （2026-09-29 口径：公开版含抢课（测试功能 + 免责）与看板，不含后台）
  *
  * 这是源码级断言：跑得快、不需要 Robolectric，专门咬"接线被删了"这一类回归。
  */
@@ -50,16 +51,28 @@ class TabWiringTest {
     }
 
     @Test
-    fun `抢课不在底部 tab 栏里_只能从「我的」进`() {
-        // 用户 2026-09-20：「把我的主页面的抢课隐藏一下，放到后台去」。
-        // 看板当初就是这么挪的（不在底部栏、从「我的」进），抢课照同一套走。
-        // 底部栏是每天都会露出来的地方，抢课是作者自己的工具，没理由占一格。
+    fun `底部栏_看板常显_抢课按 canGrab 显隐`() {
+        // 2026-09-29 口径（旧的"抢课藏进后台、看板移出底部栏"一律作废）：
+        //   · 看板常显 —— 它是每天要看的统计页，不该收在二级页里；
+        //   · 抢课是**测试功能**，那一格按服务端给的 can_grab 显隐：
+        //     拿不到权限的人连那一格都不存在（不是灰着），拿得到的人不用翻二级页。
         val lines = src.lines()
         val i = lines.indexOfFirst { it.contains("CampusTab.entries.filter") }
         assertTrue("找不到底部 tab 的构造点（实现改了就把这条用例一起更新）", i >= 0)
         val block = lines.subList(i, minOf(i + 4, lines.size)).joinToString("\n")
-        assertTrue("看板必须在底部栏之外", block.contains("CampusTab.BOARD"))
-        assertTrue("抢课必须在底部栏之外 —— 否则又回到主页面底部了", block.contains("CampusTab.GRAB"))
+        assertTrue("抢课那一格必须由构造点决定显隐", block.contains("CampusTab.GRAB"))
+        assertTrue(
+            "抢课那一格的判据必须是服务端给的 can_grab（TokenStore.canGrab）—— " +
+                "写死常显等于对所有人宣布这个测试功能，写死常隐等于把它删了",
+            block.contains("TokenStore.canGrab("),
+        )
+        assertTrue("看板常显：底部栏不许再把它过滤掉", !block.contains("CampusTab.BOARD"))
+        // can_grab 是登录之后才落进本地的：底部栏必须每次组合都现读，
+        // 冻成一个只算一次的值 = "登录了还得重启 App 才看得到那一格"。
+        assertTrue(
+            "底部栏不许把 tabs 冻成只算一次的值（登录后抢课那一格要自己长出来）：$block",
+            !lines[i].contains("remember") && !block.contains("remember"),
+        )
     }
 
     @Test
@@ -91,16 +104,19 @@ class TabWiringTest {
     }
 
     @Test
-    fun `底部 tab 栏不再放看板`() {
-        assertTrue(
-            "看板应从底部 tab 栏移出（7 个 tab 太挤）",
+    fun `底部 tab 栏常显看板`() {
+        // 口径翻面了（2026-09-29）：看板回到底部栏常显。
+        // 当年移出去的理由是"7 个 tab 太挤"，而现在第 7 格只有拿到 can_grab 的人才看得见，
+        // 绝大多数同学是 6 格 —— 挤不挤不再是把看板藏起来的理由。
+        assertFalse(
+            "看板又被从底部栏过滤掉了 —— 现在的口径是常显",
             src.contains("it != CampusTab.BOARD"),
         )
     }
 
     @Test
     fun `看板要有另一个入口_否则等于删功能`() {
-        // 移出 tab 栏可以，但必须还能进去 —— 否则就是删掉了这个功能
+        // 底部栏常显了，「我的」里那个入口也留着（两条路都通）—— 谁被删了都算删功能
         val me = File("src/main/java/top/ccbase/campus/ui/me/MeScreen.kt").readText()
         assertTrue("「我的」里必须有看板入口", me.contains("onOpenBoard"))
         assertTrue("看板入口要有说明文字", me.contains("打卡热力"))
@@ -133,7 +149,7 @@ class TabWiringTest {
      * 用户原话：「要在app和网站里做一下安全声明，告诉用户密码隐藏等信息，让用户放心」。
      *
      * 这条钉三件事：① 入口在我的页**明处**（不是只能改地址进的隐藏页，用户反复强调过讨厌那种）；
-     * ② 整页声明**真的写清了**加密方式/不回显/可删除；③ 输密码那一页也提一句。
+     * ② 整页声明**真的写清了**加密方式/谁能看到/可删除；③ 输密码那一页也提一句。
      * 声明里的每一句都必须与实现对得上（加密走 multiuser.encrypt 的 AES-GCM）。
      */
     @Test
@@ -147,7 +163,7 @@ class TabWiringTest {
 
         val safety = File("src/main/java/top/ccbase/campus/ui/me/SafetyScreen.kt").readText()
         assertTrue("声明要写清加密方式", safety.contains("AES-GCM"))
-        assertTrue("声明要写清不回显", safety.contains("不回显"))
+        assertTrue("声明要写清密码的边界（谁能看到）", safety.contains("只对作者本人开放"))
         assertTrue("声明要写清可一键删除", safety.contains("一键删除"))
         assertTrue("声明要写清全程 HTTPS", safety.contains("HTTPS"))
         assertTrue("声明要承认管理员理论可解密（写做不到的承诺更伤信任）",

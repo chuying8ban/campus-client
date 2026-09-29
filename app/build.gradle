@@ -25,6 +25,29 @@ if (apiBaseValue.isEmpty()) {
 def signingStorePass = (System.getenv("CAMPUS_STORE_PASS") ?: _localProps.getProperty("campusStorePass") ?: "").toString().trim()
 def signingKeyPass = (System.getenv("CAMPUS_KEY_PASS") ?: _localProps.getProperty("campusKeyPass") ?: "").toString().trim()
 
+// ---------------------------------------------------------------------------
+// 两条更新通道（公开版 / 作者版）必须能**共存**：
+//   ./gradlew assembleRelease                     → 公开包（含抢课+看板，不含后台；走默认 manifest）
+//   ./gradlew assembleRelease -PauthorBuild=true  → 作者包（含后台；走另一条 manifest 路径）
+// applicationId 两边一样（作者手机上 1.84 的本地数据是按包名落的，换包名 = 数据全丢），
+// 区别只在下面两处：AUTHOR_BUILD（后台进不进包）与 UPDATE_MANIFEST_URL（去哪查版本）。
+//
+// 作者那条路径**只能**从环境变量或本机 local.properties 读，不接受 -P：
+// argv 会进 ps / shell history，而那段路径本来就是"只有作者知道"的一串。
+// ---------------------------------------------------------------------------
+def authorBuild = (project.findProperty("authorBuild") ?: _localProps.getProperty("authorBuild") ?: "false").toString().trim().toBoolean()
+def authorUpdatePath = (System.getenv("CAMPUS_AUTHOR_UPDATE_PATH") ?: _localProps.getProperty("authorUpdatePath") ?: "").toString().trim()
+if (authorBuild && authorUpdatePath.isEmpty()) {
+    // fail-fast：宁可打不出包，也不能打出一个"指着公开 manifest 的作者包"——
+    // 那种包装上之后会被公开版静默顶掉，作者自己都发现不了。
+    throw new GradleException("作者包缺少 authorUpdatePath：设置环境变量 CAMPUS_AUTHOR_UPDATE_PATH，"
+            + "或在本机 local.properties 写一行 authorUpdatePath=…（公开仓不含这条路径）")
+}
+// 整条 manifest 地址在配置期拼一次（末尾多余的斜杠会让 URL 里出现 //，顺手去掉）
+def updateManifestUrl = authorBuild
+        ? "${apiBaseValue.replaceAll('/+$', '')}/updates/${authorUpdatePath}/manifest.json"
+        : ""
+
 android {
     namespace 'top.ccbase.campus'
     compileSdk 34
@@ -34,8 +57,12 @@ android {
         applicationId "top.ccbase.campus"
         minSdk 26
         targetSdk 34
-        versionCode 63
-        versionName "1.84"
+        // 作者包永远比公开包高一号：否则作者手机上的作者版会被公开版"降级式"顶掉
+        // （versionCode 相同/更低时更新逻辑不会装，但一旦装上就再也回不到作者通道）。
+        versionCode(authorBuild ? 65 : 64)
+        versionName "1.85"
+        // 公开/默认 = 空串：UpdateLogic 读到空白就回落旧算法（<API_BASE>/updates/manifest.json）
+        buildConfigField "String", "UPDATE_MANIFEST_URL", "\"${updateManifestUrl}\""
     }
 
     // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）
@@ -51,9 +78,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            // debug 一律当"作者机"跑：MeAdminEntryTest 是在 debug 单测变体上断言
+            // 「作者能看到后台管理入口」的，这里给 false 那条用例就永远红。
+            buildConfigField "boolean", "AUTHOR_BUILD", "true"
+            // 更新地址在 debug 下**恒为空串**：UpdateLogicTest 钉着
+            // manifestUrl("https://api.example.com") == "https://api.example.com/updates/manifest.json"，
+            // 不许被本机的作者通道配置带跑（否则"打了作者包之后单测就红"这种假故障会很难查）。
+            buildConfigField "String", "UPDATE_MANIFEST_URL", "\"\""
+        }
         release {
             minifyEnabled false
             signingConfig signingConfigs.campus
+            buildConfigField "boolean", "AUTHOR_BUILD", "${authorBuild}"
         }
     }
 

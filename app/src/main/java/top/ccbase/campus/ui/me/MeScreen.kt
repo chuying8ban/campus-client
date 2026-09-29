@@ -29,6 +29,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import top.ccbase.campus.BuildConfig
 import top.ccbase.campus.data.local.CampusDb
 import top.ccbase.campus.data.local.Meta
 import top.ccbase.campus.data.plan.TplLoader
@@ -121,7 +122,7 @@ fun MeScreen(
     onOpenAdmin: () -> Unit = {},
     /** 给 App 提建议 —— **每个用户都有**这个入口（不像后台那节只给作者） */
     onOpenFeedback: () -> Unit = {},
-    /** 点「抢课」：进抢课页。只有作者看得到；服务端按 can_grab 再闸一次 */
+    /** 点「抢课」：进抢课页（测试功能）。按服务端给的 can_grab 显隐；服务端还会再闸一次 */
     onOpenGrab: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -380,9 +381,12 @@ fun MeScreen(
         SectionTitle("看板")
         Action("打卡热力 / 里程碑", "连续天数、完成度、阶段进度", onClick = { onOpenBoard() })
 
-        // 只有作者看得到这一节（用户要的「后台管理」）。
+        // 「后台」这一节整份只进**作者包**。两层闸各管一件事：
+        //  · AUTHOR_BUILD 是编译期闸 —— 公开包里它恒为 false，整段是死代码
+        //    （开 R8 会被整段摘掉，连"后台管理"这几个字都不进 dex）；
+        //  · isAuthor 是运行期闸 —— 作者包里登着别人的账号时也看不到。
         // 注意 isAuthor 只是界面开关：真闸在服务端（非作者 403），改本地也拿不到数据。
-        if (isAuthor) {
+        if (BuildConfig.AUTHOR_BUILD && isAuthor) {
             SectionTitle("后台")
             Action("后台管理", "用户数量、用量、系统状态；只有作者能进", enabled = !busy) {
                 // 走 App 内嵌，不再丢给系统浏览器：丢浏览器会弹「是否允许打开 XX 浏览器」，
@@ -390,11 +394,10 @@ fun MeScreen(
                 // 内嵌页见 ui/admin/AdminWebScreen.kt
                 onOpenAdmin()
             }
-            // 抢课从底部栏挪到这儿（用户 2026-09-20：「把我的主页面的抢课隐藏一下，放到后台去」）。
-            // 只在作者手机上出现 —— 同学那边 isAuthor / can_grab 都是 false，连这两个字都看不到
-            // （2026-09-17 用户要求：别让同学知道有这功能）。真闸仍在服务端 can_grab。
+            // 抢课是**测试功能**（页面顶部有免责说明）：这一格按服务端给的 can_grab 显隐，
+            // 底部栏那一格也是同一个判据。真闸仍在服务端（can_grab / 非作者 403）。
             if (TokenStore.canGrab(ctx)) {
-                Action("抢课", "每天替你盯课的那套；只有作者能进", enabled = !busy) {
+                Action("抢课", "每天替你盯课那套；抢课为测试功能", enabled = !busy) {
                     onOpenGrab()
                 }
             }
@@ -402,13 +405,15 @@ fun MeScreen(
 
         SectionTitle("密码")
         Text(
-            "教务系统密码由你本人提供，加密后保存在服务器上，只用于每天自动登录读课表。\n" +
-            "服务器上不存明文，也不会写进任何日志。你可以随时删掉它。",
+            "教务系统密码由你本人提供，加密后保存在服务器上、不以明文存放，只用于每天自动登录读课表。\n" +
+            "服务端提供查看能力，但那个入口只对作者本人开放；你随时可以删掉它。",
             fontSize = 12.sp, lineHeight = 19.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
         )
-        if (token != null && TokenStore.canGrab(ctx)) {
-            // 只给作者：密码是别人自己的东西，回传一次就多一个泄露面
+        // ⚠️ 这一处认 **is_author**，不再和抢课共用 can_grab 那个闸（2026-09-29 拆闸）：
+        // 抢课是公开的测试功能、按 can_grab 显隐；而密码是别人自己的东西，
+        // 回传一次就多一个泄露面 —— 凭据回显永远只有作者能看见。
+        if (token != null && TokenStore.isAuthor(ctx)) {
             Action("查看服务器上保存的密码", "只有你能用这个入口，30 秒后自动隐藏",
                    enabled = !busy) { doReveal() }
             revealed?.let { pw ->
@@ -478,10 +483,9 @@ fun MeScreen(
             },
             onClick = onOpenPermissions,
         )
-        // 抢课入口/字样**一律不出现在同学能看到的地方**（2026-09-17 用户要求：别让人知道有这功能）。
-        // 这一页曾经有一行 KV("抢课功能", …)，等于对外宣布了功能存在 —— 已删除。
-        // 作者自己的入口在「后台」那一节里（App 内嵌/抢课页都只对 isAuthor 渲染），
-        // 2026-09-20 起底部栏也不再摆抢课那一格。
+        // 抢课（测试功能）的入口不在这一页的正文里：底部栏那一格按 can_grab 显隐，
+        // 作者包里「后台」那一节还有一个。这一页曾经有一行 KV("抢课功能", …) ——
+        // 那是把功能当卖点宣布，跟"它是测试功能、只对拿到 can_grab 的人开放"对不上，已删除。
         Spacer(Modifier.height(14.dp))
         Text(
             "这是一个学生自己做的工具，不是学校官方产品。\n" +

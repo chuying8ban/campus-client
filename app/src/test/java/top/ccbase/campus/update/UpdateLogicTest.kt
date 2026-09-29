@@ -219,6 +219,34 @@ class UpdateLogicTest {
             UpdateLogic.manifestUrl("https://x.trycloudflare.com/"))
     }
 
+    /**
+     * 作者通道：编译期写死的那条**整地址**优先，公开包（空串）回落到上一格那条算法。
+     *
+     * 两条通道必须共存，而且共用同一个 applicationId（换包名 = 作者手机上按包名落的
+     * 本地数据全丢），区别只在这一条地址上。它指错了就是"作者包被公开版静默顶掉"，
+     * 所以纯函数这半单独钉住。
+     *
+     * 这里走 [UpdateLogic.manifestUrlFor] 而不是 `manifestUrl`：单测跑在 debug 变体上，
+     * 那个变体的 `UPDATE_MANIFEST_URL` 恒为空串（不让本机的作者通道配置带跑单测），
+     * 从这儿喂不进作者地址。
+     */
+    @Test
+    fun `编译期指定的清单地址优先_空白就回落默认算法`() {
+        val author = "https://api.example.com/updates/author-channel/manifest.json"
+        // 指定了就整条用它，**不再往后面拼** /updates/manifest.json
+        assertEquals(author, UpdateLogic.manifestUrlFor("https://api.example.com", author))
+        assertEquals("https://cdn.example.com/m.json",
+            UpdateLogic.manifestUrlFor("https://api.example.com", "https://cdn.example.com/m.json"))
+        // 公开包 = 空串；空串/纯空白/null 一律回落，不许拼出半截地址
+        listOf("", "   ", null).forEach { blank ->
+            assertEquals("https://api.example.com/updates/manifest.json",
+                UpdateLogic.manifestUrlFor("https://api.example.com", blank))
+        }
+        // 回落那半照旧吃掉 base 末尾的斜杠
+        assertEquals("https://api.example.com/updates/manifest.json",
+            UpdateLogic.manifestUrlFor("https://api.example.com/", ""))
+    }
+
     // ---------------------------------------------------------------- 校验和
 
     @Test

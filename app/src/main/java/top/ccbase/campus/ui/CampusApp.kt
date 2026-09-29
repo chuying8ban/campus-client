@@ -204,8 +204,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var idx by rememberSaveable { mutableIntStateOf(0) }
 
     val appCtx = LocalContext.current
-    // 抢课/看板的可见性都收在各自页面的渲染条件里（MeScreen 的 isAuthor / can_grab），
-    // CampusApp 这里不再读 canGrab：底部栏已经不摆抢课那一格了。
+    // 抢课那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）；
+    // 后台那类"只进作者包"的东西另有一层编译期闸（BuildConfig.AUTHOR_BUILD）。
 
     // ------------------------------------------------------------------
     // 应用内更新（旁加载的 App 没有应用商店，得自己查版本、自己下、自己拉安装器）
@@ -369,11 +369,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
-    // 底部只留高频入口。看板（打卡热力/里程碑）从「我的」进 ——
-    // 7 个 tab 挤在一排，一眼看过去全是图标，反而找不到东西。
+    // 底部放高频入口。看板（打卡热力/里程碑）**常显**在底部栏，「我的」里也留了一个入口
+    // （两条路都通；当年"7 个 tab 太挤"那条理由已经不成立了 —— 现在只有拿得到
+    //   can_grab 的人才会看到第 7 格）。
     // 「学习」已并进「任务」页（同一页内两段，页内不再有子切换）——
     // 底部不再单独占一格（用户要求精简）。学习内容本身没删：在合并页里往下滚就是它。
-    // 「我的」里点进来的页（看板这种底部没有 tab 的页）。
+    // 「我的」里点进来的全屏子页。
     // 它必须放在底部导航**外面**：点底部任何一格都得能离开子页，
     // 放在里面（Scaffold content 里）就会变成"点了底部 tab 没反应，像卡住"。
     var extra by remember { mutableStateOf<CampusTab?>(null) }
@@ -397,14 +398,14 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         }
     }
 
-    // 底部 tab 栏：看板与抢课都**不摆在这里**，各自从「我的」那一页进。
-    // 抢课是 2026-09-20 用户要求的（"把我的主页面的抢课隐藏一下，放到后台去"）：
-    // 底部栏是每天都会露出来的地方，抢课是作者自己的工具，没理由占一格。
-    // 服务端那道闸（can_grab / 非作者 403）照旧在，这里只是不再摆入口。
-    val tabs = remember {
-        CampusTab.entries.filter {
-            it != CampusTab.BOARD && it != CampusTab.GRAB
-        }
+    // 底部 tab 栏：看板常显；抢课那一格按 can_grab 显隐（抢课是**测试功能**，
+    // 拿不到这个权限的人连那一格都不存在）。服务端那道闸（can_grab / 非作者 403）照旧在，
+    // 这里只决定"摆不摆这一格"。
+    //
+    // ⚠️ canGrab 必须**每次组合都现读**（不能冻成一个只算一次的值）：can_grab 是登录之后
+    // 才落进本地的，冻住就意味着"登录了还得重启 App 才看得到那一格"。
+    val tabs = CampusTab.entries.filter {
+        it != CampusTab.GRAB || TokenStore.canGrab(appCtx)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -415,7 +416,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 containerColor = C.bgSoft,
                 tonalElevation = 0.dp,
             ) {
-                // 非作者看不到抢课，作者也从「我的」进（底部栏不再摆这一格）
+                // 没有 can_grab 的人这里就没有抢课那一格（不是灰着，是压根不存在）
                 tabs.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = idx == i,
@@ -437,7 +438,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
             val app = LocalContext.current.applicationContext as CampusApplication
-            val shown = extra ?: tabs[idx]
+            // tabs 的长度会变（抢课那一格随 can_grab 进出），而 idx 是记下来的旧下标
+            // （rememberSaveable：转屏/进程重建后还留着）—— 越界就是崩，所以先夹回合法范围。
+            val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
             when (shown) {
                 CampusTab.TODAY -> TodayScreen(app.db)
                 CampusTab.SCHEDULE -> ScheduleScreen(app.db)
@@ -447,8 +450,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
-                    // 抢课从底部栏挪到「我的 → 后台」那一节：走和看板同一条路（extra 全屏子页，
-                    // 系统返回键退回，底部栏还在能直接切走）。
+                    // 抢课页也走 extra 全屏子页（和看板入口同一条路：系统返回键退回，
+                    // 底部栏还在能直接切走）。这里与底部栏那一格是**同一个判据**（can_grab）：
+                    // 拿得到 can_grab 的人两条路都通，拿不到的人两处都不存在。
                     onOpenGrab = { extra = CampusTab.GRAB },
                     ctx = appCtx,
                     db = app.db,
@@ -536,8 +540,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             // 让他一眼看到刚加进去的那几条。没这个回调，那个按钮就只是句空话。
             onGoTasks = {
                 showPlan = false
-                // idx 是**过滤后**那条 tab 栏的下标，不是枚举序号：枚举里还有被过滤掉的项
-                // （看板、以及非作者的抢课），直接拿枚举序号当 idx 会跳到别的格上。
+                // idx 是**过滤后**那条 tab 栏的下标，不是枚举序号：没有 can_grab 的人
+                // 那一格不存在，直接拿枚举序号当 idx 会跳到别的格上。
                 // 这条以前真错过 —— 作者自己因为抢课那一格在场，序号碰巧对得上，看不见。
                 // （MergeWiringTest 会扫这个文件，别把那个"枚举序号"的写法原样写回来 ——
                 //   连注释里出现都会被算成一条引用。）
@@ -551,8 +555,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onClose = { showPerms = false },
         )
     }
-    // 后台管理内嵌页：也盖在最外层（要盖住底部导航），令牌直接交给页面 = 不用再登一次
-    if (showAdmin) {
+    // 后台管理内嵌页：也盖在最外层（要盖住底部导航），令牌直接交给页面 = 不用再登一次。
+    // 外面这层是**编译期**闸：公开包的 AUTHOR_BUILD 恒为 false，整段是死代码
+    // （开 R8 会连 AdminWebScreen 一起摘掉）。作者包里才轮到运行期那层（MeScreen 的 isAuthor）。
+    if (top.ccbase.campus.BuildConfig.AUTHOR_BUILD && showAdmin) {
         top.ccbase.campus.ui.admin.AdminWebScreen(
             ctx = appCtx,
             token = TokenStore.token(appCtx),

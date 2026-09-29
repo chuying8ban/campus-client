@@ -209,7 +209,7 @@ fun LoginScreen(
         Spacer(Modifier.height(8.dp))
         Text(
             "用你的学号和教务系统密码登录一次。密码只用来登录教务系统验证身份\n"
-                + "输入不回显、服务器也不回显；AES-GCM 加密保存、不写日志，"
+                + "输入时不显示明文；密码 AES-GCM 加密保存在服务器上，仅用于代你登录教务，"
                 + "在「我的」→「安全与隐私」看细则，或随时一键删除。",
             fontSize = 13.sp, lineHeight = 21.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),

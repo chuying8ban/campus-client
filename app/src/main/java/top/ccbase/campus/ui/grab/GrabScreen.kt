@@ -42,7 +42,8 @@ import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 
 /**
- * 抢课页（只对作者出现 —— 服务端仍然会拿 can_grab 拦一道）。
+ * 抢课页（**测试功能**：底部栏那一格按服务端给的 can_grab 显隐，页顶有免责说明；
+ * 服务端仍然会拿 can_grab 再拦一道）。
  *
  * 这一页要做三件事：**看见**（哪些课现在能拿）、**盯住**（加入监控）、
  * **随时能停**（移除目标 / 关掉自动提交）。
@@ -73,6 +74,8 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     var busy by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<GrabLogic.Notice?>(null) }
     var showAllLogs by remember { mutableStateOf(false) }
+    /** 页顶那段免责说明展开没有（默认收起：话要说清，但不能挡住下面的操作） */
+    var showDisclaimer by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
     var sheetTarget by remember { mutableStateOf<GrabTarget?>(null) }
     /**
@@ -317,6 +320,41 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
+
+            // ── 页顶免责：抢课是测试功能，先把"它做到哪、做不到哪、出事谁担"说清楚。
+            // 默认只占一行，点「展开」看全文（和下面「最近动作」那个展开/收起同一套写法）；
+            // 用这一页自己的 Card 装，横向留白跟其它块一致（22.dp）。
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 22.dp, end = 22.dp, top = 14.dp),
+            ) {
+                Card {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                GrabLogic.DISCLAIMER_HEAD,
+                                color = C.amber, fontSize = 12.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                if (showDisclaimer) "收起" else "展开",
+                                color = C.cyan, fontSize = 11.sp,
+                                modifier = Modifier
+                                    .clickable { showDisclaimer = !showDisclaimer }
+                                    .padding(4.dp),
+                            )
+                        }
+                        if (showDisclaimer) {
+                            Text(
+                                GrabLogic.DISCLAIMER_BODY,
+                                color = C.txt2, fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
 
             // ── 状态行：我们的监控 / 教务登录，分开说
             val dot = when (GrabLogic.statusLevel(status)) {
@@ -655,8 +693,8 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                         Text(GrabLogic.AUTO_SUBMIT_NOTE, color = C.txt3, fontSize = 11.sp,
                             modifier = Modifier.padding(top = 10.dp))
                         Text(
-                            "「冲突就不许抢」这条：客户端过滤挡不住抓包 —— " +
-                                "服务端待办（自动提交前重判 clash_of，有冲突则拒绝并写日志）尚未实现。",
+                            "「冲突就不许抢」这条目前只在 App 里过滤；服务端还没有做提交前重判，" +
+                                "所以用第三方工具直接调接口仍可能提交上冲突的课。",
                             color = C.txt3, fontSize = 10.sp,
                             modifier = Modifier.padding(top = 6.dp),
                         )

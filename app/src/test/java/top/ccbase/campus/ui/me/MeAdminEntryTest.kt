@@ -143,8 +143,8 @@ class MeAdminEntryTest {
 
     @Test
     fun `作者能看到抢课入口_点了进抢课页`() {
-        // 用户 2026-09-20：「把我的主页面的抢课隐藏一下，放到后台去」——
-        // 底部栏不再摆那一格，入口收进「我的 → 后台」这一节（和后台管理并排）。
+        // 2026-09-29 口径：抢课是**测试功能**，底部栏那一格按 can_grab 显隐；
+        // 「我的 → 后台」这一节里也留一个入口（同一个 can_grab 判据，两条路都通）。
         var opened = 0
         render(isAuthor = true, canGrab = true, onOpenGrab = { opened++ })
         rule.waitUntil(20_000) { has("抢课") }
@@ -154,7 +154,9 @@ class MeAdminEntryTest {
 
     @Test
     fun `非作者连抢课这两个字都看不到`() {
-        // 2026-09-17 用户要求：别让同学知道有这功能（这一页当年为此删过一行「抢课功能」）。
+        // 判据是服务端的 can_grab，不是"是不是作者"：render 里 canGrab = false，
+        // 所以这一节里不该长出抢课入口。（这一页当年为此删过一行「抢课功能」——
+        // 那行等于对所有人宣布功能存在，跟"测试功能、按权限开放"对不上。）
         render(isAuthor = false, canGrab = false)
         waitStable()
         assertTrue("同学那边不该出现「抢课」两个字", !has("抢课"))
