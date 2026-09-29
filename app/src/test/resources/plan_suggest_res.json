@@ -1,0 +1,65 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "title": "刷算法题",
+      "track": "自学",
+      "why": "你想加强编程",
+      "priority": 1,
+      "cadence": "weekly",
+      "weekday": 3,
+      "steps": [
+        "每天一题",
+        "周末复盘错题"
+      ],
+      "deliverable": "20 题记录",
+      "key": "688aa7f8ac32",
+      "resources": [
+        {
+          "kind": "video",
+          "title": "算法入门 第 1 讲 复杂度与数组",
+          "url": "https://www.bilibili.com/video/BV1xx411c7mD",
+          "why": "你偏好看视频，这一讲正好从零讲复杂度",
+          "source": "bilibili",
+          "http": 200,
+          "embed": 0
+        },
+        {
+          "kind": "course",
+          "title": "数据结构与算法 公开课",
+          "url": "https://www.icourse163.org/course/XYZ-1001",
+          "why": "和你课表里的数据结构能对上",
+          "source": "icourse163",
+          "http": 200,
+          "embed": 0
+        }
+      ]
+    },
+    {
+      "title": "背单词",
+      "track": "自学",
+      "why": "形式偏好里有英语",
+      "priority": 3,
+      "cadence": "daily",
+      "weekday": null,
+      "steps": [
+        "每天 20 个"
+      ],
+      "deliverable": "",
+      "key": "460088c96617",
+      "resources": [
+        {
+          "kind": "podcast",
+          "title": "英语听力电台",
+          "url": "https://www.ximalaya.com/album/123456",
+          "why": "",
+          "source": "ximalaya",
+          "embed": 0
+        }
+      ]
+    }
+  ],
+  "source": "ai",
+  "reason": "",
+  "phase": "AI 规划"
+}

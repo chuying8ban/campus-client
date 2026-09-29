@@ -1,0 +1,13 @@
+// 顶层构建文件留空即可。
+//
+// 插件**版本**统一在 app/build.gradle 的 plugins {} 里声明（AGP 8.9.1 / Kotlin 2.0.21 /
+// compose 插件 2.0.21），仓库由 settings.gradle 的
+// pluginManagement + dependencyResolutionManagement 提供。
+//
+// 坑（silence-demo 踩过 + 本工程复现过）：
+// 不要用 `buildscript { classpath ... }` + `apply plugin:` 来挂 Compose 插件 ——
+// `kotlin-compose-compiler-plugin-embeddable` 挂在 classpath 上**不会**注册
+// Gradle 插件 id `org.jetbrains.kotlin.plugin.compose`，报
+// "Plugin with id 'org.jetbrains.kotlin.plugin.compose' not found"。
+// 正确做法是 plugins DSL（它靠插件标记 pom 解析），坐标是
+// org.jetbrains.kotlin:compose-compiler-gradle-plugin。

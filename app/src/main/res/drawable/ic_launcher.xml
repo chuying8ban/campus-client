@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 矢量图标：深紫底 + 一栋教学楼剪影 + 顶上一道光（紫蓝赛博，跟 App 主色一致） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 底 -->
+    <path
+        android:fillColor="#1B1033"
+        android:pathData="M0,0 h108 v108 h-108 z" />
+
+    <!-- 顶部光晕 -->
+    <path
+        android:fillColor="#33A06BFF"
+        android:pathData="M54,14 m-30,0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" />
+
+    <!-- 主楼 -->
+    <path
+        android:fillColor="#A06BFF"
+        android:pathData="M30,46 h48 v44 h-48 z" />
+
+    <!-- 楼顶 -->
+    <path
+        android:fillColor="#C8A6FF"
+        android:pathData="M26,40 h56 v8 h-56 z" />
+
+    <!-- 窗（挖空） -->
+    <path
+        android:fillColor="#1B1033"
+        android:pathData="M38,56 h10 v10 h-10 z M60,56 h10 v10 h-10 z M38,74 h10 v10 h-10 z M60,74 h10 v10 h-10 z" />
+
+    <!-- 门 -->
+    <path
+        android:fillColor="#1B1033"
+        android:pathData="M49,76 h10 v14 h-10 z" />
+
+</vector>

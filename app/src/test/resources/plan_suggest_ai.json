@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "title": "刷算法题",
+      "track": "自学",
+      "why": "你想加强编程",
+      "priority": 1,
+      "cadence": "weekly",
+      "weekday": 3,
+      "steps": [
+        "每天一题",
+        "周末复盘错题"
+      ],
+      "deliverable": "20 题记录",
+      "key": "688aa7f8ac32"
+    },
+    {
+      "title": "背单词",
+      "track": "自学",
+      "why": "形式偏好里有英语",
+      "priority": 3,
+      "cadence": "daily",
+      "weekday": null,
+      "steps": [
+        "每天 20 个"
+      ],
+      "deliverable": "",
+      "key": "460088c96617"
+    }
+  ],
+  "source": "ai",
+  "reason": "",
+  "phase": "AI 规划"
+}

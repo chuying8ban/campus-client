@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自动更新下载的 APK 放在 filesDir/update/ 下，安装时通过 FileProvider 交给系统安装器。
+  Android 7 起禁止把 file:// URI 直接给别的应用（FileUriExposedException），所以必须走这里。
+
+  为什么是 files-path 而不是 cache-path：断点续传的半包和元数据（`*.part` / `*.part.json`）
+  必须"下次打开 App 还在"，而 cacheDir 里的一切都可能被系统随时清掉 —— 那等于把续传能力
+  交给系统心情。所以整个 update/ 目录都放在 filesDir 下（见 Updater.destFile）。
+-->
+<paths>
+    <files-path name="update" path="update/" />
+    <!-- 老包（1.60-T1 及以前）装到了 cacheDir/update/，留着这条，升级路径上就不会出现
+         "安装器打不开这个文件"。下一个大版本可以删掉。 -->
+    <cache-path name="update_cache" path="update/" />
+</paths>

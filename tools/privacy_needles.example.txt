@@ -1,0 +1,18 @@
+# 发行包隐私体检的 needle 清单示例 —— 复制到仓外再填真实值：
+#     mkdir -p ~/.config/study-native && cp tools/privacy_needles.example.txt ~/.config/study-native/privacy_needles.txt
+#     chmod 600 ~/.config/study-native/privacy_needles.txt
+# 这个文件里**不许出现任何真实姓名/学号/班级**（它是公开仓的一部分）。
+# 格式：每行一个词；空行与 `#` 开头忽略；行首前缀决定档位（不写前缀 = HARD）。
+#
+# HARD   —— 本人标识。命中即 exit 1，发布闸门在这里停下。
+# REPORT —— 学校名/城市名/「学号」这类词：产品身份，不是个人数据，只报告不拦。
+#
+# 用法：python3 tools/privacy_scan.py dist/campus-x.y.apk
+#       名单缺失或为空时脚本直接退出 2（不静默放行）。
+
+HARD <你的姓名>
+HARD <你的学号>
+HARD <你的班级>
+REPORT <学校名>
+REPORT <城市名>
+REPORT 学号

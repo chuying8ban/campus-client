@@ -1,0 +1,36 @@
+# study-native .gitignore
+# 目的：APK 反推/解包产物体积大（decompiled-1.84 = 286MB），绝不进版本库。
+
+# —— 反编译 / 解包产物 ——
+audit/decompiled*/
+artifacts/x/
+artifacts/*.apk
+*.dex
+*.arsc
+
+# —— 构建 / 缓存 ——
+build/
+dist/
+.gradle/
+/local.properties
+*.iml
+.idea/
+
+# —— 本地产物与密钥（有则绝不入库）——
+*.jks
+*.keystore
+keystore.properties
+.env
+
+# —— 部署/运维脚本（含生产机地址与私钥路径，不进版本库）——
+tools/publish.sh
+
+# —— 系统噪音 ——
+.DS_Store
+__pycache__/
+*.pyc
+
+# 保留：真源码目录（app/src/**/*.kt、gradle 脚本、kotlin-tooling-metadata.json 等）不在此列。
+
+# —— 内部审计脚本（含旧站坐标，对 clone 的人零价值）——
+tools/audit.py

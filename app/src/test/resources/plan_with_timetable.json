@@ -1,0 +1,121 @@
+{
+ "courses": [
+  {
+   "id": 501,
+   "name": "数学分析（I）",
+   "short": null,
+   "credits": 5.0,
+   "teacher": "张老师",
+   "category": null,
+   "week_from": 3,
+   "is_focus": 1,
+   "target": null,
+   "note": null,
+   "sort": 1
+  },
+  {
+   "id": 502,
+   "name": "大学体育I（必修项目）",
+   "short": null,
+   "credits": 1.0,
+   "teacher": "李老师",
+   "category": null,
+   "week_from": 4,
+   "is_focus": 0,
+   "target": null,
+   "note": null,
+   "sort": 2
+  }
+ ],
+ "slots": [
+  {
+   "id": 601,
+   "course_id": 501,
+   "weekday": 1,
+   "p_start": 1,
+   "time_text": "09:30-11:05",
+   "room": "C5-301",
+   "week_from": 3,
+   "sort": 1
+  },
+  {
+   "id": 602,
+   "course_id": 502,
+   "weekday": 3,
+   "p_start": 5,
+   "time_text": "13:05-13:50",
+   "room": "足球场",
+   "week_from": 4,
+   "sort": 2
+  }
+ ],
+ "tasks": [
+  {
+   "id": 701,
+   "phase": "本学期",
+   "phase_order": 1,
+   "title": "数学分析（I）作业",
+   "detail": null,
+   "course_id": 501,
+   "track": null,
+   "priority": 1,
+   "cadence": "weekly",
+   "weekday": null,
+   "deliverable": "演示条目175：复盘昨天没弄懂的点",
+   "active": 1,
+   "sort": 1
+  }
+ ],
+ "study_steps": [
+  {
+   "id": 801,
+   "task_id": 701,
+   "seq": 1,
+   "text": "看视频",
+   "minutes": 30,
+   "kind": "video",
+   "done_day": null
+  }
+ ],
+ "resources": [
+  {
+   "id": 901,
+   "task_id": 701,
+   "kind": "video",
+   "title": "讲师甲数学分析（I）",
+   "url": "https://example.com",
+   "source": "示例站点",
+   "why": null,
+   "http": 200,
+   "embed": 1,
+   "sort": 1
+  }
+ ],
+ "checklist": [
+  {
+   "id": 1001,
+   "item": "挂科了吗"
+  }
+ ],
+ "milestones": [
+  {
+   "id": 1101,
+   "when_text": "2026 秋",
+   "sort": 1
+  }
+ ],
+ "selfstudy": [],
+ "meta": {
+  "semester_start": "2026-08-31"
+ },
+ "timetable": {
+  "checked_at": "2026-09-18T11:40:00",
+  "courses": 11,
+  "error": "",
+  "slots": 19,
+  "source": "示例站点",
+  "status": "ok",
+  "updated_at": "2026-09-18T06:21:03",
+  "version": "9f3c1a2b4d5e6f70"
+ }
+}

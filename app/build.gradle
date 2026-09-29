@@ -1,0 +1,134 @@
+plugins {
+    // 插件版本必须在这里显式写（plugins DSL 靠插件标记 pom 解析，见根 build.gradle 的注释）
+    id 'com.android.application' version '8.9.1'
+    id 'org.jetbrains.kotlin.android' version '2.0.21'
+    id 'org.jetbrains.kotlin.plugin.compose' version '2.0.21'
+    // KSP 版本号必须跟 Kotlin 严格配对（<kotlin>-<ksp>）
+    id 'com.google.devtools.ksp' version '2.0.21-1.0.28'
+    // 同属 Kotlin 插件族，随 Kotlin 版本走
+    id 'org.jetbrains.kotlin.plugin.serialization' version '2.0.21'
+}
+
+// 服务端地址由**本机配置**注入，公开仓不含任何后端坐标：
+//   ./gradlew assembleRelease                      → 本机 local.properties 里的 apiBase（正式包）
+//   ./gradlew assembleRelease -PapiBase=https://xxx.trycloudflare.com  → 测试隧道
+// 为什么必须这样：以前是 const val 手改，改漏一次就是"全班装上登录不了"——
+// 而且这种错在编译期完全不报，只能靠抽查 dex。现在缺了就**直接失败**，不给"打出空地址的包"留机会。
+def _localProps = new Properties()
+def _localPropsFile = rootProject.file("local.properties")
+if (_localPropsFile.exists()) { _localPropsFile.withInputStream { _localProps.load(it) } }
+def apiBaseValue = (project.findProperty("apiBase") ?: _localProps.getProperty("apiBase") ?: "").toString().trim()
+if (apiBaseValue.isEmpty()) {
+    throw new GradleException("缺少 apiBase：请在本机 local.properties 写一行 apiBase=https://<你的后端>，或传 -PapiBase=…（公开仓不含作者的后端地址）")
+}
+
+def signingStorePass = (System.getenv("CAMPUS_STORE_PASS") ?: _localProps.getProperty("campusStorePass") ?: "").toString().trim()
+def signingKeyPass = (System.getenv("CAMPUS_KEY_PASS") ?: _localProps.getProperty("campusKeyPass") ?: "").toString().trim()
+
+android {
+    namespace 'top.ccbase.campus'
+    compileSdk 34
+
+    defaultConfig {
+        buildConfigField "String", "API_BASE", "\"${apiBaseValue}\""
+        applicationId "top.ccbase.campus"
+        minSdk 26
+        targetSdk 34
+        versionCode 63
+        versionName "1.84"
+    }
+
+    // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）
+    // 口令不进版本库：环境变量 CAMPUS_STORE_PASS / CAMPUS_KEY_PASS，或本机 local.properties
+    // （已 gitignore）里的 campusStorePass / campusKeyPass。
+    signingConfigs {
+        campus {
+            storeFile rootProject.file(System.getenv("CAMPUS_KEYSTORE") ?: _localProps.getProperty("campusKeystore") ?: "campus.keystore")
+            storePassword signingStorePass
+            keyAlias System.getenv("CAMPUS_KEY_ALIAS") ?: "campus"
+            keyPassword signingKeyPass
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.campus
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+
+    buildFeatures {
+        buildConfig = true
+        compose true
+        // AGP 8 起 BuildConfig 默认关闭，要显式开（MainActivity 用 BuildConfig.VERSION_NAME）
+        buildConfig true
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric 要能读到 App 的资源/manifest
+            includeAndroidResources = true
+            all {
+                // Robolectric 运行时要去 Maven 下 android-all jar；走阿里镜像，别从原站慢慢等
+                systemProperty 'robolectric.dependency.repo.id', 'aliyun'
+                systemProperty 'robolectric.dependency.repo.url', 'https://maven.aliyun.com/repository/public'
+                // JDK17 模块访问：测试里既有 Robolectric 的沙箱（会 instrument InetAddress），
+                // 又有真实 socket 的握手。沙箱版 InetAddress 会去反射 java.net 的内部类，
+                // 不开这个就会偶发 "module java.base does not opens java.net to unnamed module"
+                // （表现为随机某条测试失败 —— 见过的有真实 socket 的用例、也有 Compose 语义树用例）
+                jvmArgs '--add-opens=java.base/java.net=ALL-UNNAMED'
+                // 真实 TLS 测试要用**默认** SSLContext（生产就是这么用的），所以把测试自签证书
+                // 放进测试 JVM 的信任库，让默认上下文信任它；生产上这里就是系统信任库
+                systemProperty 'javax.net.ssl.trustStore', "$projectDir/src/test/resources/tls_trust.p12"
+                systemProperty 'javax.net.ssl.trustStorePassword', 'changeit'
+                jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation platform('androidx.compose:compose-bom:2024.09.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.9.2'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6'
+
+    // 本地库：离线那一半（课表/自习/任务/打卡）都住这里，飞行模式下也要能用
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
+    // Custom Tabs：学习资源外链在 App 内滑出（保留 B 站登录态与完整播放器）
+    implementation 'androidx.browser:browser:1.8.0'
+
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // JVM 上跑的真测试（Robolectric）——本机没设备/模拟器，这是唯一能"真跑一遍"的路
+    // Compose 渲染冒烟测试：在 JVM 上真渲染每个页面（本机没模拟器）
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.13'
+    testImplementation 'androidx.test:core:1.6.1'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1'
+}
+
+// 打 release 包前检查签名口令（公开仓不含默认口令；缺了在 configuration 期就拦下）
+gradle.taskGraph.whenReady { graph ->
+    def wantsRelease = graph.allTasks.any { it.name.toLowerCase().contains("release") }
+    if (wantsRelease && (signingStorePass.isEmpty() || signingKeyPass.isEmpty())) {
+        throw new GradleException("缺少签名口令：设置环境变量 CAMPUS_STORE_PASS / CAMPUS_KEY_PASS，"
+                + "或在本机 local.properties 写 campusStorePass=… / campusKeyPass=…（公开仓不含签名口令）")
+    }
+}

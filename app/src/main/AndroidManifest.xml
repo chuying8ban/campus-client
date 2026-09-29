@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 自动静音 / 课前提醒所需的权限 -->
+    <!-- 联网：登录教务验证、拉自己的课表、手动更新。
+         少了这一条，App 里所有网络请求都会直接抛异常（界面显示"网络异常"），
+         而且这个洞在纯离线测试里完全看不出来。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- 电池白名单：声明了它才能用 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 直接弹
+         「是否允许后台常驻」的系统窗；没声明的话那条跳转会抛异常，只能退回列表页自己找 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 应用内自动更新：没有这一条，下载完的 APK 拉不起系统安装器（会静默失败，
+         用户在界面上只看到"没能拉起安装器"，很难猜到是少了权限声明）。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application
+        android:name=".CampusApplication"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Campus">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Campus">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- 闹钟到点由系统唤醒，无需 App 在运行 -->
+        <receiver
+            android:name=".alarm.NudgeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="top.ccbase.campus.REMIND" />
+                <action android:name="top.ccbase.campus.SILENCE" />
+                <action android:name="top.ccbase.campus.UNSILENCE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 重启后 AlarmManager 里的闹钟会被清空，必须自己重排 -->
+        <receiver
+            android:name=".alarm.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 手机直接提醒：闹钟到点唤醒查一次新的余位提醒（App 不必常驻后台） -->
+        <receiver
+            android:name=".alarm.GrabWatchReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="top.ccbase.campus.GRAB_WATCH" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 自动更新：把 cacheDir/update/*.apk 交给系统安装器（Android 7 起必须走 FileProvider） -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+
+</manifest>

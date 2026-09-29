@@ -1,0 +1,2545 @@
+{
+ "version": 1,
+ "source": "示例站点",
+ "note": "课程模板用于按课表自动补齐；模块包由学生自己勾选；两者内容都可在 App 里改。",
+ "courses": {
+  "数学分析（I）": {
+   "display_name": "数学分析（I）",
+   "base_name": "数学分析（I）",
+   "aliases": [
+    "数学分析(I)",
+    "数学分析（I）",
+    "数学分析（I）"
+   ],
+   "category": "学科基础课",
+   "credits": 6.0,
+   "is_exam_heavy": true,
+   "tasks": [
+    {
+     "title": "数学分析（I）：每次课后当天做 10 道对应习题",
+     "detail": "演示条目204：把示例代码自己敲一遍",
+     "track": "正课",
+     "priority": 1,
+     "cadence": "per-class",
+     "weekday": 1,
+     "deliverable": "演示条目248：做配套练习 3~5 题",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "看讲师甲对应本章节的课（1.5 倍速），只看到本节结束就停",
+       "minutes": 35,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目403：读教材对应章节",
+       "minutes": 15,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目270：整理笔记与错题",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目159：把示例代码自己敲一遍",
+       "minutes": 10,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "《数学分析（I）》同济版 2024年更新｜讲师甲老师（B站全套系统课）",
+       "url": "https://example.com/demo/626",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "数学分析（I）上册 750题（讲师甲老师｜配套习题逐题讲解合集）",
+       "url": "https://example.com/demo/302",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数学分析（I）（一）_同济大学_中国大学MOOC",
+       "url": "https://example.com/demo/387",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "同济大学 数学分析（I）同步课堂（在线练习/自测，含期末真题）",
+       "url": "https://example.com/demo/955",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "doc",
+       "title": "讲师甲老师数学官方网站（全部公开课导航）",
+       "url": "https://example.com/demo/619",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "数学分析（I）：每周一套近 5 年期末真题",
+     "detail": "11 月起执行。真题找高年级同学要，或问老师班上有没有统一印。",
+     "track": "正课",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": 7,
+     "deliverable": "演示条目302：复盘昨天没弄懂的点",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目271：把示例代码自己敲一遍",
+       "minutes": 120,
+       "kind": "practice"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目241：看课程视频对应章节",
+       "minutes": 30,
+       "kind": "produce"
+      },
+      {
+       "seq": 3,
+       "text": "回看讲师甲对应章节的讲解，专攻失分最多的那一章",
+       "minutes": 40,
+       "kind": "watch"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目143：做配套练习 3~5 题",
+       "minutes": 25,
+       "kind": "practice"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "《数学分析（I）》同济版 2024年更新｜讲师甲老师（B站全套系统课）",
+       "url": "https://example.com/demo/626",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "数学分析（I）上册 750题（讲师甲老师｜配套习题逐题讲解合集）",
+       "url": "https://example.com/demo/302",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数学分析（I）（一）_同济大学_中国大学MOOC",
+       "url": "https://example.com/demo/387",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "同济大学 数学分析（I）同步课堂（在线练习/自测，含期末真题）",
+       "url": "https://example.com/demo/955",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "doc",
+       "title": "讲师甲老师数学官方网站（全部公开课导航）",
+       "url": "https://example.com/demo/619",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "找高年级同学要数学分析（I）近 5 年期末真题",
+     "detail": null,
+     "track": "手续",
+     "priority": 2,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目265：读教材对应章节",
+     "phase": "本学期",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "《数学分析（I）》同济版 2024年更新｜讲师甲老师（B站全套系统课）",
+       "url": "https://example.com/demo/626",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "数学分析（I）上册 750题（讲师甲老师｜配套习题逐题讲解合集）",
+       "url": "https://example.com/demo/302",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数学分析（I）（一）_同济大学_中国大学MOOC",
+       "url": "https://example.com/demo/387",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "同济大学 数学分析（I）同步课堂（在线练习/自测，含期末真题）",
+       "url": "https://example.com/demo/955",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "doc",
+       "title": "讲师甲老师数学官方网站（全部公开课导航）",
+       "url": "https://example.com/demo/619",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  "程序设计基础（B）": {
+   "display_name": "程序设计基础（B）",
+   "base_name": "程序设计基础（B）",
+   "aliases": [
+    "程序设计B",
+    "程序设计基础（B）",
+    "程序设计基础（B）"
+   ],
+   "category": "专业基础课",
+   "credits": 4.0,
+   "is_exam_heavy": true,
+   "tasks": [
+    {
+     "title": "程序设计基础（B）：超前课程 1~2 周",
+     "detail": "演示条目406：自测一遍并记录结果",
+     "track": "正课",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": 4,
+     "deliverable": "演示条目303：整理笔记与错题",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "看讲师丙下周要讲的那部分视频（浙大 MOOC 版最系统）",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目395：看课程视频对应章节",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "PTA 或在线题库上找对应知识点的题做 3~5 道",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目254：自测一遍并记录结果",
+       "minutes": 15,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "course",
+       "title": "程序设计基础（B）程序设计_浙江大学（讲师丙）_中国大学MOOC",
+       "url": "https://example.com/demo/007",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目033：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/367",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目072：做配套练习 3~5 题",
+       "url": "https://example.com/demo/165",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "在线题库 题目列表（在线刷题、自动评测）",
+       "url": "https://example.com/demo/971",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "【程序设计基础（B）/C++】图书管理系统！不到两小时轻松搞定期末课设",
+       "url": "https://example.com/demo/724",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "程序设计基础（B）：期末独立写出 200 行以上程序",
+     "detail": "演示条目439：读教材对应章节",
+     "track": "正课",
+     "priority": 1,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目197：把示例代码自己敲一遍",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目163：读教材对应章节",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目363：把示例代码自己敲一遍",
+       "minutes": 60,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目238：整理笔记与错题",
+       "minutes": 180,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目116：把示例代码自己敲一遍",
+       "minutes": 120,
+       "kind": "produce"
+      },
+      {
+       "seq": 5,
+       "text": "演示条目141：做配套练习 3~5 题",
+       "minutes": 30,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "course",
+       "title": "程序设计基础（B）程序设计_浙江大学（讲师丙）_中国大学MOOC",
+       "url": "https://example.com/demo/007",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目033：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/367",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目072：做配套练习 3~5 题",
+       "url": "https://example.com/demo/165",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "在线题库 题目列表（在线刷题、自动评测）",
+       "url": "https://example.com/demo/971",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "【程序设计基础（B）/C++】图书管理系统！不到两小时轻松搞定期末课设",
+       "url": "https://example.com/demo/724",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "程序设计基础（B）加练：攒够 20 个能跑的 .c 文件",
+     "detail": "演示条目304：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": 4,
+     "deliverable": "演示条目089：看课程视频对应章节",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目146：自测一遍并记录结果",
+       "minutes": 10,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目429：整理笔记与错题",
+       "minutes": 25,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "在线题库入门难度做 1~2 题",
+       "minutes": 25,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目226：把示例代码自己敲一遍",
+       "minutes": 5,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "course",
+       "title": "程序设计基础（B）程序设计_浙江大学（讲师丙）_中国大学MOOC",
+       "url": "https://example.com/demo/007",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目033：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/367",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目072：做配套练习 3~5 题",
+       "url": "https://example.com/demo/165",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "在线题库 题目列表（在线刷题、自动评测）",
+       "url": "https://example.com/demo/971",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "【程序设计基础（B）/C++】图书管理系统！不到两小时轻松搞定期末课设",
+       "url": "https://example.com/demo/724",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  "通用英语": {
+   "display_name": "通用英语",
+   "base_name": "通用英语",
+   "aliases": [
+    "通用英语",
+    "英语"
+   ],
+   "category": "通识必修",
+   "credits": 5.0,
+   "is_exam_heavy": false,
+   "tasks": [
+    {
+     "title": "演示条目367：读教材对应章节",
+     "detail": "演示条目313：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 2,
+     "cadence": "daily",
+     "weekday": null,
+     "deliverable": "演示条目210：把示例代码自己敲一遍",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目354：复盘昨天没弄懂的点",
+       "minutes": 20,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目341：自测一遍并记录结果",
+       "minutes": 20,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目253：把示例代码自己敲一遍",
+       "minutes": 10,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "英语真题在线 · 通用英语四级真题（PDF下载 + 在线听力音频 + 答案解析）",
+       "url": "https://example.com/demo/167",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目413：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/781",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目207：看课程视频对应章节",
+       "url": "https://example.com/demo/226",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "通用英语四级听力练习 - 可可英语",
+       "url": "https://example.com/demo/109",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "2025年6月通用英语四级听力音频（真题音频合集）",
+       "url": "https://example.com/demo/906",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "modules": [
+  {
+   "id": "tools",
+   "name": "开发环境与工具",
+   "desc": "把电脑用顺：命令行、版本控制、键盘速度。入门门槛最低，回报最快。",
+   "tasks": [
+    {
+     "title": "演示条目058：复盘昨天没弄懂的点",
+     "detail": "演示条目222：自测一遍并记录结果",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": 2,
+     "deliverable": "演示条目355：复盘昨天没弄懂的点",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目329：整理笔记与错题",
+       "minutes": 40,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目157：自测一遍并记录结果",
+       "minutes": 30,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目318：复盘昨天没弄懂的点",
+       "minutes": 15,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目142：做配套练习 3~5 题",
+       "minutes": 20,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目379：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/967",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目081：整理笔记与错题",
+       "url": "https://example.com/demo/691",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目051：看课程视频对应章节",
+       "url": "https://example.com/demo/628",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目380：看课程视频对应章节",
+       "url": "https://example.com/demo/741",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目083：读教材对应章节",
+       "url": "https://example.com/demo/621",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目049：做配套练习 3~5 题",
+     "detail": "演示条目373：把示例代码自己敲一遍",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": 4,
+     "deliverable": "演示条目103：把示例代码自己敲一遍",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目392：自测一遍并记录结果",
+       "minutes": 40,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目055：整理笔记与错题",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目349：看课程视频对应章节",
+       "minutes": 20,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目422：读教材对应章节",
+       "minutes": 15,
+       "kind": "read"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目047：整理笔记与错题",
+       "url": "https://example.com/demo/283",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目056：整理笔记与错题",
+       "url": "https://example.com/demo/100",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目073：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/978",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目048：自测一遍并记录结果",
+       "url": "https://example.com/demo/154",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目324：做配套练习 3~5 题",
+     "detail": "演示条目375：自测一遍并记录结果",
+     "track": "自学",
+     "priority": 3,
+     "cadence": "daily",
+     "weekday": null,
+     "deliverable": "演示条目323：自测一遍并记录结果",
+     "phase": "本学期",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目160：读教材对应章节",
+       "minutes": 10,
+       "kind": "practice"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目156：复盘昨天没弄懂的点",
+       "minutes": 10,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目256：把示例代码自己敲一遍",
+       "minutes": 2,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "演示条目219：做配套练习 3~5 题",
+       "url": "https://example.com/demo/273",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目430：做配套练习 3~5 题",
+       "url": "https://example.com/demo/907",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目084：做配套练习 3~5 题",
+       "url": "https://example.com/demo/918",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目251：看课程视频对应章节",
+       "url": "https://example.com/demo/217",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目218：看课程视频对应章节",
+       "url": "https://example.com/demo/736",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目045：看课程视频对应章节",
+     "detail": null,
+     "track": "自学",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目319：做配套练习 3~5 题",
+     "phase": "大一下",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目047：整理笔记与错题",
+       "url": "https://example.com/demo/283",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目056：整理笔记与错题",
+       "url": "https://example.com/demo/100",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目073：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/978",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目048：自测一遍并记录结果",
+       "url": "https://example.com/demo/154",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lang",
+   "name": "编程语言基础",
+   "desc": "Python 从零到能用，再到数据处理；顺带把面向对象搞明白。",
+   "tasks": [
+    {
+     "title": "演示条目075：读教材对应章节",
+     "detail": "演示条目387：整理笔记与错题",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目106：看课程视频对应章节",
+     "phase": "寒假",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目327：复盘昨天没弄懂的点",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目172：自测一遍并记录结果",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目393：做配套练习 3~5 题",
+       "minutes": 30,
+       "kind": "read"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目174：自测一遍并记录结果",
+       "minutes": 40,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目440：整理笔记与错题",
+       "url": "https://example.com/demo/664",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目243：整理笔记与错题",
+       "url": "https://example.com/demo/601",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目099：做配套练习 3~5 题",
+       "url": "https://example.com/demo/625",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目076：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/441",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目074：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/166",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目077：复盘昨天没弄懂的点",
+     "detail": "演示条目266：做配套练习 3~5 题",
+     "track": "自学",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目111：把示例代码自己敲一遍",
+     "phase": "大一下",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目440：整理笔记与错题",
+       "url": "https://example.com/demo/664",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目243：整理笔记与错题",
+       "url": "https://example.com/demo/601",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目099：做配套练习 3~5 题",
+       "url": "https://example.com/demo/625",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目076：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/441",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目074：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/166",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目434：自测一遍并记录结果",
+     "detail": "演示条目416：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目321：读教材对应章节",
+     "phase": "大二上",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目242：读教材对应章节",
+       "url": "https://example.com/demo/200",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目441：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/223",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目054：看课程视频对应章节",
+       "url": "https://example.com/demo/257",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目053：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/002",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目052：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/813",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dsa",
+   "name": "数据结构与算法",
+   "desc": "这门是计算机专业的分水岭。先修打底，再刷题把手感练出来。",
+   "tasks": [
+    {
+     "title": "数据结构先修：讲师乙《数据结构》前 5 章",
+     "detail": "演示条目347：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目315：读教材对应章节",
+     "phase": "寒假",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "看讲师乙对应章节的课（清华课堂录像）",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目317：看课程视频对应章节",
+       "minutes": 20,
+       "kind": "watch"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目362：看课程视频对应章节",
+       "minutes": 60,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目215：整理笔记与错题",
+       "minutes": 20,
+       "kind": "read"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "【数据结构】清华大学讲师乙数据结构 C/C++（高清，494 集）",
+       "url": "https://example.com/demo/309",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数据结构（上）— 清华大学 · 讲师乙",
+       "url": "https://example.com/demo/854",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目069：做配套练习 3~5 题",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目082：自测一遍并记录结果",
+       "url": "https://example.com/demo/541",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "在线题库简单题刷到 100 道",
+     "detail": "每天 2 道，别贪。大一就在在线题库新手村和官方题单里待着。",
+     "track": "课外",
+     "priority": 2,
+     "cadence": "daily",
+     "weekday": null,
+     "deliverable": "在线题库通过 100 题（截图存档）",
+     "phase": "寒假",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "打开在线题库【入门1】顺序结构题单，做 3~5 题",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目190：自测一遍并记录结果",
+       "minutes": 20,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目383：做配套练习 3~5 题",
+       "minutes": 5,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "在线题库 · 计算机科学教育新生态（官网）",
+       "url": "https://example.com/demo/160",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "在线题库题单广场（官方训练题单总入口）",
+       "url": "https://example.com/demo/175",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "【入门 1】顺序结构（在线题库官方新手题单 #100）",
+       "url": "https://example.com/demo/218",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "能力全面提升综合题单（在线题库 #9391）",
+       "url": "https://example.com/demo/505",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "在线题库题库列表（可按难度/标签筛选）",
+       "url": "https://example.com/demo/971",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目284：自测一遍并记录结果",
+     "detail": "演示条目249：复盘昨天没弄懂的点",
+     "track": "正课",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目250：做配套练习 3~5 题",
+     "phase": "大一下",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "【数据结构】清华大学讲师乙数据结构 C/C++（高清，494 集）",
+       "url": "https://example.com/demo/309",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数据结构（上）— 清华大学 · 讲师乙",
+       "url": "https://example.com/demo/854",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目069：做配套练习 3~5 题",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目082：自测一遍并记录结果",
+       "url": "https://example.com/demo/541",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "systems",
+   "name": "计算机系统",
+   "desc": "计算机组成、操作系统、编译 —— 想知道'程序到底怎么跑起来的'就看这组。",
+   "tasks": [
+    {
+     "title": "演示条目038：读教材对应章节",
+     "detail": "演示条目285：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目042：读教材对应章节",
+     "phase": "大二上",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目325：做配套练习 3~5 题",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目391：自测一遍并记录结果",
+       "minutes": 40,
+       "kind": "read"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目155：整理笔记与错题",
+       "minutes": 90,
+       "kind": "practice"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目258：自测一遍并记录结果",
+       "minutes": 20,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目006：整理笔记与错题",
+       "url": "https://example.com/demo/706",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目139：读教材对应章节",
+       "url": "https://example.com/demo/825",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目036：做配套练习 3~5 题",
+       "url": "https://example.com/demo/960",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目037：读教材对应章节",
+       "url": "https://example.com/demo/135",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目098：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/498",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目070：整理笔记与错题",
+     "detail": "演示条目314：做配套练习 3~5 题",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目104：看课程视频对应章节",
+     "phase": "大二下",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目388：复盘昨天没弄懂的点",
+       "minutes": 50,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目326：看课程视频对应章节",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目389：整理笔记与错题",
+       "minutes": 60,
+       "kind": "read"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目158：看课程视频对应章节",
+       "minutes": 120,
+       "kind": "practice"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目071：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/121",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目065：整理笔记与错题",
+       "url": "https://example.com/demo/914",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目066：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/256",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目088：自测一遍并记录结果",
+       "url": "https://example.com/demo/536",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目064：读教材对应章节",
+       "url": "https://example.com/demo/368",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "database",
+   "name": "数据库实操",
+   "desc": "不止会写 SELECT：建表、索引、事务、慢查询分析。",
+   "tasks": [
+    {
+     "title": "演示条目282：自测一遍并记录结果",
+     "detail": "演示条目312：把示例代码自己敲一遍",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目358：做配套练习 3~5 题",
+     "phase": "大二下",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目216：做配套练习 3~5 题",
+       "minutes": 50,
+       "kind": "practice"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目316：读教材对应章节",
+       "minutes": 30,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目360：整理笔记与错题",
+       "minutes": 40,
+       "kind": "produce"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目394：复盘昨天没弄懂的点",
+       "minutes": 30,
+       "kind": "read"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "演示条目078：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/862",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目079：自测一遍并记录结果",
+       "url": "https://example.com/demo/242",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目371：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/360",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目245：读教材对应章节",
+       "url": "https://example.com/demo/900",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目368：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/828",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "math",
+   "name": "数学加餐",
+   "desc": "离散数学、线性代数 —— 后面算法和机器学习的底气。",
+   "tasks": [
+    {
+     "title": "演示条目333：自测一遍并记录结果",
+     "detail": "演示条目277：整理笔记与错题",
+     "track": "自学",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目179：看课程视频对应章节",
+     "phase": "大一暑假",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目101：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/766",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目335：做配套练习 3~5 题",
+       "url": "https://example.com/demo/416",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目334：自测一遍并记录结果",
+       "url": "https://example.com/demo/072",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目336：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/004",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目332：自测一遍并记录结果",
+       "url": "https://example.com/demo/441",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目345：把示例代码自己敲一遍",
+     "detail": "演示条目247：自测一遍并记录结果",
+     "track": "自学",
+     "priority": 3,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目359：做配套练习 3~5 题",
+     "phase": "大一暑假",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目023：自测一遍并记录结果",
+       "url": "https://example.com/demo/604",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目102：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/900",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目062：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/897",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目063：看课程视频对应章节",
+       "url": "https://example.com/demo/846",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目138：读教材对应章节",
+       "url": "https://example.com/demo/305",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      }
+     ]
+    },
+    {
+     "title": "演示条目346：自测一遍并记录结果",
+     "detail": null,
+     "track": "自学",
+     "priority": 3,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目356：读教材对应章节",
+     "phase": "大二上",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目023：自测一遍并记录结果",
+       "url": "https://example.com/demo/604",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目102：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/900",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目062：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/897",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目063：看课程视频对应章节",
+       "url": "https://example.com/demo/846",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目138：读教材对应章节",
+       "url": "https://example.com/demo/305",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ai",
+   "name": "机器学习与方向深化",
+   "desc": "走大数据/人工智能方向必做；含一个小型可讲清楚的完整项目。",
+   "tasks": [
+    {
+     "title": "演示条目299：做配套练习 3~5 题",
+     "detail": "演示条目201：复盘昨天没弄懂的点",
+     "track": "自学",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目087：整理笔记与错题",
+     "phase": "大二下",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目328：自测一遍并记录结果",
+       "minutes": 60,
+       "kind": "watch"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目091：自测一遍并记录结果",
+       "minutes": 50,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目170：复盘昨天没弄懂的点",
+       "minutes": 30,
+       "kind": "read"
+      },
+      {
+       "seq": 4,
+       "text": "演示条目320：看课程视频对应章节",
+       "minutes": 60,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目009：看课程视频对应章节",
+       "url": "https://example.com/demo/727",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目041：看课程视频对应章节",
+       "url": "https://example.com/demo/370",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目090：读教材对应章节",
+       "url": "https://example.com/demo/699",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目189：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/104",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目080：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/078",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目287：看课程视频对应章节",
+     "detail": null,
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目105：读教材对应章节",
+     "phase": "大三",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "演示条目009：看课程视频对应章节",
+       "url": "https://example.com/demo/727",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目041：看课程视频对应章节",
+       "url": "https://example.com/demo/370",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目090：读教材对应章节",
+       "url": "https://example.com/demo/699",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目189：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/104",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "演示条目080：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/078",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目242：读教材对应章节",
+       "url": "https://example.com/demo/200",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "演示条目441：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/223",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目054：看课程视频对应章节",
+       "url": "https://example.com/demo/257",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目053：复盘昨天没弄懂的点",
+       "url": "https://example.com/demo/002",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目052：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/813",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "web",
+   "name": "前端三件套",
+   "desc": "HTML/CSS/JS，产出物是演示条目108：读教材对应章节。",
+   "tasks": [
+    {
+     "title": "演示条目181：把示例代码自己敲一遍",
+     "detail": "演示条目061：整理笔记与错题",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目108：读教材对应章节",
+     "phase": "大一暑假",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目408：把示例代码自己敲一遍",
+       "minutes": 50,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目086：整理笔记与错题",
+       "minutes": 40,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目361：看课程视频对应章节",
+       "minutes": 50,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目059：整理笔记与错题",
+       "url": "https://example.com/demo/169",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "course",
+       "title": "演示条目060：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/667",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目370：整理笔记与错题",
+       "url": "https://example.com/demo/954",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目246：读教材对应章节",
+       "url": "https://example.com/demo/177",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目085：自测一遍并记录结果",
+       "url": "https://example.com/demo/480",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "engineering",
+   "name": "工程化与项目实践",
+   "desc": "让代码变成'能交付的东西'：容器化、测试、部署、完整项目。",
+   "tasks": [
+    {
+     "title": "演示条目095：整理笔记与错题",
+     "detail": "演示条目153：整理笔记与错题",
+     "track": "正课",
+     "priority": 1,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目357：做配套练习 3~5 题",
+     "phase": "大一暑假",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "video",
+       "title": "【数据结构】清华大学讲师乙数据结构 C/C++（高清，494 集）",
+       "url": "https://example.com/demo/309",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "course",
+       "title": "数据结构（上）— 清华大学 · 讲师乙",
+       "url": "https://example.com/demo/854",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目069：做配套练习 3~5 题",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目082：自测一遍并记录结果",
+       "url": "https://example.com/demo/541",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目417：读教材对应章节",
+     "detail": "演示条目351：看课程视频对应章节",
+     "track": "课外",
+     "priority": 1,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目107：把示例代码自己敲一遍",
+     "phase": "大一暑假",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目059：整理笔记与错题",
+       "url": "https://example.com/demo/169",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "course",
+       "title": "演示条目060：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/667",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目370：整理笔记与错题",
+       "url": "https://example.com/demo/954",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目246：读教材对应章节",
+       "url": "https://example.com/demo/177",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目085：自测一遍并记录结果",
+       "url": "https://example.com/demo/480",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 0
+      }
+     ]
+    },
+    {
+     "title": "演示条目244：自测一遍并记录结果",
+     "detail": "演示条目152：做配套练习 3~5 题",
+     "track": "自学",
+     "priority": 1,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目436：自测一遍并记录结果",
+     "phase": "大三",
+     "steps": [
+      {
+       "seq": 1,
+       "text": "演示条目390：整理笔记与错题",
+       "minutes": 40,
+       "kind": "read"
+      },
+      {
+       "seq": 2,
+       "text": "演示条目259：复盘昨天没弄懂的点",
+       "minutes": 60,
+       "kind": "practice"
+      },
+      {
+       "seq": 3,
+       "text": "演示条目350：读教材对应章节",
+       "minutes": 50,
+       "kind": "produce"
+      }
+     ],
+     "resources": [
+      {
+       "kind": "doc",
+       "title": "演示条目369：做配套练习 3~5 题",
+       "url": "https://example.com/demo/855",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目044：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/478",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目050：做配套练习 3~5 题",
+       "url": "https://example.com/demo/280",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目227：整理笔记与错题",
+       "url": "https://example.com/demo/726",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目428：自测一遍并记录结果",
+       "url": "https://example.com/demo/321",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "contest",
+   "name": "竞赛与证书",
+   "desc": "程序设计竞赛、CSP、软考、四六级 —— 白赚学分 + 简历素材。",
+   "tasks": [
+    {
+     "title": "演示条目260：自测一遍并记录结果",
+     "detail": "演示条目261：看课程视频对应章节",
+     "track": "课外",
+     "priority": 1,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目262：整理笔记与错题",
+     "phase": "大一下",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "英语真题在线 · 通用英语四级真题（PDF下载 + 在线听力音频 + 答案解析）",
+       "url": "https://example.com/demo/167",
+       "source": "示例站点",
+       "why": "演示用占位资源。",
+       "http": 200,
+       "embed": 0
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目413：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/781",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目207：看课程视频对应章节",
+       "url": "https://example.com/demo/226",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "通用英语四级听力练习 - 可可英语",
+       "url": "https://example.com/demo/109",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "video",
+       "title": "2025年6月通用英语四级听力音频（真题音频合集）",
+       "url": "https://example.com/demo/906",
+       "source": "示例站点",
+       "why": "演示数据：仅用于界面与逻辑测试。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "程序设计竞赛报名参赛（3-4 月）",
+     "detail": "演示条目166：自测一遍并记录结果",
+     "track": "课外",
+     "priority": 2,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目193：把示例代码自己敲一遍",
+     "phase": "大二上",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛官网（全国大学生软件和信息技术大赛）",
+       "url": "https://example.com/demo/385",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛历届真题（蓝桥云课）",
+       "url": "https://example.com/demo/444",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目183：自测一遍并记录结果",
+       "url": "https://example.com/demo/401",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目057：自测一遍并记录结果",
+       "url": "https://example.com/demo/936",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目068：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    },
+    {
+     "title": "演示条目385：把示例代码自己敲一遍",
+     "detail": "演示条目220：读教材对应章节",
+     "track": "课外",
+     "priority": 1,
+     "cadence": "once",
+     "weekday": null,
+     "deliverable": "演示条目264：读教材对应章节",
+     "phase": "大三",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛官网（全国大学生软件和信息技术大赛）",
+       "url": "https://example.com/demo/385",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛历届真题（蓝桥云课）",
+       "url": "https://example.com/demo/444",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目183：自测一遍并记录结果",
+       "url": "https://example.com/demo/401",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目057：自测一遍并记录结果",
+       "url": "https://example.com/demo/936",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目068：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "career",
+   "name": "求职与读研准备",
+   "desc": "简历、刷题量、八股，还有最重要的：先定出口方向。",
+   "tasks": [
+    {
+     "title": "演示条目309：自测一遍并记录结果",
+     "detail": "演示条目168：把示例代码自己敲一遍",
+     "track": "课外",
+     "priority": 2,
+     "cadence": "weekly",
+     "weekday": null,
+     "deliverable": "演示条目339：看课程视频对应章节",
+     "phase": "大三",
+     "steps": [],
+     "resources": [
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛官网（全国大学生软件和信息技术大赛）",
+       "url": "https://example.com/demo/385",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "程序设计竞赛大赛历届真题（蓝桥云课）",
+       "url": "https://example.com/demo/444",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目183：自测一遍并记录结果",
+       "url": "https://example.com/demo/401",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "practice",
+       "title": "演示条目057：自测一遍并记录结果",
+       "url": "https://example.com/demo/936",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      },
+      {
+       "kind": "doc",
+       "title": "演示条目068：把示例代码自己敲一遍",
+       "url": "https://example.com/demo/058",
+       "source": "示例站点",
+       "why": "占位条目。",
+       "http": 200,
+       "embed": 1
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "generic": {
+  "name": "通用：手续与到课纪律",
+  "desc": "选课、分流、体育课置入、按时到课 —— 不学东西但漏了要出事的那类。",
+  "tasks": [
+   {
+    "title": "演示条目173：读教材对应章节",
+    "detail": "思政/心理/民族文化/英语这些课，到课率和作业分就是分数。",
+    "track": "正课",
+    "priority": 2,
+    "cadence": "daily",
+    "weekday": null,
+    "deliverable": "演示条目432：看课程视频对应章节",
+    "phase": "本学期",
+    "steps": [],
+    "resources": []
+   },
+   {
+    "title": "问教务老师确认方向选择规则与时间",
+    "detail": "演示条目178：看课程视频对应章节",
+    "track": "手续",
+    "priority": 1,
+    "cadence": "once",
+    "weekday": null,
+    "deliverable": "演示条目431：整理笔记与错题",
+    "phase": "本学期",
+    "steps": [],
+    "resources": []
+   },
+   {
+    "title": "演示条目418：看课程视频对应章节",
+    "detail": "2 学分，周二 10~12 节，B楼II区308机房。本学期可选、有余量、不冲突的只有这一门。要选就尽快。",
+    "track": "手续",
+    "priority": 1,
+    "cadence": "once",
+    "weekday": null,
+    "deliverable": "选课成功",
+    "phase": "本学期",
+    "steps": [],
+    "resources": []
+   },
+   {
+    "title": "演示条目002：整理笔记与错题",
+    "detail": "不在选课系统里。专项训练课现场选拔通过后由校区置入，否则自动置入体能课（校园跑）。专项选拔在周一或周二 8、9 节。",
+    "track": "手续",
+    "priority": 2,
+    "cadence": "once",
+    "weekday": null,
+    "deliverable": "演示条目331：把示例代码自己敲一遍",
+    "phase": "本学期",
+    "steps": [],
+    "resources": []
+   },
+   {
+    "title": "学期末做方向选择决定",
+    "detail": "三步试探法：数学分析（I）期末能不能 85+ / 寒假能不能独立写出小项目 / 想要什么出口。",
+    "track": "手续",
+    "priority": 1,
+    "cadence": "once",
+    "weekday": null,
+    "deliverable": "填完志愿",
+    "phase": "大一下",
+    "steps": [],
+    "resources": []
+   },
+   {
+    "title": "大二结束前定出口：推免 / 考研 / 就业",
+    "detail": "推免看前 5 学期成绩，大三再想就晚了。",
+    "track": "手续",
+    "priority": 1,
+    "cadence": "once",
+    "weekday": null,
+    "deliverable": "演示条目237：把示例代码自己敲一遍",
+    "phase": "大二下",
+    "steps": [],
+    "resources": []
+   }
+  ]
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "id": 82,
+ "nameZh": "2026-2027学年秋季学期",
+ "nameEn": "2026年秋季",
+ "code": "2026-2027-1",
+ "abbrZh": "2026年秋季",
+ "abbrEn": "2026-AUTUMN",
+ "calendar": {
+  "id": 1,
+  "nameZh": "默认校历",
+  "nameEn": null
+ },
+ "schoolYear": "2026-2027",
+ "startDate": "2026-08-31",
+ "endDate": "2027-02-28",
+ "weekStartOnSunday": false,
+ "countInTerm": true,
+ "season": "AUTUMN",
+ "enabled": true,
+ "fileInfo": null
+}

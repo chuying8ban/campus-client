@@ -1,0 +1,1022 @@
+{
+ "noPublishLessonIds": [],
+ "weekIndices": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26
+ ],
+ "lessonIds": [
+  318132,
+  319077,
+  325222,
+  327939,
+  323534,
+  325982,
+  318575,
+  322426,
+  319899,
+  322891,
+  321211
+ ],
+ "lessonId2Retake": {
+  "318132": false,
+  "319077": false,
+  "325222": false,
+  "327939": false,
+  "325982": false,
+  "323534": false,
+  "318575": false,
+  "322426": false,
+  "322891": false,
+  "321211": false,
+  "319899": false
+ },
+ "experimentSchedules": [],
+ "lessonId2SeatNum": {
+  "318132": 0,
+  "319077": 0,
+  "325222": 0,
+  "327939": 0,
+  "325982": 0,
+  "323534": 0,
+  "318575": 0,
+  "322426": 0,
+  "322891": 0,
+  "321211": 0,
+  "319899": 0
+ },
+ "timeTableLayoutId": 1,
+ "totalRetakeCredits": 0,
+ "lessonId2Flag": {
+  "318132": "publish",
+  "319077": "publish",
+  "325222": "publish",
+  "327939": "publish",
+  "323534": "publish",
+  "325982": "publish",
+  "318575": "publish",
+  "322426": "publish",
+  "319899": "publish",
+  "322891": "publish",
+  "321211": "publish"
+ },
+ "currentWeek": 3,
+ "notAttendLessonIds": [],
+ "lesson2CultivateTypeMap": {
+  "318132": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "319077": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "325222": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "327939": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "323534": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "325982": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "318575": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "322426": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "319899": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "322891": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  },
+  "321211": {
+   "nameZh": "主修",
+   "nameEn": "Major",
+   "id": 1,
+   "code": "01",
+   "enabled": true,
+   "bizTypeAssocs": [
+    2,
+    3
+   ],
+   "bizTypeIds": [
+    2,
+    3
+   ],
+   "transient": false,
+   "name": "主修"
+  }
+ },
+ "lessons": [
+  {
+   "id": 318132,
+   "nameZh": "计算机类26-[1-7]班",
+   "nameEn": null,
+   "code": "161200X005.24",
+   "remark": null,
+   "requiredPeriodInfo": {
+    "total": 36,
+    "weeks": 12,
+    "theory": 36,
+    "theoryUnit": "HOUR",
+    "requireTheory": 36,
+    "practice": null,
+    "practiceUnit": null,
+    "requirePractice": null,
+    "focusPractice": null,
+    "focusPracticeUnit": null,
+    "dispersedPractice": null,
+    "test": null,
+    "testUnit": null,
+    "requireTest": null,
+    "experiment": null,
+    "experimentUnit": null,
+    "requireExperiment": null,
+    "machine": null,
+    "machineUnit": null,
+    "requireMachine": null,
+    "design": null,
+    "designUnit": null,
+    "requireDesign": null,
+    "periodsPerWeek": 3,
+    "extra": null,
+    "extraUnit": null,
+    "requireExtra": null
+   },
+   "actualPeriods": 0,
+   "scheduleText": {
+    "dateTimeText": {
+     "textZh": null,
+     "textEn": null,
+     "text": null
+    },
+    "dateTimePlaceText": {
+     "textZh": null,
+     "textEn": null,
+     "text": null
+    },
+    "dateTimePlacePersonText": {
+     "textZh": null,
+     "textEn": null,
+     "text": null
+    },
+    "roomSeatText": {
+     "textZh": "",
+     "textEn": "",
+     "text": ""
+    }
+   },
+   "stdCount": 235,
+   "limitCount": 248,
+   "retakeCount": null,
+   "reserveCount": 0,
+   "suggestScheduleWeeks": [
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+   ],
+   "calcRelatedAdminclasses": false,
+   "adminclassSetup": true,
+   "allowMakeup": false,
+   "allowDelay": null,
+   "expActualPeriods": 0,
+   "needAssign": false,
+   "auto": true,
+   "scheduleRemark": null,
+   "enforce": false,
+   "arrangeExamType": "EXAM_MODE_UNIFICATION",
+   "arrangeExamTypeZh": "统一考试",
+   "lessonKind": "NORMAL",
+   "selectionRemark": null,
+   "generateSeatNumber": false,
+   "midtermRetake": false,
+   "actualTheoryPeriod": 0,
+   "actualPracticePeriod": 0,
+   "actualTestPeriod": 0,
+   "actualExperimentPeriod": 0,
+   "actualMachinePeriod": 0,
+   "actualDesignPeriod": 0,
+   "actualExtraPeriod": 0,
+   "auditState": "NOT_SUBMITTED",
+   "currentNode": null,
+   "passed": null,
+   "submitDate": null,
+   "noAttendCount": 0,
+   "practiceWeekScheduleText": null,
+   "experimentObject": null,
+   "expectedStdCount": 0,
+   "hasTeachingSyllabus": false,
+   "hasCourseSyllabus": true,
+   "timeTableLayout": {
+    "id": 1,
+    "nameZh": "默认课表布局",
+    "nameEn": "Default time table layout",
+    "enabled": true,
+    "changeMonth": null,
+    "changeDayOfMonth": null
+   },
+   "bizType": {
+    "id": 2,
+    "nameZh": "本科",
+    "nameEn": "Undergraduate"
+   },
+   "semester": {
+    "id": 82,
+    "nameZh": "2026-2027学年秋季学期",
+    "nameEn": "2026年秋季",
+    "code": "2026-2027-1",
+    "abbrZh": "2026年秋季",
+    "abbrEn": "2026-AUTUMN",
+    "calendar": {
+     "id": 1,
+     "nameZh": "默认校历",
+     "nameEn": null
+    },
+    "schoolYear": "2026-2027",
+    "startDate": "2026-08-31",
+    "endDate": "2027-02-28",
+    "weekStartOnSunday": false,
+    "countInTerm": true,
+    "season": "AUTUMN",
+    "enabled": true,
+    "fileInfo": null
+   },
+   "course": {
+    "id": 2354,
+    "nameZh": "军事理论导论",
+    "nameEn": "Military Theory",
+    "code": "161200X005",
+    "periodInfo": {
+     "total": 36,
+     "weeks": 0,
+     "theory": 36,
+     "theoryUnit": "HOUR",
+     "requireTheory": 36,
+     "practice": null,
+     "practiceUnit": null,
+     "requirePractice": null,
+     "focusPractice": null,
+     "focusPracticeUnit": null,
+     "dispersedPractice": null,
+     "test": null,
+     "testUnit": null,
+     "requireTest": null,
+     "experiment": null,
+     "experimentUnit": null,
+     "requireExperiment": null,
+     "machine": null,
+     "machineUnit": null,
+     "requireMachine": null,
+     "design": null,
+     "designUnit": null,
+     "requireDesign": null,
+     "periodsPerWeek": 0,
+     "extra": null,
+     "extraUnit": null,
+     "requireExtra": null
+    },
+    "stageInfo": {
+     "stage": false,
+     "stageNum": null,
+     "stageGrantNum": null
+    },
+    "credits": 2,
+    "calculateGp": true,
+    "theory": true,
+    "experiment": false,
+    "practice": false,
+    "test": false,
+    "machine": false,
+    "design": false,
+    "extra": false,
+    "enabled": true,
+    "extraCredits": null,
+    "remark": null,
+    "flags": [],
+    "flag": null,
+    "platformLink": null,
+    "claim": null,
+    "allowMakeUp": true,
+    "allowDelay": true,
+    "education": {
+     "nameZh": "普通本科",
+     "nameEn": null,
+     "id": 1,
+     "code": "01",
+     "enabled": true,
+     "bizTypeAssocs": [
+      2
+     ],
+     "bizTypeIds": [
+      2
+     ],
+     "transient": false,
+     "name": "普通本科"
+    },
+    "courseType": {
+     "nameZh": "理论课（不含实践）",
+     "nameEn": null,
+     "id": 1,
+     "code": "D01",
+     "enabled": true,
+     "bizTypeAssocs": [
+      1,
+      2
+     ],
+     "bizTypeIds": [
+      1,
+      2
+     ],
+     "transient": false,
+     "name": "理论课（不含实践）"
+    },
+    "defaultOpenDepart": {
+     "id": 27,
+     "nameZh": "学生工作与安全保卫部",
+     "nameEn": null,
+     "code": "301-05",
+     "abbrZh": "学工",
+     "abbrEn": null,
+     "college": false,
+     "research": false,
+     "openCourse": true,
+     "experiment": false,
+     "telephone": null,
+     "address": null,
+     "indexNo": 6,
+     "recruitTypeSet": [
+      "POSTGRADUATE",
+      "UNDERGRADUATE",
+      "DOCTOR"
+     ],
+     "recruitTypes": "POSTGRADUATE,UNDERGRADUATE,DOCTOR"
+    },
+    "grantCourseLevel": null,
+    "defaultExamMode": {
+     "nameZh": "考试",
+     "nameEn": null,
+     "id": 1,
+     "code": "1",
+     "enabled": true,
+     "bizTypeAssocs": [
+      2,
+      3
+     ],
+     "bizTypeIds": [
+      2,
+      3
+     ],
+     "transient": false,
+     "name": "考试"
+    },
+    "defaultPreCourses": [],
+    "belongBizType": {
+     "id": 2,
+     "nameZh": "本科",
+     "nameEn": "Undergraduate"
+    },
+    "suitableBizTypes": [
+     {
+      "id": 2,
+      "nameZh": "本科",
+      "nameEn": "Undergraduate"
+     }
+    ],
+    "mngtDepartment": {
+     "id": 27,
+     "nameZh": "学生工作与安全保卫部",
+     "nameEn": null,
+     "code": "301-05",
+     "abbrZh": "学工",
+     "abbrEn": null,
+     "college": false,
+     "research": false,
+     "openCourse": true,
+     "experiment": false,
+     "telephone": null,
+     "address": null,
+     "indexNo": 6,
+     "recruitTypeSet": [
+      "POSTGRADUATE",
+      "UNDERGRADUATE",
+      "DOCTOR"
+     ],
+     "recruitTypes": "POSTGRADUATE,UNDERGRADUATE,DOCTOR"
+    },
+    "teachLang": {
+     "nameZh": "中文授课",
+     "nameEn": null,
+     "id": 1,
+     "code": "1",
+     "enabled": true,
+     "bizTypeAssocs": [
+      2,
+      3
+     ],
+     "bizTypeIds": [
+      2,
+      3
+     ],
+     "transient": false,
+     "name": "中文授课"
+    },
+    "minorCourses": [],
+    "tags": [
+     {
+      "id": 122,
+      "nameZh": "在线开放课程",
+      "nameEn": "AAA",
+      "code": null,
+      "entityType": "com.supwisdom.eams.system.course",
+      "effectiveDate": "2026-03-01 17:49:21",
+      "expiresDate": null
+     }
+    ],
+    "lessonType": "理论课 ",
+    "seasons": [],
+    "suitMajors": [],
+    "courseTaxon": null,
+    "courseProperty": null,
+    "openResearchDepartment": null,
+    "defaultOpenMajor": null,
+    "courseManager": null,
+    "courseSpec": null,
+    "professor": null,
+    "textbooks": [],
+    "courseLevelRequireList": [],
+    "defaultPreCourseList": [],
+    "teachType": null,
+    "createdDateTime": "2021-09-20T00:00:00.000",
+    "updatedDateTime": "2025-06-24T19:54:10.000",
+    "createdBy": "zsd",
+    "updatedBy": "教师15"
+   },
+   "roomSeatCount": null,
+   "lessonPreCourseList": [],
+   "courseType": {
+    "nameZh": "理论课（不含实践）",
+    "nameEn": null,
+    "id": 1,
+    "code": "D01",
+    "enabled": true,
+    "bizTypeAssocs": [
+     1,
+     2
+    ],
+    "bizTypeIds": [
+     1,
+     2
+    ],
+    "transient": false,
+    "name": "理论课（不含实践）"
+   },
+   "openDepartment": {
+    "id": 27,
+    "nameZh": "学生工作与安全保卫部",
+    "nameEn": null,
+    "code": "301-05",
+    "abbrZh": "学工",
+    "abbrEn": null,
+    "college": false,
+    "research": false,
+    "openCourse": true,
+    "experiment": false,
+    "telephone": null,
+    "address": null,
+    "indexNo": 6,
+    "recruitTypeSet": [
+     "POSTGRADUATE",
+     "UNDERGRADUATE",
+     "DOCTOR"
+    ],
+    "recruitTypes": "POSTGRADUATE,UNDERGRADUATE,DOCTOR"
+   },
+   "scheduleAssignDepartment": {
+    "id": 27,
+    "nameZh": "学生工作与安全保卫部",
+    "nameEn": null,
+    "code": "301-05",
+    "abbrZh": "学工",
+    "abbrEn": null,
+    "college": false,
+    "research": false,
+    "openCourse": true,
+    "experiment": false,
+    "telephone": null,
+    "address": null,
+    "indexNo": 6,
+    "recruitTypeSet": [
+     "POSTGRADUATE",
+     "UNDERGRADUATE",
+     "DOCTOR"
+    ],
+    "recruitTypes": "POSTGRADUATE,UNDERGRADUATE,DOCTOR"
+   },
+   "scheduleState": "未安排",
+   "examMode": {
+    "nameZh": "考试",
+    "nameEn": null,
+    "id": 1,
+    "code": "1",
+    "enabled": true,
+    "bizTypeAssocs": [
+     2,
+     3
+    ],
+    "bizTypeIds": [
+     2,
+     3
+    ],
+    "transient": false,
+    "name": "考试"
+   },
+   "courseProperty": {
+    "nameZh": "必修",
+    "nameEn": null,
+    "id": 17,
+    "code": "1",
+    "enabled": true,
+    "bizTypeAssocs": [
+     1,
+     2,
+     3
+    ],
+    "bizTypeIds": [
+     1,
+     2,
+     3
+    ],
+    "transient": false,
+    "name": "必修"
+   },
+   "campus": {
+    "id": 1,
+    "nameZh": "示例市校区",
+    "nameEn": "Home",
+    "code": "01",
+    "enabled": true
+   },
+   "teachLang": {
+    "nameZh": "中文授课",
+    "nameEn": null,
+    "id": 1,
+    "code": "1",
+    "enabled": true,
+    "bizTypeAssocs": [
+     2,
+     3
+    ],
+    "bizTypeIds": [
+     2,
+     3
+    ],
+    "transient": false,
+    "name": "中文授课"
+   },
+   "roomType": null,
+   "courseModuleTypeChainVms": [
+    {
+     "courseModuleTypes": [
+      {
+       "nameZh": "通识教育",
+       "nameEn": null,
+       "id": 92,
+       "code": "92",
+       "enabled": true,
+       "bizTypeAssocs": [
+        2
+       ],
+       "bizTypeIds": [
+        2
+       ],
+       "transient": false,
+       "name": "通识教育"
+      },
+      {
+       "nameZh": "通识必修",
+       "nameEn": null,
+       "id": 40,
+       "code": "40",
+       "enabled": true,
+       "bizTypeAssocs": [
+        2
+       ],
+       "bizTypeIds": [
+        2
+       ],
+       "transient": false,
+       "name": "通识必修"
+      },
+      {
+       "nameZh": "军事教育类",
+       "nameEn": null,
+       "id": 112,
+       "code": "2501",
+       "enabled": true,
+       "bizTypeAssocs": [
+        2
+       ],
+       "bizTypeIds": [
+        2
+       ],
+       "transient": false,
+       "name": "军事教育类"
+      }
+     ]
+    }
+   ],
+   "suggestScheduleWeeksInfo": "3~14",
+   "scheduleWeeksInfo": null,
+   "teacherAssignmentList": [
+    {
+     "teacher": {
+      "id": 368193,
+      "code": "XXXXXXXXXX",
+      "teaching": true,
+      "zaiZhi": true,
+      "hireType": "FORMAL",
+      "researchDirection": null,
+      "belongSeries": null,
+      "nameZh": null,
+      "department": {
+       "id": 330,
+       "nameZh": "数理与人工智能学院",
+       "nameEn": null,
+       "code": "366-1",
+       "abbrZh": "数理与人工智能学院",
+       "abbrEn": null,
+       "college": true,
+       "research": false,
+       "openCourse": true,
+       "experiment": false,
+       "telephone": null,
+       "address": null,
+       "indexNo": 202606,
+       "recruitTypeSet": [
+        "POSTGRADUATE",
+        "UNDERGRADUATE",
+        "DOCTOR"
+       ],
+       "recruitTypes": "POSTGRADUATE,UNDERGRADUATE,DOCTOR"
+      },
+      "researchDepartment": null,
+      "person": null,
+      "title": null,
+      "type": null,
+      "major": null,
+      "preEducation": {
+       "nameZh": "硕士研究生",
+       "nameEn": null,
+       "id": 5,
+       "code": "05",
+       "enabled": true,
+       "bizTypeAssocs": [
+        2
+       ],
+       "bizTypeIds": [
+        2
+       ],
+       "transient": false,
+       "name": "硕士研究生"
+      },
+      "degreeType": null,
+      "academicConnection": null,
+      "workUnitCategory": null,
+      "undergraduateTeachingTask": null,
+      "firstDiscipline": null,
+      "teachingType": null,
+      "teachingMajor": null,
+      "teachingMajorTime": null,
+      "experimentTechnicalPerson": null,
+      "doubleTeacherAndAbility": null,
+      "processBackground": null,
+      "foreignExperience": null
+     },
+     "person": {
+      "id": 417129,
+      "nameZh": "教师7",
+      "nameEn": null
+     },
+     "role": "MAJOR",
+     "indexNo": 1,
+     "age": 26,
+     "teacherCode": null
+    }
+   ],
+   "scheduleStartWeek": null,
+   "scheduleEndWeek": null,
+   "scheduleCurrentWeek": null,
+   "scheduleChangeWeeks": [],
+   "planExamWeek": null,
+   "adminclassIds": [
+    6853,
+    6854,
+    6855,
+    6856,
+    6857,
+    6858,
+    6859
+   ],
+   "adminClasses": "计算机类26-1班,计算机类26-2班,计算机类26-3班,计算机类26-4班,计算机类26-5班,计算机类26-X班,计算机类26-7班",
+   "adminclassVms": [
+    {
+     "id": 6853,
+     "nameZh": "计算机类26-1班",
+     "nameEn": null,
+     "code": "01512601",
+     "grade": "2026",
+     "stdCount": 35,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-1班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6854,
+     "nameZh": "计算机类26-2班",
+     "nameEn": null,
+     "code": "01512602",
+     "grade": "2026",
+     "stdCount": 35,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-2班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6855,
+     "nameZh": "计算机类26-3班",
+     "nameEn": null,
+     "code": "01512603",
+     "grade": "2026",
+     "stdCount": 34,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-3班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6856,
+     "nameZh": "计算机类26-4班",
+     "nameEn": null,
+     "code": "01512604",
+     "grade": "2026",
+     "stdCount": 35,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-4班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6857,
+     "nameZh": "计算机类26-5班",
+     "nameEn": null,
+     "code": "01512605",
+     "grade": "2026",
+     "stdCount": 33,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-5班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6858,
+     "nameZh": "计算机类26-X班",
+     "nameEn": null,
+     "code": "01512606",
+     "grade": "2026",
+     "stdCount": 34,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-X班",
+     "abbrEn": null,
+     "remark": null
+    },
+    {
+     "id": 6859,
+     "nameZh": "计算机类26-7班",
+     "nameEn": null,
+     "code": "01512607",
+     "grade": "2026",
+     "stdCount": 34,
+     "planCount": 34,
+     "enabled": true,
+     "abbrZh": "计算机类26-7班",
+     "abbrEn": null,
+     "remark": null
+    }
+   ],
+   "minorCourse": null,
+   "tags": null,
+   "crossBizTypes": [
+    {
+     "id": 3,
+     "nameZh": "研究生",
+     "nameEn": null
+    }
+   ],
+   "courseLevelRequireList": [],
+   "hasSchedule": false,
+   "compulsorys": [
+    "COMPULSORY"
+   ],
+   "courseStdCount": 2988,
+   "teacherScheduleTextVms": [],
+   "lessonKindText": "正常",
+   "compulsorysStr": "必修",
+   "auditLogVms": null,
+   "examMethod": null,
+   "examDuration": null,
+   "practiceWeeks": [],
+   "practiceWeekStr": null,
+   "experimentObjectBizTypes": [],
+   "teacherAssignmentString": "教师7",
+   "courseModuleTypeChainStr": "通识教育-通识必修-军事教育类",
+   "teacherAssignmentStr": "教师7",
+   "lessonKindZh": "正常",
+   "lessonKindEn": "NORMAL"
+  }
+ ],
+ "_trim_note": "lessons 真实长度 11，此处只保留 1 条样例；lessonId2Retake/lesson2CultivateTypeMap 等字典已保留（值多为 id 列表）"
+}

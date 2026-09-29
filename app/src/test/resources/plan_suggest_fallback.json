@@ -1,0 +1,92 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "title": "复习 大学生心理健康教育",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "e5595a2c0d46"
+    },
+    {
+      "title": "复习 计算思维与计算机基础",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "cdb5734c64e7"
+    },
+    {
+      "title": "复习 军事训练",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "98dc561fd5c1"
+    },
+    {
+      "title": "复习 形势与政策",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "16c0d5ea0833"
+    },
+    {
+      "title": "复习 军事理论",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "6118c089d7af"
+    },
+    {
+      "title": "复习 中华民族共同体概论",
+      "track": "课程",
+      "why": "这门课在你的课表里，先保证跟得上",
+      "priority": 2,
+      "cadence": "weekly",
+      "weekday": null,
+      "steps": [
+        "回顾本周课件与笔记",
+        "把不懂的点记成问题，下次课问"
+      ],
+      "deliverable": "一份本周问题清单",
+      "key": "6e72f1800c39"
+    }
+  ],
+  "source": "fallback",
+  "reason": "模型调用失败：TimeoutError",
+  "phase": "AI 规划"
+}
