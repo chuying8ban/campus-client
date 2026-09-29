@@ -32,10 +32,10 @@ Bottom navigation plus entries under Me:
 | Library | Shared resource catalogue: pick links by course or type, and they become tasks in your own list | Everyone |
 | Board | Stat cards, a 14-day chart, milestones, self-check | Everyone |
 | Me | Account, password management, network self-check, security and privacy, permissions and allowlist, check for updates, feedback | Everyone |
-| Admin page | The site backend (the web version's `/admin/`, embedded) | Author build only |
+| Admin page | The site backend (the web version's `/admin/`, embedded) | Author build only (entry) |
 | Stored-credential reveal | Shows the academic-affairs password kept on the server | Author build only |
 
-Those last two rows exist only in the author's own build. **The public build ships neither the admin entry nor its implementation** (the source stays in the repository; without the build flag it never enters the package, and R8 drops it as dead code). The credential reveal is the same story, and the server allows it only for the author: that is someone else's password, and showing it once is one more leak surface.
+In the public build those last two rows have no entry point: **the admin page is not rendered** (its implementation and strings still travel inside the package, because this repository does not enable code shrinking; the build flag removes the entry, so ordinary users never see it). The credential reveal is the same story, and the server allows it only for the author: that is someone else's password, and showing it once is one more leak surface.
 
 Around that: automatic reminders before class and auto-mute during class (both need system permissions, and a dedicated screen walks you through granting them), plus in-app update (check version, download, hand off to the system installer) because the app is sideloaded.
 
@@ -118,6 +118,7 @@ python3 tools/privacy_scan.py dist/your-build.apk
 
 - The **direct academic-affairs path** (`EamsClient`, used for crawling the timetable): the password never leaves the phone in cleartext; it is hashed with a salt issued by that system and only the hash is submitted.
 - The **login through the author's backend** (`POST /api/v2/login`, which onboarding uses): student id and password travel to `study.ccbase.top` over HTTPS. The request body itself is cleartext and the link is TLS (targetSdk 34 with no cleartext exemption, so Android blocks plain HTTP by default). The server stores the password encrypted with AES-GCM (key file mode 600) and uses it to sign in for you, read your timetable, build your plan and run the seat watcher every day. One tap under Me deletes it; if you do not want to hand it over at all, run your own backend.
+- The server **does not log passwords**: the validation-failure log no longer echoes submitted values, and login records only the student id and the source IP (for failure counting and rate limiting).
 
 ## Provenance and boundaries
 
