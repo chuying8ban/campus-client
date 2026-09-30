@@ -82,13 +82,13 @@ Everything runs on the JVM (Robolectric plus Compose render smoke tests). No dev
 
 ```
 $ ./gradlew :app:testDebugUnitTest --offline --rerun-tasks
-BUILD SUCCESSFUL in 2m 43s
-→ 85 classes / 761 tests / 0 failures / 0 errors / 0 skipped
+BUILD SUCCESSFUL in 1m 27s
+30 actionable tasks: 30 executed
+→ 89 classes / 777 tests / 0 failures / 0 errors / 0 skipped
 
-$ ./gradlew :app:assembleRelease --offline --rerun-tasks
-BUILD SUCCESSFUL in 1m 32s
-51 actionable tasks: 51 executed
-→ app-release.apk 7601768 B   (sha256 71bc278c06c85da645e2f90865dcbab5dc7eaf3a056e90320dfccdd8f29fc191)
+$ ./gradlew :app:assembleRelease --offline
+BUILD SUCCESSFUL
+→ built with a throwaway demo keystore, so it is **not** the release build (see below) — its digest and size are deliberately not recorded here.
 ```
 
 That release build was signed with a one-off demo keystore (generated on the spot, random password, deleted afterwards) to prove the toolchain works end to end; it is not a distributable package. Class and test counts move as the project does, so the numbers above belong to that one run.

@@ -39,3 +39,5 @@ tools/audit.py
 # —— 发布闸门用（内部件：绕 SNI 的取件工具、flock 替身，与 publish.sh 一族，不进公开仓）——
 tools/no_sni_fetch.py
 tools/with_lock.py
+# —— 内部发版手册（含 SNI/拦截、作者通道、发布闸门等内部面，不进公开仓；公开那份见 docs/RELEASING.md）——
+tools/RELEASING-internal.md

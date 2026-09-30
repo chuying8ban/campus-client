@@ -82,13 +82,13 @@ release 签名用根目录的 `campus.keystore`（不进版本库），四个参
 
 ```
 $ ./gradlew :app:testDebugUnitTest --offline --rerun-tasks
-BUILD SUCCESSFUL in 2m 43s
-→ 85 classes / 761 tests / 0 failures / 0 errors / 0 skipped
+BUILD SUCCESSFUL in 1m 27s
+30 actionable tasks: 30 executed
+→ 89 classes / 777 tests / 0 failures / 0 errors / 0 skipped
 
-$ ./gradlew :app:assembleRelease --offline --rerun-tasks
-BUILD SUCCESSFUL in 1m 32s
-51 actionable tasks: 51 executed
-→ app-release.apk 7601768 B   (sha256 71bc278c06c85da645e2f90865dcbab5dc7eaf3a056e90320dfccdd8f29fc191)
+$ ./gradlew :app:assembleRelease --offline
+BUILD SUCCESSFUL
+→ 包用一次性 demo keystore 打的，**不是发布包**（见下），所以这里不记它的摘要与大小。
 ```
 
 那次 release 包用的是**一次性 demo keystore**（本机临时生成、随机口令、跑完即删），只证明构建链通，**不是发布包**。测试类数与用例数随开发变化，以上数字属于那一次记录。

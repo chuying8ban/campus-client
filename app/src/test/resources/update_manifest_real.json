@@ -1,10 +1,11 @@
 {
-  "version_code": 63,
-  "version_name": "1.84",
-  "url": "/updates/campus-1.84.apk",
-  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "size": 1234567,
+  "version_code": 66,
+  "version_name": "1.86",
+  "url": "/updates/campus-1.86.apk",
+  "sha256": "6109c5dce01c1af3f02894642ffde8c388653036d072d4390adbf9b7859092aa",
+  "size": 7618152,
   "notes": [
-    "修：遇到「更新失败：HTTPS 证书校验失败」时，App 会自己换一条能通的线路，不用再手动处理"
+    "新增主题与背景：深色 / 浅色 / 跟随系统，内置渐变或相册取图",
+    "底部「抢课」（测试）：目前只监控余位并提醒，自动提交以服务端为准"
   ]
 }
