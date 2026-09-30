@@ -36,5 +36,6 @@ __pycache__/
 # —— 内部审计脚本（含旧站坐标，对 clone 的人零价值）——
 tools/audit.py
 
-# —— 发布闸门用（不发 SNI 的取件；与 publish.sh 一族，同为内部件）——
+# —— 发布闸门用（内部件：绕 SNI 的取件工具、flock 替身，与 publish.sh 一族，不进公开仓）——
 tools/no_sni_fetch.py
+tools/with_lock.py
