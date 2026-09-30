@@ -29,6 +29,7 @@ tools/publish.sh
 .DS_Store
 __pycache__/
 *.pyc
+.kotlin/
 
 # 保留：真源码目录（app/src/**/*.kt、gradle 脚本、kotlin-tooling-metadata.json 等）不在此列。
 
