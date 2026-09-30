@@ -1,6 +1,7 @@
 package top.ccbase.campus.ui.theme
 
 import android.content.Context
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -17,10 +18,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -115,7 +120,12 @@ val LightPalette = CampusPalette(
  * 为什么要垫：`card/line` 本来就是半透明的（靠 alpha 表达"比底再亮一点"），
  * 直接铺照片/渐变会把文字糊进去（2026-09-17 那两次"看不清"的同类问题）。
  *
- * 为什么是 0.82 —— 按**最坏情况**算出来的，不是拍的。等效底色 = `图*(1-SCRIM_ALPHA) + bg*SCRIM_ALPHA`；
+ * ⚠️ 这个常数现在**只当兜底**：内置 12 款背景按自己的可读性预算反算（`Background.kt` 的
+ * `scrimFor`），用户自己的照片按**那张图自己的明暗**反算（`photoScrim`）—— 实际铺上去的遮罩
+ * 几乎都不是 0.82，深色照片能低到 0.1 上下（照片真看得见）。只有"量不出图的明暗极值"
+ * （旧版本装过、或量失败）时才退回这个按最坏情况算的值。
+ *
+ * 为什么是 0.82 —— 按**最坏情况**（纯白图 / 纯黑图）算出来的，不是拍的。等效底色 = `图*(1-SCRIM_ALPHA) + bg*SCRIM_ALPHA`；
  * 两套色板的"最坏方向"相反，所以两张表都要看（合成值由 @researcher 独立复算过，两位小数一致）：
  *
  * 深色（最坏＝**纯白图**，把底提亮）：
@@ -282,24 +292,32 @@ fun CampusTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * 背景这一层。顺序 = 图/渐变 → 遮罩（[SCRIM_ALPHA]）→ 内容。
+ * 背景这一层。顺序 = 渐变/图 → 遮罩 → 内容。
  *
  * 遮罩不是装饰：`card/line` 本身是半透明的，不垫一层的话铺上照片/亮渐变会把文字糊掉
- * （2026-09-17 那两次"看不清"的同类问题）。遮罩的颜色是**当前色板的 bg**，
- * 所以浅色主题下同一张深色渐变会被压成很淡的底，观感仍是干净的浅色。
+ * （2026-09-17 那两次"看不清"的同类问题）。遮罩的颜色是**当前色板的 bg**。
+ *
+ * 但**遮罩的厚度不是常数**了：旧版对所有背景一律压 [SCRIM_ALPHA]，把渐变本身压到只剩
+ * 18% 透出来，于是"切换背景看不出区别"（用户 2026-09-30 的原话，实测六款里最接近的两款
+ * 只差 2/255）。现在内置预设按它自己的可读性预算反算（[scrimFor]）、背景图按那张图自己的
+ * 明暗反算（[photoScrim]），[SCRIM_ALPHA] 只留给"量不出极值"的兜底。
  */
 @Composable
-private fun BackgroundLayer(bg: String, p: CampusPalette) {
+internal fun BackgroundLayer(bg: String, p: CampusPalette) {
     when {
         bg.startsWith(BG_PRESET_PREFIX) -> {
             val preset = presetById(bg.removePrefix(BG_PRESET_PREFIX))
             if (preset != null) {
-                Box(Modifier.fillMaxSize().background(preset.brush()))
+                val themed = forTheme(preset, dark = p.bg.luminance() <= 0.5f)
+                val scrim = scrimFor(themed, p)
+                Canvas(Modifier.fillMaxSize()) { drawBgPreset(themed, scrim, p) }
             }
         }
         bg.startsWith(AppearanceStore.BG_PHOTO) -> {
             // 图是异步解码的（IO 线程），解出来之前先铺底色，避免闪一下白
             val bmp = rememberBackgroundPhoto(bg)
+            val ex = rememberPhotoExtremes(bg)
+            val scrim = remember(ex, p.bg) { photoScrim(ex, p) }
             Box(Modifier.fillMaxSize().background(p.bg))
             if (bmp != null) {
                 Image(
@@ -309,11 +327,55 @@ private fun BackgroundLayer(bg: String, p: CampusPalette) {
                     contentScale = ContentScale.Crop,
                 )
             }
+            // 这个 alpha 是**按这张图自己的明暗**算的：深色照片几乎不用压，亮图自动压回去。
+            // 缺极值文件（旧版本装的、或量失败）才退回 SCRIM_ALPHA 那套最坏情况。
+            if (scrim > 0f) Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = scrim)))
         }
     }
-    if (bg != AppearanceStore.BG_SOLID) {
-        Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = SCRIM_ALPHA)))
+}
+
+/**
+ * 把一款预设画出来：**一层竖向渐变 + 若干径向光晕 + 一层按预算反算的遮罩**。
+ *
+ * 光晕那 5 个色标就是 smoothstep（1 → 0.84 → 0.5 → 0.16 → 0），与 [presetPixel] 的采样
+ * 模型一一对应；**改这里必须同步改那里**，否则"按预算反算"就是按一个不存在的画面在算。
+ *
+ * 抽成 `DrawScope` 扩展，是为了让外观页的色卡、预览和真正的背景层用的是**同一段**绘制代码
+ * —— 用户在外观页看到什么，退出去就是什么。
+ */
+internal fun DrawScope.drawBgPreset(preset: BgPreset, scrim: Float, p: CampusPalette) {
+    drawRect(Brush.verticalGradient(preset.base))
+    preset.glows.forEach { gl ->
+        drawRect(
+            Brush.radialGradient(
+                colorStops = arrayOf(
+                    0f to gl.color.copy(alpha = gl.strength),
+                    0.25f to gl.color.copy(alpha = gl.strength * 0.84f),
+                    0.5f to gl.color.copy(alpha = gl.strength * 0.5f),
+                    0.75f to gl.color.copy(alpha = gl.strength * 0.16f),
+                    1f to gl.color.copy(alpha = 0f),
+                ),
+                center = Offset(size.width * gl.cx, size.height * gl.cy),
+                radius = size.width * gl.r,
+            ),
+        )
     }
+    if (scrim > 0f) drawRect(p.bg.copy(alpha = scrim))
+}
+
+/**
+ * 读用户那张图的明暗极值（存图时量好写在旁边的 `bg.extremes` 里）。
+ *
+ * 为什么不在渲染时扫位图：那是每帧都要做的事，`getPixel` 扫几十万像素会直接掉帧；
+ * 存图时量一次（每 4 像素取一个）就够，代价只有换图那一瞬间。
+ */
+@Composable
+private fun rememberPhotoExtremes(key: String): Pair<Color, Color>? {
+    val ctx = LocalContext.current
+    val state = produceState<Pair<Color, Color>?>(initialValue = null, key) {
+        value = withContext(Dispatchers.IO) { BackgroundPhoto.readExtremes(ctx) }
+    }
+    return state.value
 }
 
 /**

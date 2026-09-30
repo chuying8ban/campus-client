@@ -59,8 +59,8 @@ android {
         targetSdk 34
         // 作者包永远比公开包高一号：否则作者手机上的作者版会被公开版"降级式"顶掉
         // （versionCode 相同/更低时更新逻辑不会装，但一旦装上就再也回不到作者通道）。
-        versionCode(authorBuild ? 69 : 68)
-        versionName "1.86.1"
+        versionCode(authorBuild ? 71 : 70)
+        versionName "1.87"
         // 公开/默认 = 空串：UpdateLogic 读到空白就回落旧算法（<API_BASE>/updates/manifest.json）
         buildConfigField "String", "UPDATE_MANIFEST_URL", "\"${updateManifestUrl}\""
     }

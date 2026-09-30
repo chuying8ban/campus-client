@@ -86,12 +86,28 @@ class AppearanceStoreTest {
     }
 
     @Test
-    fun `预设都是程序生成的渐变_不依赖任何图片文件`() {
-        assertTrue("预设要有 4~6 个（少了像凑数，多了没人挑）", BgPresets.size in 4..6)
+    fun `预设都是程序生成的图层_不依赖任何图片文件`() {
+        assertTrue("内置要有 12 款（两组各 6），实测 ${BgPresets.size}", BgPresets.size == 12)
         assertTrue("id 不能重复（重复会让「选中哪个」分不清）", BgPresets.map { it.id }.toSet().size == BgPresets.size)
         assertTrue("每个预设都要有中文名", BgPresets.all { it.name.isNotBlank() })
-        assertTrue("每个预设至少两个色标，否则不成渐变", BgPresets.all { it.colors.size >= 2 })
-        assertTrue("预设颜色必须不透明（半透明叠在图上会串色）", BgPresets.all { p -> p.colors.all { it.alpha > 0.99f } })
+        assertTrue("每个预设至少两个色标，否则不成渐变", BgPresets.all { it.base.size >= 2 })
+        assertTrue("每个预设至少要有一处光晕，否则就是一块死板的双色渐变", BgPresets.all { it.glows.isNotEmpty() })
+        assertTrue(
+            "预设颜色必须不透明（半透明叠在图上会串色）",
+            BgPresets.all { p -> p.base.all { it.alpha > 0.99f } && p.glows.all { it.color.alpha > 0.99f } },
+        )
+        assertTrue(
+            "光晕强度要在 (0,1] 里：0 等于没画，>1 会盖住底色",
+            BgPresets.all { p -> p.glows.all { it.strength > 0f && it.strength <= 1f } },
+        )
+        // 界面上是并排两组，组内少一款会看着像缺了一块
+        BgStyle.entries.forEach { s ->
+            assertEquals("「${s.label}」这一组应当是 6 款", 6, BgPresets.count { it.style == s })
+        }
+        // 老用户选过的 6 个 id 必须还在 —— 改版不能把人家设过的背景悄悄换成别的
+        listOf("dusk", "violet", "ocean", "mint", "sand", "graphite").forEach {
+            assertNotNull("老 id「$it」不能消失（老用户的选择会失效）", presetById(it))
+        }
         assertNotNull("按 id 要能查回来", presetById("ocean"))
         assertEquals("查不到的 id 要返回 null，别抛", null, presetById("不存在"))
     }
@@ -120,8 +136,15 @@ class AppearanceStoreTest {
         assertTrue("长边要降到 1440 以内，实测 $longSide", longSide <= 1440)
         back.recycle()
 
+        // 存图时顺手量出的明暗极值：背景图那层遮罩就是按它算的（亮图压得住、暗图几乎不压）
+        assertTrue("存图时要写极值文件", BackgroundPhoto.extremesFile(c).isFile)
+        val ex = BackgroundPhoto.readExtremes(c)
+        assertNotNull("极值要能读回来（读不出来就会退回最坏情况 0.82 那种厚遮罩）", ex)
+        assertTrue("极值必须是两个真实颜色", relLum(ex!!.first) >= relLum(ex.second))
+
         BackgroundPhoto.clear(c)
         assertFalse("清掉之后文件不该还在", saved.exists())
+        assertFalse("清掉之后极值文件也不该留着", BackgroundPhoto.extremesFile(c).exists())
         assertEquals("清掉之后读回应当是 null（不是崩）", null, BackgroundPhoto.load(c))
     }
 }
