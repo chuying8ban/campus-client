@@ -412,15 +412,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         }
     }
 
-    // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格按 can_grab 显隐。
-    // 拿不到这个权限的人连那一格都不存在。服务端那道闸（can_grab / 非作者 403）照旧在，
-    // 这里只决定"摆不摆这一格"。
+    // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格**人人都有**。
     //
-    // ⚠️ canGrab 必须**每次组合都现读**（不能冻成一个只算一次的值）：can_grab 是登录之后
-    // 才落进本地的，冻住就意味着"登录了还得重启 App 才看得到那一格"。
-    val tabs = CampusTab.entries.filter {
-        it != CampusTab.BOARD && (it != CampusTab.GRAB || TokenStore.canGrab(appCtx))
-    }
+    // ⚠️ 2026-09-30 用户口径：「新版本每个用户的手机上都会显示监控，而不需要重新登录」——
+    // 所以这里**不再拿 TokenStore.canGrab 当判据**：那是登录那一刻写进本地的值，老用户装上
+    // 这个版本也不会重新登录，于是永远看不到那一格。服务端同时把监控那几个接口从 can_grab
+    // 放开成"登录即可"（`grab/config` 那个总开关仍只给作者），界面和服务端的判据这才对得上。
+    val tabs = CampusTab.entries.filter { it != CampusTab.BOARD }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(

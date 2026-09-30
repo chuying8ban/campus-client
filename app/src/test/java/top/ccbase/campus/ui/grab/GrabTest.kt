@@ -120,9 +120,25 @@ class GrabTest {
         tg: List<GrabTarget> = emptyList(), total: Int = 526, clean: Int = 73,
     ) = GrabStatus(
         configured = true, monitor_on = on, logged_in = logged, last_error = err,
-        interval = 20, last_check = "21:46", targets = tg,
+        can_manage = true, interval = 20, last_check = "21:46", targets = tg,
         catalog = GrabStats(total = total, free = 294, ok_clean = clean),
     )
+
+    /**
+     * 2026-09-30 用户口径：「每个用户的手机上都会显示监控，而不需要重新登录」——
+     * 但页里那个「服务端开关」是作者那台引擎的总闸（它登录教务用的是作者的账号，
+     * 关掉会连累所有人的余量数据），所以服务端只对作者回 can_manage = true。
+     * 普通同学看到的这张卡应该只剩「手机直接提醒」（他们靠它收提醒）。
+     */
+    @Test
+    fun `不是管理者的同学看不到服务端开关_但看得到手机提醒`() {
+        val s = realS().copy(can_manage = false)
+        render(fakeApi(statusSeq = listOf(json.encodeToString(GrabStatus.serializer(), s))))
+        compose.waitForIdle()
+        assertEquals("不该看到服务端总开关", 0, count("监控（服务端开关）"))
+        assertEquals("更不该看到开/关按钮", 0, count("开启监控"))
+        assertEquals("手机直接提醒必须还在（同学靠它收到提醒）", 1, count("手机直接提醒"))
+    }
 
     // ---------------------------------------------------------------- 纯逻辑
 
@@ -382,13 +398,15 @@ class GrabTest {
     }
 
     @Test
-    fun `最近动作默认只露几条_展开能看到全部`() {
+    fun `最近动作默认只露一条_展开能看到全部`() {
         render(fakeApi())
         assertEquals(1, count("最近动作"))
         assertEquals("摘要要说清多少条", 1, count("20 条 · 最新", substring = true))
-        // 折叠时只露最新 5 条 → 其中 3 条是同一个"有位了"提醒
-        assertEquals(3, count("有位了", substring = true))
-        // 第 20 条（监控线程启动）在折叠状态下不该出现 —— 一屏塞 20 条就不是"看见"了
+        // 折叠时只露**最新 1 条**（用户口径 2026-09-30 原话「收起时只展示一个」）
+        assertEquals(1, count("有位了", substring = true))
+        // 第 2 条（推送 飞书=✅ QQ=✅）与第 20 条（监控线程启动）在收起状态下都不该出现——
+        // 这一块以前默认铺 5 条，用户原话是「最近动作也太占空间了」
+        assertEquals(0, count("推送 飞书", substring = true))
         assertEquals(0, count("监控线程启动"))
         compose.onNodeWithText("展开全部 20 条").performClick()
         compose.waitForIdle()

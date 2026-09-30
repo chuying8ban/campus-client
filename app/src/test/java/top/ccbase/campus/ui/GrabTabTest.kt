@@ -84,13 +84,16 @@ class GrabTabTest {
     }
 
     @Test
-    fun `没有 can_grab 的登录用户_底栏不出现监控那一格`() {
+    fun `没有 can_grab 的登录用户_底栏同样有监控那一格`() {
+        // 2026-09-30 用户口径：「新版本每个用户的手机上都会显示监控，而不需要重新登录」
+        // ⇒ 这一格不再按 can_grab 显隐（can_grab 是登录那一刻写进本地的缓存，老用户
+        // 不会为了一个入口重新登录）。服务端已同步放开成"登录即可"（见 _grab_guard）。
         login(canGrab = false)
         renderShell()
         assertBarRendered()
         assertEquals(
-            "没拿到 can_grab 却看到了「监控」格 —— 这一格只该按服务端给的权限出现",
-            0, barItems(CampusTab.GRAB),
+            "登录了却没有「监控」格 —— 用户口径就是人人都有这一格",
+            1, barItems(CampusTab.GRAB),
         )
     }
 }

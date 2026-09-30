@@ -17,15 +17,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -213,38 +213,33 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
         Column(Modifier.fillMaxSize()) {
 
             // ── 页顶说明：只盯余量、不替抢；把"它做到哪、做不到哪"说清楚。
-            // 默认只占一行，点「展开」看全文（和下面「最近动作」那个展开/收起同一套写法）；
-            // 用这一页自己的 Card 装，横向留白跟其它块一致（22.dp）。
-            Box(
+            // 收起时就是**一行字**（用户口径 2026-09-30：上面太占空间）—— 不再用 Card 包，
+            // 省掉卡片自己的内边距；点右边「展开」看全文（跟「最近动作」同一套展开/收起写法）。
+            Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 22.dp, end = 22.dp, top = 14.dp),
+                    .padding(start = 22.dp, end = 22.dp, top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Card {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                GrabLogic.DISCLAIMER_HEAD,
-                                color = C.amber, fontSize = 12.sp,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                if (showDisclaimer) "收起" else "展开",
-                                color = C.cyan, fontSize = 11.sp,
-                                modifier = Modifier
-                                    .clickable { showDisclaimer = !showDisclaimer }
-                                    .padding(4.dp),
-                            )
-                        }
-                        if (showDisclaimer) {
-                            Text(
-                                GrabLogic.DISCLAIMER_BODY,
-                                color = C.txt2, fontSize = 11.sp,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                    }
-                }
+                Text(
+                    GrabLogic.DISCLAIMER_HEAD,
+                    color = C.amber, fontSize = 11.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (showDisclaimer) "收起" else "展开",
+                    color = C.cyan, fontSize = 11.sp,
+                    modifier = Modifier
+                        .clickable { showDisclaimer = !showDisclaimer }
+                        .padding(4.dp),
+                )
+            }
+            if (showDisclaimer) {
+                Text(
+                    GrabLogic.DISCLAIMER_BODY,
+                    color = C.txt2, fontSize = 11.sp, lineHeight = 16.sp,
+                    modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 2.dp),
+                )
             }
 
             // ── 状态行：我们的监控 / 教务登录，分开说
@@ -255,17 +250,20 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 else -> C.txt3
             }
             Row(
-                Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 18.dp),
+                Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(7.dp).background(dot, RoundedCornerShape(4.dp)))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(GrabLogic.statusLine(status), color = C.txt, fontSize = 13.sp)
-                    val meta = GrabLogic.metaLine(status)
-                    if (meta.isNotBlank()) Text(meta, color = C.txt3, fontSize = 11.sp)
-                    val st = GrabLogic.statsLine(status)
-                    if (st.isNotBlank()) Text(st, color = C.txt3, fontSize = 11.sp)
+                    // 底下原来两行（轮询间隔/目标数 + 清单统计）合成一行，中间用 · 隔开，
+                    // 太宽自己折行（用户口径 2026-09-30：上面太占空间）
+                    val tail = listOf(GrabLogic.metaLine(status), GrabLogic.statsLine(status))
+                        .filter { it.isNotBlank() }.joinToString(" · ")
+                    if (tail.isNotBlank()) {
+                        Text(tail, color = C.txt3, fontSize = 11.sp, lineHeight = 15.sp)
+                    }
                 }
                 Text(
                     if (busy) "…" else "刷新",
@@ -305,17 +303,33 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 )
             }
 
-            // ── 搜索：526 门课，不给搜索框就只能靠翻
-            OutlinedTextField(
-                value = q,
-                onValueChange = { q = it },
-                singleLine = true,
-                placeholder = { Text("搜课程 / 教师 / 班级", color = C.txt3, fontSize = 12.sp) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier
+            // ── 搜索：526 门课，不给搜索框就只能靠翻。
+            // 做成**紧凑的一行**（用户口径 2026-09-30：上面太占空间）—— 原来的
+            // OutlinedTextField 自带 ~56dp 高，光它一个就吃掉一屏的 7%。
+            Row(
+                Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 22.dp, vertical = 10.dp),
-            )
+                    .padding(horizontal = 22.dp, vertical = 6.dp)
+                    .background(C.card, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("🔍", fontSize = 11.sp)
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (q.isEmpty()) {
+                        Text("搜课程 / 教师 / 班级", color = C.txt3, fontSize = 12.sp)
+                    }
+                    BasicTextField(
+                        value = q,
+                        onValueChange = { q = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = C.txt, fontSize = 13.sp),
+                        cursorBrush = SolidColor(C.violet),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
             // ── 筛选档位
             LazyRow(
@@ -349,27 +363,34 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 item(key = "switch-card") {
                     Card {
                         Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("监控（服务端开关）", color = C.txt2, fontSize = 11.sp)
-                                    Text(
-                                        GrabLogic.monitorSwitchText(s),
-                                        color = when {
-                                            s == null -> C.txt3
-                                            !s.configured -> C.txt3
-                                            s.monitor_on -> C.green
-                                            else -> C.amber
-                                        },
-                                        fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                                    )
+                            // 服务端那个总开关是**作者自己那台引擎**的开关（它登录教务用的是作者
+                            // 的账号，关掉会连累所有人的余量数据），所以只给能管的人看。
+                            // 判据用服务端现算的 can_manage，不用本地缓存的 can_grab ——
+                            // 用户口径 2026-09-30：「不需要重新登录」。
+                            if (s?.can_manage == true) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("监控（服务端开关）", color = C.txt2, fontSize = 11.sp)
+                                        Text(
+                                            GrabLogic.monitorSwitchText(s),
+                                            color = when {
+                                                // 进了这个分支 s 必非空（s?.can_manage == true 智能转换过），
+                                                // 不能再写 s == null 那一支（编译器会告"恒为 false"）
+                                                !s.configured -> C.txt3
+                                                s.monitor_on -> C.green
+                                                else -> C.amber
+                                            },
+                                            fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                    if (s?.monitor_on == true) {
+                                        Action("关闭监控", C.red) { sheet = Sheet.MONITOR_OFF }
+                                    } else {
+                                        Action("开启监控", C.violet) { sheet = Sheet.MONITOR_ON }
+                                    }
                                 }
-                                if (s?.monitor_on == true) {
-                                    Action("关闭监控", C.red) { sheet = Sheet.MONITOR_OFF }
-                                } else {
-                                    Action("开启监控", C.violet) { sheet = Sheet.MONITOR_ON }
-                                }
+                                Spacer(Modifier.height(12.dp))
                             }
-                            Spacer(Modifier.height(12.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("手机直接提醒", color = C.txt2, fontSize = 11.sp)
@@ -537,8 +558,12 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     }
 }
 
-/** 日志默认只露这么多条 —— 一屏塞 20 条就不是"看见"，是噪音 */
-private const val LOGS_COLLAPSED = 5
+/**
+ * 收起时露几条动作记录。用户口径（2026-09-30）原话「最近动作也太占空间了，默认收起，
+ * 收起时只展示一个」—— 所以是 1，不是"几条"。收起状态下它是**一行提示**，
+ * 想看得多点右边「展开全部 N 条」。
+ */
+private const val LOGS_COLLAPSED = 1
 
 /** 当前弹出的浮层。用普通 Box 画 —— Robolectric 里 Dialog 是独立窗口，测试看不见。 */
 enum class Sheet { MONITOR_OFF, MONITOR_ON }

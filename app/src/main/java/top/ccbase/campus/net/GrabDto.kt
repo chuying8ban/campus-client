@@ -162,6 +162,11 @@ data class GrabStatus(
     /** 轮询间隔（秒） */
     val interval: Int = 20,
     val logged_in: Boolean = false,
+    /**
+     * 我能不能动「服务端监控总开关」。服务端现算（作者才有），**不依赖本地登录时缓存的
+     * can_grab** —— 用户口径 2026-09-30：「不需要重新登录」。老服务端不带这个字段 ⇒ false。
+     */
+    val can_manage: Boolean = false,
     val last_check: String = "",
     val last_error: String = "",
     val targets: List<GrabTarget> = emptyList(),

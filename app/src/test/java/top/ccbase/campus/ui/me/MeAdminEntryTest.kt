@@ -153,12 +153,13 @@ class MeAdminEntryTest {
     }
 
     @Test
-    fun `非作者连监控这两个字都看不到`() {
-        // 判据是服务端的 can_grab，不是"是不是作者"：render 里 canGrab = false，
-        // 所以这一节里不该长出监控入口。（这一页当年为此删过一行「监控功能」——
-        // 那行等于对所有人宣布功能存在，跟"按权限开放"对不上。）
+    fun `非作者也看得到监控入口_但看不到后台`() {
+        // 2026-09-30 用户口径：监控对**每个用户**开放、不必重新登录 ⇒ 这一格不再按 can_grab 显隐
+        // （render 里 canGrab = false，以前这一节断言"连监控两个字都看不到"）。
+        // 但「后台」仍然只给作者 —— 这两件事别被一起放开。
         render(isAuthor = false, canGrab = false)
         waitStable()
-        assertTrue("同学那边不该出现「监控」两个字", !has("监控"))
+        assertTrue("同学那边也该看得到「监控」入口", has("监控"))
+        assertTrue("「后台」仍旧只给作者", !has("后台"))
     }
 }

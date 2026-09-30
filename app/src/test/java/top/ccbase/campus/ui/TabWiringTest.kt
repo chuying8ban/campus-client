@@ -51,26 +51,23 @@ class TabWiringTest {
     }
 
     @Test
-    fun `底部栏_过滤看板_监控按 canGrab 显隐`() {
-        // 新口径：
+    fun `底部栏_过滤看板_监控那一格人人都有`() {
+        // 新口径（2026-09-30 用户原话：「新版本每个用户的手机上都会显示监控，而不需要重新登录」）：
         //   · 看板从底部栏收进「我的」页 —— 底部构造处要把它过滤掉；
-        //   · 监控那一格按服务端给的 can_grab 显隐：
-        //     拿不到权限的人连那一格都不存在（不是灰着），拿得到的人不用翻二级页。
+        //   · 监控那一格**不再按 can_grab 显隐**：can_grab 是登录那一刻写进本地的缓存，
+        //     老用户装上这个版本也不会重新登录，按它显隐 = 那一格永远长不出来。
+        //     服务端同时把监控那几个接口从 can_grab 放开成"登录即可"（grab/config 仍只给作者）。
         val lines = src.lines()
         val i = lines.indexOfFirst { it.contains("CampusTab.entries.filter") }
         assertTrue("找不到底部 tab 的构造点（实现改了就把这条用例一起更新）", i >= 0)
         val block = lines.subList(i, minOf(i + 4, lines.size)).joinToString("\n")
-        assertTrue("监控那一格必须由构造点决定显隐", block.contains("CampusTab.GRAB"))
-        assertTrue(
-            "监控那一格的判据必须是服务端给的 can_grab（TokenStore.canGrab）—— " +
-                "写死常显等于对所有人开放，写死常隐等于把它删了",
-            block.contains("TokenStore.canGrab("),
-        )
         assertTrue("看板必须从底部栏过滤掉（入口改在「我的」页）", block.contains("CampusTab.BOARD"))
-        // can_grab 是登录之后才落进本地的：底部栏必须每次组合都现读，
-        // 冻成一个只算一次的值 = "登录了还得重启 App 才看得到那一格"。
         assertTrue(
-            "底部栏不许把 tabs 冻成只算一次的值（登录后监控那一格要自己长出来）：$block",
+            "监控那一格不许再拿本地缓存的 can_grab 当判据（用户口径：不重新登录也要看得见）：$block",
+            !block.contains("TokenStore.canGrab("),
+        )
+        assertTrue(
+            "底部栏不许把 tabs 冻成只算一次的值：$block",
             !lines[i].contains("remember") && !block.contains("remember"),
         )
     }
