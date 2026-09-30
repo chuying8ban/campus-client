@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.ccbase.campus.data.remote.TokenStore
@@ -138,17 +139,26 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
         }
     }
 
-    /** 加入监控：只把课记下来盯着，不代你抢。 */
+    /**
+     * 加入监控：只把课记下来盯着，**不代你抢**，也**不要求监控已经在跑**。
+     *
+     * 2026-09-30 的死锁：这个按钮原来要求"正在盯（开关开 且 目标非空）"才可点 —— 目标为空时
+     * 那个条件恒为假 ⇒ **第一门课永远加不进去**，用户看到的只有一句「监控没在跑，加入监控不会
+     * 生效」。加一门课只是"记下来"这件事本身，跟开关在不在跑无关：现在恒可点，加完在弹窗里
+     * 说清"会不会开始提醒 + 要点哪里开"。
+     */
     suspend fun addTarget(l: GrabLesson) {
-        val tk = token ?: run { notice = GrabLogic.Notice("还没登录，先把登录做了", 1); return }
+        val tk = token ?: run { notice = GrabLogic.Notice("还没登录，先把登录做了", 3); return }
         when (val r = api.grabAddTarget(tk, l)) {
             is ApiResult.Ok -> {
-                notice = when {
-                    r.value.clash_text.isNotBlank() ->
-                        GrabLogic.Notice(GrabLogic.addedText(l.course, r.value.clash_text), 1)
-                    else -> GrabLogic.Notice(GrabLogic.addedText(l.course, ""), 2)
-                }
-                pullStatus()
+                pullStatus()   // 先回读，才知道这会儿到底会不会提醒
+                val head = GrabLogic.addedText(l.course, r.value.clash_text)
+                val tail = if (status?.watching == true) ""
+                else GrabLogic.notWatchingHint(status?.can_manage == true)
+                notice = GrabLogic.Notice(
+                    if (tail.isBlank()) head else "$head\n$tail",
+                    if (r.value.clash_text.isNotBlank() || tail.isNotBlank()) 1 else 2,
+                )
             }
             is ApiResult.Err -> notice = GrabLogic.Notice(GrabLogic.errorText(r.code, r.message), 3)
         }
@@ -210,151 +220,144 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     }
 
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-
-            // ── 页顶说明：只盯余量、不替抢；把"它做到哪、做不到哪"说清楚。
-            // 收起时就是**一行字**（用户口径 2026-09-30：上面太占空间）—— 不再用 Card 包，
-            // 省掉卡片自己的内边距；点右边「展开」看全文（跟「最近动作」同一套展开/收起写法）。
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 22.dp, end = 22.dp, top = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    GrabLogic.DISCLAIMER_HEAD,
-                    color = C.amber, fontSize = 11.sp,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    if (showDisclaimer) "收起" else "展开",
-                    color = C.cyan, fontSize = 11.sp,
-                    modifier = Modifier
-                        .clickable { showDisclaimer = !showDisclaimer }
-                        .padding(4.dp),
-                )
-            }
-            if (showDisclaimer) {
-                Text(
-                    GrabLogic.DISCLAIMER_BODY,
-                    color = C.txt2, fontSize = 11.sp, lineHeight = 16.sp,
-                    modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 2.dp),
-                )
-            }
-
-            // ── 状态行：我们的监控 / 教务登录，分开说
-            val dot = when (GrabLogic.statusLevel(status)) {
-                1 -> C.green
-                2 -> C.amber
-                3 -> C.red
-                else -> C.txt3
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(7.dp).background(dot, RoundedCornerShape(4.dp)))
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(GrabLogic.statusLine(status), color = C.txt, fontSize = 13.sp)
-                    // 底下原来两行（轮询间隔/目标数 + 清单统计）合成一行，中间用 · 隔开，
-                    // 太宽自己折行（用户口径 2026-09-30：上面太占空间）
-                    val tail = listOf(GrabLogic.metaLine(status), GrabLogic.statsLine(status))
-                        .filter { it.isNotBlank() }.joinToString(" · ")
-                    if (tail.isNotBlank()) {
-                        Text(tail, color = C.txt3, fontSize = 11.sp, lineHeight = 15.sp)
+        // ── 整页只留**一个**滚动容器（用户口径 2026-09-30：「往下翻的时候上面的标签可以全部收起」）。
+        // 说明行、状态行、搜索框、筛选标签原来钉在列表上方的固定头里，一直占着小半屏、往下翻也不走；
+        // 现在它们只是列表最前面的三项，往下滚就跟着滚走，课程列表能占满整屏。
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item(key = "h-head") {
+                Column {
+                    // ── 页顶说明：只盯余量、不替抢；把"它做到哪、做不到哪"说清楚。
+                    // 收起时就是**一行字**（用户口径 2026-09-30：上面太占空间）—— 不用 Card 包，
+                    // 省掉卡片自己的内边距；点右边「展开」看全文（跟「最近动作」同一套展开/收起写法）。
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            GrabLogic.DISCLAIMER_HEAD,
+                            color = C.amber, fontSize = 11.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            if (showDisclaimer) "收起" else "展开",
+                            color = C.cyan, fontSize = 11.sp,
+                            modifier = Modifier
+                                .clickable { showDisclaimer = !showDisclaimer }
+                                .padding(4.dp),
+                        )
                     }
-                }
-                Text(
-                    if (busy) "…" else "刷新",
-                    color = C.violet, fontSize = 12.sp,
-                    modifier = Modifier
-                        .clickable {
-                            scope.launch {
-                                pullStatus()
-                                pullList(reset = true)
+                    if (showDisclaimer) {
+                        Text(
+                            GrabLogic.DISCLAIMER_BODY,
+                            color = C.txt2, fontSize = 11.sp, lineHeight = 16.sp,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+
+                    // ── 状态行：我们的监控 / 教务登录，分开说
+                    val dot = when (GrabLogic.statusLevel(status)) {
+                        1 -> C.green
+                        2 -> C.amber
+                        3 -> C.red
+                        else -> C.txt3
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(7.dp).background(dot, RoundedCornerShape(4.dp)))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(GrabLogic.statusLine(status), color = C.txt, fontSize = 13.sp)
+                            // 底下原来两行（轮询间隔/目标数 + 清单统计）合成一行，中间用 · 隔开，
+                            // 太宽自己折行（用户口径 2026-09-30：上面太占空间）
+                            val tail = listOf(GrabLogic.metaLine(status), GrabLogic.statsLine(status))
+                                .filter { it.isNotBlank() }.joinToString(" · ")
+                            if (tail.isNotBlank()) {
+                                Text(tail, color = C.txt3, fontSize = 11.sp, lineHeight = 15.sp)
                             }
                         }
-                        .padding(6.dp),
-                )
-            }
+                        Text(
+                            if (busy) "…" else "刷新",
+                            color = C.violet, fontSize = 12.sp,
+                            modifier = Modifier
+                                .clickable {
+                                    scope.launch {
+                                        pullStatus()
+                                        pullList(reset = true)
+                                        // 用户口径 2026-09-30：所有操作做完都要有反馈 ——
+                                        // 刷新也要说一句"刷完了"，否则点一下没动静，像没反应。
+                                        if (notice?.isError != true) {
+                                            notice = GrabLogic.Notice("已刷新：状态和课程余量都是最新的", 2)
+                                        }
+                                    }
+                                }
+                                .padding(6.dp),
+                        )
+                    }
 
-            // ── 服务端报的错（登录过期 / 教务登录失败…）—— 原话保留，别吞掉
-            status?.last_error?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    "服务端上次检查报错：$it",
-                    color = C.red, fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
-                )
-            }
-
-            // ── 刚才那一下操作的结果（成功/失败都说清，别静默）
-            notice?.let { n ->
-                val nc = when {
-                    n.isError -> C.red
-                    n.isOk -> C.green
-                    n.level == 1 -> C.amber
-                    else -> C.txt2
+                    // ── 服务端报的错（登录过期 / 教务登录失败…）—— 原话保留，别吞掉
+                    status?.last_error?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            "服务端上次检查报错：$it",
+                            color = C.red, fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
                 }
-                Text(
-                    n.text,
-                    color = nc, fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp),
-                )
             }
 
             // ── 搜索：526 门课，不给搜索框就只能靠翻。
             // 做成**紧凑的一行**（用户口径 2026-09-30：上面太占空间）—— 原来的
             // OutlinedTextField 自带 ~56dp 高，光它一个就吃掉一屏的 7%。
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 22.dp, vertical = 6.dp)
-                    .background(C.card, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("🔍", fontSize = 11.sp)
-                Spacer(Modifier.width(8.dp))
-                Box(Modifier.weight(1f)) {
-                    if (q.isEmpty()) {
-                        Text("搜课程 / 教师 / 班级", color = C.txt3, fontSize = 12.sp)
+            item(key = "h-search") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp)
+                        .background(C.card, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🔍", fontSize = 11.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (q.isEmpty()) {
+                            Text("搜课程 / 教师 / 班级", color = C.txt3, fontSize = 12.sp)
+                        }
+                        BasicTextField(
+                            value = q,
+                            onValueChange = { q = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = C.txt, fontSize = 13.sp),
+                            cursorBrush = SolidColor(C.violet),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                    BasicTextField(
-                        value = q,
-                        onValueChange = { q = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = C.txt, fontSize = 13.sp),
-                        cursorBrush = SolidColor(C.violet),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             }
 
             // ── 筛选档位
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 22.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(GrabLogic.FILTERS) { f ->
-                    val on = f.second == flt
-                    Text(
-                        text = f.first,
-                        color = if (on) C.bg else C.txt2,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .background(if (on) C.violet else C.card, RoundedCornerShape(20.dp))
-                            .clickable { flt = f.second }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
+            item(key = "h-filters") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(GrabLogic.FILTERS) { f ->
+                        val on = f.second == flt
+                        Text(
+                            text = f.first,
+                            color = if (on) C.bg else C.txt2,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .background(if (on) C.violet else C.card, RoundedCornerShape(20.dp))
+                                .clickable { flt = f.second }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
                 }
             }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
                 val s = status
                 val tg = s?.targets.orEmpty()
                 val isWatching = s?.watching == true
@@ -510,14 +513,14 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 }
 
                 items(lessons, key = { "l${it.lesson_id}" }) { l ->
+                    // 已经在监控里的课，卡片上直接给「取消监控」—— 免得用户再点一次「加入监控」
+                    // 却看不出有没有生效（用户口径 2026-09-30：不能让人不知道自己干了什么）。
+                    val monitored = tg.firstOrNull { it.lesson_id == l.lesson_id }
                     LessonCard(
                         l = l,
-                        watchOn = isWatching,
+                        monitored = monitored != null,
                         onAdd = { scope.launch { addTarget(l) } },
-                        onAddBlocked = {
-                            notice = GrabLogic.Notice(
-                                "监控没在跑，加入监控不会生效 —— 先点上面的「开启监控」", 1)
-                        },
+                        onRemove = { monitored?.let { t -> scope.launch { removeTarget(t) } } },
                     )
                 }
 
@@ -533,8 +536,11 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                     }
                 }
 
-            }
         }
+
+        // ── 刚才那一下操作的结果：**弹窗**（用户口径 2026-09-30：「里面的所有操作做完都会有弹窗
+        // 提示，否则用户都不知道自己干了什么」）。原来是页顶一行 11sp 小字，扫一眼就滑过去了。
+        notice?.let { n -> NoticePopup(n) { notice = null } }
 
         sheet?.let { sh ->
             Overlay(
@@ -649,9 +655,9 @@ private fun TargetCard(
 @Composable
 private fun LessonCard(
     l: GrabLesson,
-    watchOn: Boolean,
+    monitored: Boolean,
     onAdd: () -> Unit,
-    onAddBlocked: () -> Unit,
+    onRemove: () -> Unit,
 ) {
     Card {
         Column {
@@ -679,19 +685,87 @@ private fun LessonCard(
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (l.mine == 0) {
+                when {
+                    l.mine != 0 ->
+                        Text("已在我的课表里", color = C.txt3, fontSize = 11.sp)
+                    monitored ->
+                        Text("已在监控", color = C.green, fontSize = 12.sp)
+                    else ->
+                        // **恒为紫、恒可点**：加一门课只是"记下来盯着"，跟提醒开关在不在跑无关。
+                        // 2026-09-30 的 bug 就出在这里 —— 原来它要求"正在盯"才可点，而目标为空时
+                        // 那个条件恒为假 ⇒ 第一门课永远加不进去（用户：为什么无法加入监控）。
+                        Text(
+                            "加入监控",
+                            color = C.violet, fontSize = 12.sp,
+                            modifier = Modifier.clickable { onAdd() }.padding(6.dp),
+                        )
+                }
+                if (monitored) {
+                    Spacer(Modifier.width(10.dp))
                     Text(
-                        "加入监控",
-                        color = if (watchOn) C.violet else C.txt3, fontSize = 12.sp,
-                        modifier = Modifier
-                            .clickable { if (watchOn) onAdd() else onAddBlocked() }
-                            .padding(6.dp),
+                        "取消监控",
+                        color = C.red, fontSize = 12.sp,
+                        modifier = Modifier.clickable { onRemove() }.padding(6.dp),
                     )
-                } else {
-                    Text("已在我的课表里", color = C.txt3, fontSize = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+/**
+ * 操作结果**弹窗**（用户口径 2026-09-30：「里面的所有操作做完都会有弹窗提示，否则用户都不知道
+ * 自己干了什么」）。原来是页顶一行 11sp 的小字，在长页面里扫一眼就滑过去了。
+ *
+ * 为什么用普通 Box 画，而不是 Dialog / Snackbar：Robolectric 里 Dialog 是独立窗口，测试看不见；
+ * Snackbar 要 Scaffold。规矩跟下面的 Overlay 一样 —— 用 Box 画，测试和真机看到的是同一份。
+ * 成功/提示 3 秒后自己消失（扫一眼够了）；**失败留着**，得让人看清错在哪，点它才关掉。
+ */
+@Composable
+private fun NoticePopup(n: GrabLogic.Notice, onDismiss: () -> Unit) {
+    val cc = when {
+        n.isError -> C.red
+        n.isOk -> C.green
+        n.level == 1 -> C.amber
+        else -> C.txt2
+    }
+    val title = when {
+        n.isError -> "没成功"
+        n.isOk -> "已完成"
+        n.level == 1 -> "请注意"
+        else -> "已完成"
+    }
+    LaunchedEffect(n) {
+        if (!n.isError) {
+            delay(3000)
+            onDismiss()
+        }
+    }
+    // 只占屏幕底部一条：外层 Box 没有点击修饰符，所以**点弹窗以外的地方照常点到列表**，
+    // 不会像模态那样把页面挡住。
+    Box(
+        Modifier.fillMaxSize().padding(horizontal = 18.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 22.dp)
+                .background(C.bgSoft, RoundedCornerShape(12.dp))
+                .border(1.dp, cc, RoundedCornerShape(12.dp))
+                .clickable { onDismiss() }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).background(cc, RoundedCornerShape(4.dp)))
+                Spacer(Modifier.width(8.dp))
+                Text(title, color = cc, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.weight(1f))
+                Text("点一下关掉", color = C.txt3, fontSize = 10.sp)
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(n.text, color = C.txt, fontSize = 13.sp, lineHeight = 19.sp)
         }
     }
 }

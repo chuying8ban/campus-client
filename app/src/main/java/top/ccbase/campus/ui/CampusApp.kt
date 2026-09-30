@@ -464,10 +464,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
-                    // 监控页也走 extra 全屏子页（和看板入口同一条路：系统返回键退回，
-                    // 底部栏还在能直接切走）。这里与底部栏那一格是**同一个判据**（can_grab）：
-                    // 拿得到 can_grab 的人两条路都通，拿不到的人两处都不存在。
-                    onOpenGrab = { extra = CampusTab.GRAB },
+                    // 监控**不再从「我的」进**（用户口径 2026-09-30：「把我的里面的监控删了」）——
+                    // 入口只剩底部菜单栏那一格，同一件事不留两个入口。
                     ctx = appCtx,
                     db = app.db,
                     api = remember { CampusApi() },

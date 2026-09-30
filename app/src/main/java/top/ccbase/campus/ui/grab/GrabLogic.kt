@@ -160,6 +160,17 @@ object GrabLogic {
         if (clashText.isBlank()) "已加入监控：$course"
         else "已加入监控：$course（⚠ $clashText）"
 
+    /**
+     * 课加进来了，但此刻**不会有任何提醒**时，补一句"下一步点哪里"。
+     *
+     * 2026-09-30 的教训：加一门课和"提醒在不在跑"是两件事，可界面把它们混成了一件事 ——
+     * 用户加完只看到一句拦人的话，既不知道加没加进去，也不知道该去点哪个开关。
+     * 这里按"有没有服务端总开关"分两条路说（普通同学那条路上只有「手机直接提醒」）。
+     */
+    fun notWatchingHint(canManage: Boolean): String =
+        if (canManage) "现在还没开监控，暂时不会提醒 —— 点上面的「开启监控」"
+        else "现在还没开始提醒 —— 点上面的「手机直接提醒」右边的「开启」"
+
     /** 监控列表里那一行 */
     fun targetLine(t: GrabTarget): String {
         val who = listOf(t.teacher, "限 ${t.limit_cnt} 人").filter { it.isNotBlank() && it != "限 0 人" }

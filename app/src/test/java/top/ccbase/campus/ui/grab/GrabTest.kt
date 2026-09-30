@@ -493,9 +493,11 @@ class GrabTest {
         val one = realS().targets.first()
         val short = json.encodeToString(GrabStatus.serializer(),
             realS().copy(targets = listOf(one), logs = emptyList()))
+        // 要挑一门**不在监控清单里**的课：卡片只有在"没加过"时才给「加入监控」按钮
+        // （已经在监控里的那门显示的是「已在监控」+「取消监控」）。
         val oneLesson = json.encodeToString(GrabCatalog.serializer(),
             json.decodeFromString(GrabCatalog.serializer(), realCatalog)
-                .copy(lessons = listOf(realC().first())))
+                .copy(lessons = listOf(realC().first { it.lesson_id != one.lesson_id && it.mine == 0 })))
         render(fakeApi(statusSeq = listOf(short), catalog = oneLesson))
         assertEquals("点之前不该有反馈", 0, count("已加入监控", substring = true))
         compose.onNodeWithText("加入监控").performClick()
@@ -505,15 +507,39 @@ class GrabTest {
     }
 
     @Test
-    fun `监控没在跑时_加入监控要拦下来并说清为什么`() {
+    fun `已经在监控里的课_卡片直接说已在监控并给取消`() {
+        // 用户口径 2026-09-30：「所有操作做完都会有弹窗提示，否则用户都不知道自己干了什么」——
+        // 卡片也一样：加过的课要一眼看出"已经在里面了"，并且当场能取消。
+        val one = realS().targets.first()
+        val short = json.encodeToString(GrabStatus.serializer(),
+            realS().copy(targets = listOf(one), logs = emptyList()))
+        val oneLesson = json.encodeToString(GrabCatalog.serializer(),
+            json.decodeFromString(GrabCatalog.serializer(), realCatalog)
+                .copy(lessons = listOf(realC().first { it.lesson_id == one.lesson_id })))
+        render(fakeApi(statusSeq = listOf(short), catalog = oneLesson))
+        compose.onNodeWithText("已在监控").assertExists()
+        compose.onNodeWithText("取消监控").assertExists()
+        assertEquals("已经在监控里的课不该再给「加入监控」", 0, count("加入监控"))
+        // 点了要真发 DELETE，且给一条弹窗反馈（不能静默）
+        compose.onNodeWithText("取消监控").performClick()
+        awaitCount("已取消监控：", substring = true)
+    }
+
+    @Test
+    fun `监控没在跑也加得进_但弹窗要说清还不会提醒`() {
+        // 2026-09-30 真机上的事：用户点「加入监控」什么也没发生 —— 那个按钮当时要求"正在盯"才可点，
+        // 而目标为空时"正在盯"恒为假 ⇒ **第一门课永远加不进去**（用户原话：为什么无法加入监控）。
+        // 现在加课与开关无关，但必须说清"加上了，可还不会提醒、去点哪里开"。
         val stopped = json.encodeToString(GrabStatus.serializer(),
             realS().copy(monitor_on = false))
-        render(fakeApi(statusSeq = listOf(stopped)))
+        val seen = mutableListOf<String>()
+        render(fakeApi(statusSeq = listOf(stopped), seen = seen))
         compose.onNodeWithText("监控已停止", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("现在没在盯任何课", substring = true).assertExists()
         compose.onAllNodesWithText("加入监控").onFirst().performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("加入监控不会生效", substring = true).assertExists()
+        awaitCount("已加入监控：", substring = true)
+        assertTrue("加课必须真发出去（不能只在界面上装作加了）：$seen",
+            seen.any { it.startsWith("POST") && it.contains("/grab/target") })
+        compose.onNodeWithText("暂时不会提醒", substring = true).assertExists()
     }
 
     // ---------------------------------------------------------------- 需求 A：关闭监控

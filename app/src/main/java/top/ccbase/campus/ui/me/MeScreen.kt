@@ -134,8 +134,6 @@ fun MeScreen(
     onOpenAdmin: () -> Unit = {},
     /** 给 App 提建议 —— **每个用户都有**这个入口（不像后台那节只给作者） */
     onOpenFeedback: () -> Unit = {},
-    /** 点「监控」：进监控页。按服务端给的 can_grab 显隐；服务端还会再闸一次 */
-    onOpenGrab: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf(TokenStore.token(ctx)) }
@@ -395,8 +393,21 @@ fun MeScreen(
             if (needRelogin && !busy) {
                 Action("重新登录", "登录已过期 —— 重新登录后课表才会继续更新", onClick = { relogin() })
             }
-            Action("退出登录", "课表和打卡记录留在手机里；仅停止自动更新") { askLogout = true }
         }
+
+        // 「建议与外观」提到「提醒」前面（用户口径 2026-09-30：「把提建议和外观放到提醒前面」）：
+        // 这两样是他自己会去点的东西，原来埋在「关于」那一堆条目中间，得一路翻到底才找得到。
+        SectionTitle("建议与外观")
+        Action(
+            text = "给 App 提建议",
+            hint = "想加什么功能、哪里不好用、哪里看不懂 —— 直接写给我",
+            onClick = onOpenFeedback,
+        )
+        Action(
+            text = "外观",
+            hint = "深色 / 浅色 / 跟随系统 · 背景图（内置渐变或自己上传，只存本机）",
+            onClick = onOpenAppearance,
+        )
 
         SectionTitle("提醒")
         NudgeStrip()
@@ -404,17 +415,9 @@ fun MeScreen(
         SectionTitle("看板")
         Action("打卡热力 / 里程碑", "连续天数、完成度、阶段进度", onClick = { onOpenBoard() })
 
-        // 监控对**每个用户**开放（用户口径 2026-09-30：「新版本每个用户的手机上都会显示监控，
-        // 而不需要重新登录」）—— 所以这一格**不能**待在下面那个 `AUTHOR_BUILD && isAuthor`
-        // 的「后台」块里：公开包那段会被 R8 整段摘掉，普通同学就永远没有入口（底部栏那一格
-        // 又只是 tab）。页内那个"服务端总开关"才仍然只给作者（服务端 can_manage 现算）。
-        // 判据是**有没有登录**，不是 can_grab（那是登录时写进本地的旧缓存，老用户不重登就
-        // 永远看不到）；没登录也不给：监控要拿你的身份去查余量，进去只会看到错误页。
-        // 节名叫「选课」而不是「监控」：段标题和行名同名会让测试里按文字找节点变成两个。
-        if (token != null) {
-            SectionTitle("选课")
-            Action("监控", "盯可选课程余量；只提醒，不代抢", enabled = !busy) { onOpenGrab() }
-        }
+        // 这里曾经有一节「选课 → 监控」。2026-09-30 用户口径：「**把我的里面的监控删了**」——
+        // 监控现在只在底部菜单栏那一格，同一件事不留第二个入口（两个入口只会让人犹豫点哪个）。
+        // 监控本身仍然对每个登录用户开放，判据在底部栏那边（不看登录时缓存的 can_grab）。
 
         // 「后台」这一节整份只进**作者包**。两层闸各管一件事：
         //  · AUTHOR_BUILD 是编译期闸 —— 公开包里它恒为 false，整段是死代码
@@ -483,12 +486,8 @@ fun MeScreen(
             onClick = onCheckUpdate,
         )
         KV("数据来源", "你本人的教务系统")
-        // 提建议：放在「关于」里、**所有用户都能看到**（用户 2026-09-21：每个用户都可以提）
-        Action(
-            text = "给 App 提建议",
-            hint = "想加什么功能、哪里不好用、哪里看不懂 —— 直接写给我",
-            onClick = onOpenFeedback,
-        )
+        // 「给 App 提建议」2026-09-30 搬到前面的「建议与外观」那一节了（用户口径：
+        // 「把提建议和外观放到提醒前面」）—— 这里不再重复第二份入口。
         // 自检入口也放明处：连不上服务器时，用户能自己跑一次，不用等我猜
         Action(
             text = "网络自检",
@@ -501,11 +500,7 @@ fun MeScreen(
             hint = "你的教务密码怎么加密、谁能看到、怎么一键删除 —— 逐条写清楚",
             onClick = onOpenSafety,
         )
-        Action(
-            text = "外观",
-            hint = "深色 / 浅色 / 跟随系统 · 背景图（内置渐变或自己上传，只存本机）",
-            onClick = onOpenAppearance,
-        )
+        // 「外观」2026-09-30 也搬去「建议与外观」那一节了，这里不再重复。
         Action(
             text = "授权与白名单",
             hint = if (missingPerms.isEmpty()) {
@@ -516,8 +511,6 @@ fun MeScreen(
             },
             onClick = onOpenPermissions,
         )
-        // 监控入口在这页正文的「选课」那一节里（2026-09-30 起对每个用户开放，底部栏那一格
-        // 也一样人人可见）；这里曾经有一行 KV("监控功能", …) —— 那是把功能当卖点宣布，已删除。
         Spacer(Modifier.height(14.dp))
         Text(
             "这是一个学生自己做的工具，不是学校官方产品。\n" +
@@ -525,6 +518,14 @@ fun MeScreen(
             fontSize = 11.sp, lineHeight = 18.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f),
         )
+
+        // ── 退出登录放**整页最底下**（用户口径 2026-09-30：「把退出登录放到我的的最底下」）：
+        // 它是"用不着就别碰"的动作，夹在账户那堆信息中间最容易被误点（误点的代价是
+        // 重新登录 + 短信二次认证）。二次确认仍然保留（见下面的 askLogout 弹窗）。
+        if (token != null) {
+            Spacer(Modifier.height(22.dp))
+            Action("退出登录", "课表和打卡记录留在手机里；仅停止自动更新") { askLogout = true }
+        }
 
         msg?.let {
             Spacer(Modifier.height(22.dp))

@@ -85,7 +85,6 @@ class MeAdminEntryTest {
         isAuthor: Boolean,
         canGrab: Boolean = false,
         onOpenAdmin: () -> Unit = {},
-        onOpenGrab: () -> Unit = {},
     ) {
         TokenStore.save(
             ctx = app(), token = "tok-1", expiresAt = "2099-01-01T00:00:00",
@@ -99,7 +98,6 @@ class MeAdminEntryTest {
                 MeScreen(
                     ctx = app(), db = db, api = api(isAuthor, canGrab), version = "test", onLogin = {},
                     onOpenAdmin = onOpenAdmin,
-                    onOpenGrab = onOpenGrab,
                 )
             }
         }
@@ -142,24 +140,21 @@ class MeAdminEntryTest {
     }
 
     @Test
-    fun `作者能看到监控入口_点了进监控页`() {
-        // 新口径：监控只盯余量、不代抢，底部栏那一格按 can_grab 显隐；
-        // 「我的 → 后台」这一节里也留一个入口（同一个 can_grab 判据，两条路都通）。
-        var opened = 0
-        render(isAuthor = true, canGrab = true, onOpenGrab = { opened++ })
-        rule.waitUntil(20_000) { has("监控") }
-        rule.onNodeWithText("监控").performClick()
-        assertEquals("点了监控入口应该进监控页", 1, opened)
+    fun `我的页不再有监控入口_后台照旧只给作者`() {
+        // 2026-09-30 用户口径：「把我的里面的监控删了」—— 监控只在底部菜单栏那一格，
+        // 同一件事不留两个入口。监控本身仍对每个登录用户开放（判据在底部栏，见 TabWiringTest）。
+        render(isAuthor = true, canGrab = true)
+        waitStable()
+        assertTrue("我的页不该再有「监控」这一行", !has("监控"))
+        assertTrue("作者的后台入口照旧", has("后台"))
     }
 
     @Test
-    fun `非作者也看得到监控入口_但看不到后台`() {
-        // 2026-09-30 用户口径：监控对**每个用户**开放、不必重新登录 ⇒ 这一格不再按 can_grab 显隐
-        // （render 里 canGrab = false，以前这一节断言"连监控两个字都看不到"）。
-        // 但「后台」仍然只给作者 —— 这两件事别被一起放开。
+    fun `非作者看不到后台_我的页也没有监控入口`() {
+        // 2026-09-30：监控对每个用户开放（入口在底部栏），但「后台」仍然只给作者 —— 别一起放开。
         render(isAuthor = false, canGrab = false)
         waitStable()
-        assertTrue("同学那边也该看得到「监控」入口", has("监控"))
         assertTrue("「后台」仍旧只给作者", !has("后台"))
+        assertTrue("我的页不留监控入口（它只在底部栏那一格）", !has("监控"))
     }
 }

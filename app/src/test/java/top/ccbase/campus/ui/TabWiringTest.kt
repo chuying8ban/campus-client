@@ -15,14 +15,43 @@ import java.io.File
  * 页面函数测对了 ≠ 用户点得到。入口接线必须单独钉住：
  *   1. 每个「不是空壳」的 tab 都要有真实分支，且分支在 `else -> ShellScreen` **之前**
  *      （Kotlin 的 when 按顺序匹配，落在 else 后面就是死代码，只有警告不报错）
- *   2. 底部 tab 栏：看板**过滤掉**；监控那一格按服务端给的 can_grab 显隐
- *      （看板入口保留在「我的」页）
+ *   2. 底部 tab 栏：看板**过滤掉**（入口在「我的」页）；监控那一格**人人都有**
+ *      （不再按登录时缓存的 can_grab 显隐 —— 用户 2026-09-30：不重新登录也要看得见）
  *
  * 这是源码级断言：跑得快、不需要 Robolectric，专门咬"接线被删了"这一类回归。
  */
 class TabWiringTest {
 
     private val src = File("src/main/java/top/ccbase/campus/ui/CampusApp.kt").readText()
+
+    @Test
+    fun `页顶那一块在滚动容器里_往下翻能收起`() {
+        // 用户口径 2026-09-30：「往下翻的时候上面的标签可以全部收起」。
+        // 做法：说明 / 状态 / 搜索框 / 筛选标签都变成 LazyColumn 的前三项（h-head / h-search /
+        // h-filters），不再是钉在列表上方的固定头 —— 钉着的时候小半屏永远收不回去。
+        for (k in listOf("h-head", "h-search", "h-filters")) {
+            assertTrue("页顶那一块的 $k 应该是列表里的一项（钉在列表上方就收不起来）",
+                grabSrc.contains("item(key = \"$k\")"))
+        }
+    }
+
+    @Test
+    fun `操作结果必须是弹窗_有标题也有得点`() {
+        // 用户口径 2026-09-30：「里面的所有操作做完都会有弹窗提示，否则用户都不知道自己干了什么」。
+        // 钉住它是**浮在页面上的卡片**（结果标题 +「点一下关掉」），不是页顶一行 11sp 小字。
+        assertTrue("结果弹窗没了", grabSrc.contains("private fun NoticePopup("))
+        assertTrue("弹窗要按结果分档给标题", grabSrc.contains("\"没成功\"") && grabSrc.contains("\"已完成\""))
+        assertTrue("弹窗要能点掉", grabSrc.contains("\"点一下关掉\""))
+    }
+
+    @Test
+    fun `加入监控不许再被开关拦住`() {
+        // 2026-09-30 的死锁：这个按钮原来写成 `if (watchOn) onAdd() else onAddBlocked()`，
+        // 而 watchOn = "开关在跑 且 目标非空" —— 目标为空时恒为假 ⇒ **第一门课永远加不进去**。
+        // 加一门课只是"记下来"，跟开关在不在跑无关：它必须恒可点。
+        assertTrue("加入监控又被开关拦住了（onAddBlocked 那套回来了）",
+            !grabSrc.contains("onAddBlocked"))
+    }
 
     /**
      * 真实的 tab 分支出现的位置（行号）。
@@ -73,11 +102,13 @@ class TabWiringTest {
     }
 
     @Test
-    fun `监控入口接在「我的」页上`() {
-        // 入口不接上 = 拿得到 can_grab 的人彻底进不去监控页（当年就是「页面写好了、入口没接线」，用户看到空壳）
+    fun `监控入口只接在底部栏_「我的」页不再接一份`() {
+        // 2026-09-30 用户口径：「把我的里面的监控删了」。
+        // 反面教训是当年那句「页面写好了、入口没接线」—— 用户看到空壳。所以这里两头都钉：
+        // 底部栏那一格必须接上（下面那条用例），「我的」里不许再接第二份。
         assertTrue(
-            "没把「我的」的监控入口接到监控页上（应写成 onOpenGrab = { extra = CampusTab.GRAB }）",
-            src.contains("onOpenGrab = { extra = CampusTab.GRAB }"),
+            "「我的」里又出现了监控入口（用户口径：删掉它，只在底部栏留一格）",
+            !src.contains("onOpenGrab = { extra = CampusTab.GRAB }"),
         )
     }
 
