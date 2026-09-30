@@ -42,26 +42,17 @@ import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 
 /**
- * 抢课页（**测试功能**：底部栏那一格按服务端给的 can_grab 显隐，页顶有免责说明；
+ * 监控页（底部栏那一格按服务端给的 can_grab 显隐，页顶有口径说明；
  * 服务端仍然会拿 can_grab 再拦一道）。
  *
- * 这一页要做三件事：**看见**（哪些课现在能拿）、**盯住**（加入监控）、
- * **随时能停**（移除目标 / 关掉自动提交）。
+ * 这一页只做两件事：**看见**（哪些课现在能拿）、**盯住**（加入监控），
+ * 并且**随时能停**（移除目标 / 关掉监控）。
  *
- * 一条纪律：**页面上出现的每个状态都来自服务端那一次 GET /grab/status**。
- * 客户端可以请求（比如"顺带把这门课设成自动提交"），但要不要显示成"已开"，
- * 只认服务端回什么 —— 上一次这一页显示的是"监控状态无法解析"，
+ * 一条纪律：**页面上出现的每个状态都来自服务端那一次 GET /grab/status**，
+ * 客户端自己猜的状态不能上屏 —— 上一次这一页显示的是"监控状态无法解析"，
  * 那次事故的教训就是：客户端自己猜的状态，用户会当真。
  *
- * 关于自动抢课：服务端的 `/api/v2/grab/target` 目前**固定把 auto_submit 写成 0**
- * （服务端在冻结期，不改）。所以这一页的"开启"是：
- * **必须过一次确认层 → 提交请求 → 回读服务端 → 照实显示**。
- * 服务端回读没接受就明确写"没开成"，绝不放绿灯（显示只认回读）；
- * 而"停"是真的能停（同一个接口写 0 是生效的）。
- *
- * 冲突规则（用户定的）：只在**没有任何时间冲突**的前提下才允许自动抢某节课。
- * 有冲突的课可以加入监控（盯余量没问题），但自动抢开关**置灰不可选**，
- * 并且必须写清为什么。⚠️ 客户端这层过滤不是安全边界，真正的判定归服务端。
+ * 冲突提示只是**信息**：提醒这门课即使选上也不一定上得了，App 不代选。
  */
 @Composable
 fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
@@ -77,13 +68,6 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     /** 页顶那段免责说明展开没有（默认收起：话要说清，但不能挡住下面的操作） */
     var showDisclaimer by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<Sheet?>(null) }
-    var sheetTarget by remember { mutableStateOf<GrabTarget?>(null) }
-    /**
-     * 监控目标在**当前筛选档位下**未必出现在清单里（默认档位是「能抢且不冲突」），
-     * 而确认层必须写清"哪些课、哪个教学班、余量多少" —— 所以确认层打开时
-     * 按课程名单独查一次，把缺的教学班/余量补上（查不到就照实少显示，不编）。
-     */
-    var extraLessons by remember { mutableStateOf<Map<Int, GrabLesson>>(emptyMap()) }
 
     // ── 手机直接提醒（和飞书/QQ 推送无关：这台手机自己弹）
     var watchOn by remember { mutableStateOf(GrabWatch.isOn(ctx)) }
@@ -91,21 +75,6 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     var watchLast by remember { mutableStateOf(GrabWatch.lastResult(ctx)) }
 
     val scope = rememberCoroutineScope()
-    val allLessons = lessons + extraLessons.values
-
-    suspend fun enrichForSheet() {
-        val tk = token ?: return
-        val have = allLessons.map { it.lesson_id }.toSet()
-        val add = mutableMapOf<Int, GrabLesson>()
-        for (t in status?.targets.orEmpty()) {
-            if (t.lesson_id in have) continue
-            val r = api.grabCatalog(tk, q = t.course, flt = "all", limit = 20)
-            if (r is ApiResult.Ok) {
-                r.value.lessons.firstOrNull { it.lesson_id == t.lesson_id }?.let { add[it.lesson_id] = it }
-            }
-        }
-        if (add.isNotEmpty()) extraLessons = extraLessons + add
-    }
 
     /**
      * 上一次的报错要在这次**成功之后**消失。
@@ -169,21 +138,12 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
         }
     }
 
-    /** 目标 → 加入监控要用的那一行（清单里没有就用目标本身的信息凑，字段都是服务端给的） */
-    fun asLesson(t: GrabTarget): GrabLesson =
-        lessons.firstOrNull { it.lesson_id == t.lesson_id }
-            ?: GrabLesson(lesson_id = t.lesson_id, turn_id = t.turn_id,
-                course = t.course, teacher = t.teacher, limit_cnt = t.limit_cnt)
-
-    /** 加入监控；askedAuto=true 时会"顺带请求"自动提交，但显示只认服务端回的值 */
-    suspend fun addTarget(l: GrabLesson, askedAuto: Boolean) {
+    /** 加入监控：只把课记下来盯着，不代你抢。 */
+    suspend fun addTarget(l: GrabLesson) {
         val tk = token ?: run { notice = GrabLogic.Notice("还没登录，先把登录做了", 1); return }
-        when (val r = api.grabAddTarget(tk, l, autoSubmit = askedAuto)) {
+        when (val r = api.grabAddTarget(tk, l)) {
             is ApiResult.Ok -> {
                 notice = when {
-                    askedAuto && r.value.auto_submit ->
-                        GrabLogic.Notice("${l.course}：已加入监控，并已开启自动提交", 2)
-                    askedAuto -> GrabLogic.addNotice(l.course, r.value.clash_text, false, true)
                     r.value.clash_text.isNotBlank() ->
                         GrabLogic.Notice(GrabLogic.addedText(l.course, r.value.clash_text), 1)
                     else -> GrabLogic.Notice(GrabLogic.addedText(l.course, ""), 2)
@@ -195,79 +155,10 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     }
 
     /**
-     * 打开/关闭某一门监控目标的自动提交。
-     * 「关」是真的能关（服务端 ON CONFLICT 会把那一列写成 0）；「开」要回读确认。
-     */
-    suspend fun setTargetAuto(t: GrabTarget, on: Boolean) {
-        val tk = token ?: return
-        when (val r = api.grabAddTarget(tk, asLesson(t), autoSubmit = on)) {
-            is ApiResult.Ok -> {
-                pullStatus()
-                val now = status?.targets?.firstOrNull { it.lesson_id == t.lesson_id }?.auto_submit
-                    ?: r.value.auto_submit
-                notice = when {
-                    on && now && status?.autoEnabled != true -> GrabLogic.Notice(
-                        "${t.course}：这门课开了，但「自动抢课」总开关还是关的 —— " +
-                            "去上面把总开关也打开，才会真的提交", 1)
-                    on && now -> GrabLogic.Notice("已开启自动抢课：${t.course}", 2)
-                    on -> GrabLogic.Notice(
-                        "${t.course}：服务端回读仍是关（没接受）—— 点「刷新」再看看，别当它开着了", 1)
-                    now -> GrabLogic.Notice(
-                        "${t.course}：请求已发出，但服务端仍显示自动提交是开着的 —— 以服务端为准", 1)
-                    else -> GrabLogic.Notice("已关闭自动抢课：${t.course}", 2)
-                }
-            }
-            is ApiResult.Err -> notice = GrabLogic.Notice(GrabLogic.errorText(r.code, r.message), 3)
-        }
-    }
-
-    /**
-     * 一键开/关自动提交。
-     *
-     * 服务端要求**全局开关和单门标记同时为真**才会提交，所以两处都要动：
-     * 「开」= 先开全局，再把无冲突的课逐个标记；
-     * 「停」= **先关全局**（一步就停住，不依赖后面那串请求），再把单门标记清掉。
-     */
-    suspend fun setAllAuto(on: Boolean) {
-        val tk = token ?: return
-        val all = status?.targets.orEmpty()
-        if (all.isEmpty()) {
-            notice = GrabLogic.Notice("一个监控目标都没有 —— 先去清单里加两门", 1)
-            return
-        }
-        when (val g = api.grabConfig(tk, autoSubmit = on)) {
-            is ApiResult.Ok -> Unit
-            is ApiResult.Err -> {
-                notice = GrabLogic.Notice(GrabLogic.errorText(g.code, g.message), 3)
-                return
-            }
-        }
-        val tg = if (on) all.filter { GrabLogic.canAuto(it) } else all
-        var accepted = 0
-        for (t in tg) {
-            when (val r = api.grabAddTarget(tk, asLesson(t), autoSubmit = on)) {
-                is ApiResult.Ok -> if (r.value.auto_submit == on) accepted++
-                is ApiResult.Err -> Unit
-            }
-        }
-        pullStatus()
-        val skipped = all.size - tg.size
-        notice = when {
-            on && accepted > 0 -> GrabLogic.Notice(
-                "已开启自动提交：$accepted 门" +
-                    if (skipped > 0) "（另有 $skipped 门和课表冲突，只提醒不动手）" else "", 2)
-            on && tg.isEmpty() -> GrabLogic.Notice("没有可开的目标 —— 先加几门不冲突的课", 1)
-            on -> GrabLogic.Notice(
-                "服务端没接受开启（回读还是关）—— 点「刷新」再看一次，别当它开着了", 1)
-            else -> GrabLogic.Notice("已停止全部自动提交：全局关掉了，$accepted 门的单课开关也清了", 2)
-        }
-    }
-
-    /**
      * 开/关**服务端**的监控总开关（走 `POST /api/v2/grab/config`）。
      *
      * 关监控**不会顺手删目标** —— 目标是用户一门门点出来的，暂停监控不该把清单清空。
-     * 关掉之后服务端不查余量、不推送、更不会提交（cfg 落到共用库，v1 的监控线程读的是同一份）。
+     * 关掉之后服务端不再查余量、不再推送提醒（cfg 落到共用库，v1 的监控线程读的是同一份）。
      */
     suspend fun setMonitor(on: Boolean) {
         val tk = token ?: return
@@ -283,7 +174,7 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                     real -> GrabLogic.Notice("监控已开：服务端盯着 $num 门课，有余位就推送", 2)
                     on -> GrabLogic.Notice("服务端没接受开启（回读还是关）—— 点「刷新」再看一次", 1)
                     else -> GrabLogic.Notice(
-                        "监控已关：不再查余量、不再推送、也不会提交；$num 个目标给你留着", 2)
+                        "监控已关：不再查余量、不再推送提醒；$num 个目标给你留着", 2)
                 }
             }
             is ApiResult.Err -> notice = GrabLogic.Notice(GrabLogic.errorText(r.code, r.message), 3)
@@ -321,7 +212,7 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
 
-            // ── 页顶免责：抢课是测试功能，先把"它做到哪、做不到哪、出事谁担"说清楚。
+            // ── 页顶说明：只盯余量、不替抢；把"它做到哪、做不到哪"说清楚。
             // 默认只占一行，点「展开」看全文（和下面「最近动作」那个展开/收起同一套写法）；
             // 用这一页自己的 Card 装，横向留白跟其它块一致（22.dp）。
             Box(
@@ -454,39 +345,7 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 val tg = s?.targets.orEmpty()
                 val isWatching = s?.watching == true
 
-                // ── 自动提交的大字提示：不能只靠一个小开关的颜色
-                if (s?.autoEnabled == true) {
-                    item(key = "banner-auto") {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .background(C.red.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
-                                .border(1.dp, C.red.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                        ) {
-                            Column {
-                                Text("⚡ 自动提交中", color = C.red, fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold)
-                                Text(
-                                    "服务端已开启自动抢课：有余位会直接向教务系统提交选课。" +
-                                        "不想让它替你做决定，就立刻停。",
-                                    color = C.txt, fontSize = 11.sp,
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    "立刻停止全部自动提交",
-                                    color = C.bg, fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .background(C.red, RoundedCornerShape(8.dp))
-                                        .clickable { sheet = Sheet.AUTO_OFF }
-                                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // ── 监控 / 自动抢课 总区（合成一张卡：信息多但不堆）
+                // ── 监控 / 手机直接提醒 总区（合成一张卡：信息多但不堆）
                 item(key = "switch-card") {
                     Card {
                         Column {
@@ -510,28 +369,6 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                                     Action("开启监控", C.violet) { sheet = Sheet.MONITOR_ON }
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("自动抢课", color = C.txt2, fontSize = 11.sp)
-                                    Text(
-                                        if (s?.autoEnabled == true) "服务端已开" else "关",
-                                        color = if (s?.autoEnabled == true) C.red else C.txt3,
-                                        fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                                    )
-                                }
-                                if (s?.autoEnabled == true) {
-                                    Action("停止", C.red) { sheet = Sheet.AUTO_OFF }
-                                } else {
-                                    Action("开启…", C.violet) {
-                                        sheet = Sheet.AUTO_ON
-                                        scope.launch { enrichForSheet() }
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Text(GrabLogic.AUTO_RULE, color = C.amber, fontSize = 11.sp)
-
                             Spacer(Modifier.height(12.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -588,15 +425,6 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                     TargetCard(
                         t = t,
                         lesson = lessons.firstOrNull { it.lesson_id == t.lesson_id },
-                        onAuto = {
-                            // 开：必须过确认层；关：直接关（停要顺手）
-                            if (t.auto_submit) scope.launch { setTargetAuto(t, false) }
-                            else {
-                                sheetTarget = t
-                                sheet = Sheet.AUTO_ONE
-                                scope.launch { enrichForSheet() }
-                            }
-                        },
                         onRemove = { scope.launch { removeTarget(t) } },
                     )
                 }
@@ -626,10 +454,6 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                 }
                 val shown = if (showAllLogs) logs else logs.take(LOGS_COLLAPSED)
                 items(shown, key = { "g${it.id}" }) { g -> LogRow(g) }
-                GrabLogic.autoSubmitHeadline(logs).takeIf { it.isNotBlank() }?.let {
-                    item(key = "logs-auto-note") { Text(it, color = C.amber, fontSize = 11.sp) }
-                }
-
                 // ── 可选课程
                 item(key = "h-catalog") {
                     Column {
@@ -668,7 +492,7 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                     LessonCard(
                         l = l,
                         watchOn = isWatching,
-                        onAdd = { scope.launch { addTarget(l, askedAuto = false) } },
+                        onAdd = { scope.launch { addTarget(l) } },
                         onAddBlocked = {
                             notice = GrabLogic.Notice(
                                 "监控没在跑，加入监控不会生效 —— 先点上面的「开启监控」", 1)
@@ -688,41 +512,14 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
                     }
                 }
 
-                item(key = "note-auto") {
-                    Column {
-                        Text(GrabLogic.AUTO_SUBMIT_NOTE, color = C.txt3, fontSize = 11.sp,
-                            modifier = Modifier.padding(top = 10.dp))
-                        Text(
-                            "「冲突就不许抢」这条目前只在 App 里过滤；服务端还没有做提交前重判，" +
-                                "所以用第三方工具直接调接口仍可能提交上冲突的课。",
-                            color = C.txt3, fontSize = 10.sp,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                }
             }
         }
 
         sheet?.let { sh ->
             Overlay(
                 sheet = sh,
-                target = sheetTarget,
                 status = status,
-                lessons = allLessons,
-                onDismiss = { sheet = null; sheetTarget = null },
-                onConfirmOne = { t ->
-                    scope.launch {
-                        sheet = null
-                        sheetTarget = null
-                        setTargetAuto(t, true)
-                    }
-                },
-                onConfirmAuto = { on ->
-                    scope.launch {
-                        sheet = null
-                        setAllAuto(on)
-                    }
-                },
+                onDismiss = { sheet = null },
                 onConfirmMonitorOn = {
                     scope.launch {
                         sheet = null
@@ -744,7 +541,7 @@ fun GrabScreen(ctx: Context, api: CampusApi = remember { CampusApi() }) {
 private const val LOGS_COLLAPSED = 5
 
 /** 当前弹出的浮层。用普通 Box 画 —— Robolectric 里 Dialog 是独立窗口，测试看不见。 */
-enum class Sheet { AUTO_ON, AUTO_ONE, AUTO_OFF, MONITOR_OFF, MONITOR_ON }
+enum class Sheet { MONITOR_OFF, MONITOR_ON }
 
 @Composable
 private fun LogRow(g: GrabLog) {
@@ -774,10 +571,8 @@ private fun LogRow(g: GrabLog) {
 private fun TargetCard(
     t: GrabTarget,
     lesson: GrabLesson?,
-    onAuto: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val allowAuto = GrabLogic.canAuto(t)
     Card {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -815,26 +610,7 @@ private fun TargetCard(
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (t.auto_submit) "自动抢：开" else "自动抢：关",
-                    color = if (t.auto_submit) C.red else if (allowAuto) C.txt2 else C.txt3,
-                    fontSize = 11.sp,
-                    modifier = Modifier
-                        .background(C.cardHi, RoundedCornerShape(20.dp))
-                        // 有冲突的课：开关置灰不可选（用户定的规则）
-                        .clickable(enabled = allowAuto) { onAuto() }
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                if (!allowAuto) {
-                    Text(
-                        "不可自动抢 —— ${GrabLogic.autoBlockedReason(t)}",
-                        color = C.amber, fontSize = 11.sp,
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
+                Spacer(Modifier.weight(1f))
                 Text(
                     "移除",
                     color = C.red, fontSize = 12.sp,
@@ -852,7 +628,6 @@ private fun LessonCard(
     onAdd: () -> Unit,
     onAddBlocked: () -> Unit,
 ) {
-    val blocked = GrabLogic.autoBlockedReason(l)
     Card {
         Column {
             Text(
@@ -891,18 +666,7 @@ private fun LessonCard(
                     Text("已在我的课表里", color = C.txt3, fontSize = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                // 自动抢课：有冲突的课**置灰不可选**（用户定的规则：冲突就不许抢）
-                Text(
-                    if (blocked == null) "自动抢 ✓" else "自动抢 ✕",
-                    color = if (blocked == null) C.green else C.txt3,
-                    fontSize = 11.sp,
-                    modifier = Modifier
-                        .background(C.cardHi, RoundedCornerShape(20.dp))
-                        .clickable(enabled = false) {}
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
             }
-            blocked?.let { Text("不可自动抢 —— $it", color = C.amber, fontSize = 11.sp) }
         }
     }
 }
@@ -910,18 +674,12 @@ private fun LessonCard(
 @Composable
 private fun Overlay(
     sheet: Sheet,
-    target: GrabTarget?,
     status: GrabStatus?,
-    lessons: List<GrabLesson>,
     onDismiss: () -> Unit,
-    onConfirmOne: (GrabTarget) -> Unit,
-    onConfirmAuto: (Boolean) -> Unit,
     onConfirmMonitorOn: () -> Unit,
     onConfirmMonitorOff: () -> Unit,
 ) {
     val tg = status?.targets.orEmpty()
-    val allow = GrabLogic.autoConfirmLines(tg, lessons)
-    val excluded = GrabLogic.autoExcludedLines(tg)
     Box(
         Modifier
             .fillMaxSize()
@@ -940,85 +698,12 @@ private fun Overlay(
         ) {
             Column {
                 when (sheet) {
-                    Sheet.AUTO_ON -> {
-                        Text("开启自动抢课？", color = C.red, fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Text(GrabLogic.AUTO_CONFIRM_BODY, color = C.txt, fontSize = 13.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Text(GrabLogic.AUTO_RULE, color = C.amber, fontSize = 12.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(GrabLogic.autoConfirmTitle(allow), color = C.txt2, fontSize = 12.sp)
-                        allow.forEach { Text("· $it", color = C.txt, fontSize = 12.sp) }
-                        if (excluded.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("不会自动抢的（有冲突）：", color = C.amber, fontSize = 12.sp)
-                            excluded.forEach { Text("· $it", color = C.txt2, fontSize = 11.sp) }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "提交后以服务端回读为准：没开成这里会照实说，不会假装开着。",
-                            color = C.txt3, fontSize = 11.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        DialogActions(
-                            cancel = "取消" to onDismiss,
-                            confirm = "确认开启" to { onConfirmAuto(true) },
-                            confirmEnabled = allow.isNotEmpty(),
-                            danger = false,
-                        )
-                    }
-
-                    Sheet.AUTO_ONE -> {
-                        val name = target?.course?.ifBlank { "教学班 ${target.lesson_id}" } ?: "这门课"
-                        Text("开启自动抢课？", color = C.red, fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Text(GrabLogic.AUTO_CONFIRM_BODY, color = C.txt, fontSize = 13.sp)
-                        Spacer(Modifier.height(6.dp))
-                        Text(GrabLogic.AUTO_RULE, color = C.amber, fontSize = 12.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text("会立即变成自动提交的 1 门：", color = C.txt2, fontSize = 12.sp)
-                        Text("· " + (GrabLogic.autoConfirmLines(listOfNotNull(target), lessons)
-                            .firstOrNull() ?: name), color = C.txt, fontSize = 12.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "提交后以服务端回读为准：没开成这里会照实说，不会假装开着。",
-                            color = C.txt3, fontSize = 11.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        DialogActions(
-                            cancel = "取消" to onDismiss,
-                            confirm = "确认开启" to { target?.let(onConfirmOne) },
-                            confirmEnabled = target != null,
-                            danger = false,
-                        )
-                    }
-
-                    Sheet.AUTO_OFF -> {
-                        Text("停止自动抢课？", color = C.txt, fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "会把 ${tg.size} 门监控目标的自动提交关掉。" +
-                                "关掉之后服务端只会提醒你，不会替你提交。",
-                            color = C.txt, fontSize = 13.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        DialogActions(
-                            cancel = "取消" to onDismiss,
-                            confirm = "确认停止" to { onConfirmAuto(false) },
-                            confirmEnabled = true,
-                            danger = true,
-                        )
-                    }
-
                     Sheet.MONITOR_OFF -> {
                         Text("关闭监控？", color = C.txt, fontSize = 16.sp,
                             fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "关掉之后服务端不再查余量、不再推送、也不会替你提交任何课。",
+                            "关掉之后服务端不再查余量、不再推送提醒。",
                             color = C.txt, fontSize = 13.sp,
                         )
                         Spacer(Modifier.height(6.dp))
@@ -1042,7 +727,7 @@ private fun Overlay(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "服务端会一直按固定间隔查这些课的余量（默认 20 秒），有余位就推送到手机。" +
-                                "它只是看，不会替你提交。",
+                                "它只盯余量，不代你抢。",
                             color = C.txt, fontSize = 13.sp,
                         )
                         if (tg.isNotEmpty()) {

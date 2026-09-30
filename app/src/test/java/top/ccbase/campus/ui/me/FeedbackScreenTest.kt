@@ -105,7 +105,7 @@ class FeedbackScreenTest {
         render(reply = "下版加上")
         rule.waitForIdle()
         rule.onNodeWithText("回复：下版加上").assertExists()
-        for (w in listOf("作者", "后台", "抢课")) {
+        for (w in listOf("作者", "后台", "监控")) {
             assertTrue("回复行里不该出现「$w」", !rule.onNodeWithText("回复：下版加上").toString().contains(w))
         }
     }

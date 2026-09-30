@@ -95,18 +95,18 @@ class ScreenSmokeTest {
         // 对外自称与免责
         waitFor("非学校官方产品")
         waitFor("不对数据准确性负责")
-        // 抢课是**测试功能**，按服务端给的 can_grab 显隐（2026-09-29 口径：公开版含抢课，
-        // 但入口只给拿得到 can_grab 的人）。这条用例是**未登录**状态 → can_grab = false，
+        // 监控按服务端给的 can_grab 显隐（公开版含监控，但入口只给拿得到 can_grab 的人）。
+        // 这条用例是**未登录**状态 → can_grab = false，
         // 所以「我的」页仍然一个字都不该提到它：没权限的人连这个功能存在都不必知道。
         // （这里原本断言的是"不提供"那行 —— 那行是对所有人宣布功能存在，已删掉；
-        //   换成负断言：整页语义树里不许出现"抢课"二字。以后再手滑加回来，这条会立刻红。）
+        //   换成负断言：整页语义树里不许出现"监控"二字。以后再手滑加回来，这条会立刻红。）
         val tree = rule.onRoot().printToString()
         // 先证明这棵"树"不是空的：没有这条锚点，上面那条负断言可能因为 printToString
         // 压根没抓到文字而"永远绿"（那就是白给的安全感）。
         assertTrue("语义树里连「数据来源」都没有，说明这个 dump 不可信：\n$tree",
                    tree.contains("数据来源"))
-        assertTrue("「我的」页出现了「抢课」字样，等于对外泄露功能存在：\n$tree",
-                   !tree.contains("抢课"))
+        assertTrue("「我的」页出现了「监控」字样，等于对外泄露功能存在：\n$tree",
+                   !tree.contains("监控"))
     }
 
 
@@ -146,7 +146,7 @@ class ScreenSmokeTest {
             token = "tok",
             expiresAt = "2099-01-01",
             // 拆闸之后这一处认的是 **is_author**（不再借 can_grab）：这里故意把 can_grab
-            // 留成 false，好证明"能看到回显"跟"能抢课"已经是两件事了。
+            // 留成 false，好证明"能看到回显"跟"能监控"已经是两件事了。
             user = ApiUser(uid = 1, student_id = "2026000000", name = "测试用户", isAuthor = true),
         )
         meScreen()
@@ -154,8 +154,8 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `能抢课但不是作者_也不许看到密码回显`() {
-        // 拆闸（2026-09-29）钉的就是这一格：抢课按 can_grab 显隐，
+    fun `能监控但不是作者_也不许看到密码回显`() {
+        // 拆闸钉的就是这一格：监控按 can_grab 显隐，
         // 而**凭据回显永远只有作者**（密码是别人自己的东西，回传一次就多一个泄露面）。
         // 只测"作者能看到"是不够的 —— 两个闸共用一个字段时那条也是绿的。
         TokenStore.save(
@@ -170,7 +170,7 @@ class ScreenSmokeTest {
         waitFor("只用于每天自动登录读课表")
         rule.waitForIdle()
         assertTrue(
-            "能抢课的非作者看到了密码回显入口 —— 回显只该认 is_author，不该跟着 can_grab 一起放开",
+            "能监控的非作者看到了密码回显入口 —— 回显只该认 is_author，不该跟着 can_grab 一起放开",
             rule.onAllNodesWithText("查看服务器上保存的密码", substring = true)
                 .fetchSemanticsNodes().isEmpty()
         )

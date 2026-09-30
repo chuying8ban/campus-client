@@ -110,13 +110,14 @@ import top.ccbase.campus.net.StudentError
 /**
  * P0.2 —— 五个 tab 的空壳，只验证「导航 + 主题 + 编译链」三件事。
  *
- * tab 顺序与网页版一致（今日 / 课表 / 抢课 / 学习 / 看板），
+ * tab 顺序与网页版一致（今日 / 课表 / 监控 / 学习 / 我的，看板收进「我的」），
  * 这样你从网页版切过来时肌肉记忆不用改。
  */
 enum class CampusTab(val label: String, val icon: ImageVector, val soon: String) {
     TODAY("今日", Icons.Filled.Home, "今天的课 + 早晚自习 + 今日任务 + 课前提醒开关"),
     SCHEDULE("课表", Icons.Filled.DateRange, "周视图 + 当天课程 + 本学期 11 门课"),
-    GRAB("抢课", Icons.Filled.Star, "监控状态 + 余量轮询 + 可选课程清单（526 门）"),
+    // 枚举 id 保留 GRAB（历史名字）：换 id 会牵动一批接线测试。这一格现在只做监控，不代抢。
+    GRAB("监控", Icons.Filled.Star, "盯可选课程余量；只提醒，不代抢"),
     // 2026-09-18 用户要求：「把任务标签改为学习」；2026-09-19 又要求把它里面那半
     // （按课程摊开的资料列表）删掉 —— 那半和「学习库」重复。所以这一格现在**只有任务**，
     // 「AI 规划学习计划」的入口仍钉在这一页顶部；资源一律去「学习库」看。
@@ -206,7 +207,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var idx by rememberSaveable { mutableIntStateOf(0) }
 
     val appCtx = LocalContext.current
-    // 抢课那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）；
+    // 监控那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）；
     // 后台那类"只进作者包"的东西另有一层编译期闸（BuildConfig.AUTHOR_BUILD）。
 
     // ------------------------------------------------------------------
@@ -383,9 +384,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
-    // 底部放高频入口。看板（打卡热力/里程碑）**常显**在底部栏，「我的」里也留了一个入口
-    // （两条路都通；当年"7 个 tab 太挤"那条理由已经不成立了 —— 现在只有拿得到
-    //   can_grab 的人才会看到第 7 格）。
+    // 底部放高频入口。看板（打卡热力/里程碑）不再占底部栏，入口收在「我的」页里
+    // （CampusTab.BOARD 枚举保留：它还是「我的」里打开的全屏子页）。
     // 「学习」已并进「任务」页（同一页内两段，页内不再有子切换）——
     // 底部不再单独占一格（用户要求精简）。学习内容本身没删：在合并页里往下滚就是它。
     // 「我的」里点进来的全屏子页。
@@ -412,14 +412,14 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         }
     }
 
-    // 底部 tab 栏：看板常显；抢课那一格按 can_grab 显隐（抢课是**测试功能**，
-    // 拿不到这个权限的人连那一格都不存在）。服务端那道闸（can_grab / 非作者 403）照旧在，
+    // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格按 can_grab 显隐。
+    // 拿不到这个权限的人连那一格都不存在。服务端那道闸（can_grab / 非作者 403）照旧在，
     // 这里只决定"摆不摆这一格"。
     //
     // ⚠️ canGrab 必须**每次组合都现读**（不能冻成一个只算一次的值）：can_grab 是登录之后
     // 才落进本地的，冻住就意味着"登录了还得重启 App 才看得到那一格"。
     val tabs = CampusTab.entries.filter {
-        it != CampusTab.GRAB || TokenStore.canGrab(appCtx)
+        it != CampusTab.BOARD && (it != CampusTab.GRAB || TokenStore.canGrab(appCtx))
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -432,7 +432,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 containerColor = C.bgSoft,
                 tonalElevation = 0.dp,
             ) {
-                // 没有 can_grab 的人这里就没有抢课那一格（不是灰着，是压根不存在）
+                // 没有 can_grab 的人这里就没有监控那一格（不是灰着，是压根不存在）
                 tabs.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = idx == i,
@@ -454,7 +454,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
             val app = LocalContext.current.applicationContext as CampusApplication
-            // tabs 的长度会变（抢课那一格随 can_grab 进出），而 idx 是记下来的旧下标
+            // tabs 的长度会变（监控那一格随 can_grab 进出），而 idx 是记下来的旧下标
             // （rememberSaveable：转屏/进程重建后还留着）—— 越界就是崩，所以先夹回合法范围。
             val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
             when (shown) {
@@ -466,7 +466,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
-                    // 抢课页也走 extra 全屏子页（和看板入口同一条路：系统返回键退回，
+                    // 监控页也走 extra 全屏子页（和看板入口同一条路：系统返回键退回，
                     // 底部栏还在能直接切走）。这里与底部栏那一格是**同一个判据**（can_grab）：
                     // 拿得到 can_grab 的人两条路都通，拿不到的人两处都不存在。
                     onOpenGrab = { extra = CampusTab.GRAB },

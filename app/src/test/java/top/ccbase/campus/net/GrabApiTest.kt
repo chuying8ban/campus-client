@@ -306,23 +306,23 @@ class GrabApiTest {
             ShadowLog.getLogs().any { it.tag == "StudentError" })
     }
 
-    // ------------------------------------------------------------ 写接口（自动抢课相关）
+    // ------------------------------------------------------------ 写接口（加入/取消监控）
 
     @Test
-    fun `加入监控的请求体里带 auto_submit_但是否开启只认服务端回的值`() = runBlocking {
+    fun `加入监控不再请求代抢_auto_submit 只认服务端回的值`() = runBlocking {
         val seen = mutableListOf<String>()
         val api = CampusApi(
             base = "https://example.invalid",
             transport = Transport { method, url, headers, payload ->
                 seen += "$method $url ${headers["Authorization"]} $payload"
-                // 服务端真实行为：固定把 auto_submit 写成 0（multiuser_api.py 里那一列是写死的）
+                // 服务端仍会返回 auto_submit，但客户端加入监控时不再请求代抢。
                 HttpReply(200, """{"ok":true,"clash":[],"clash_text":"","auto_submit":false}""")
             },
         )
         val l = GrabLesson(lesson_id = 1, turn_id = 242, course = "系统工程与运筹学",
             teacher = "教师一", limit_cnt = 110)
-        val r = (api.grabAddTarget("tk", l, autoSubmit = true) as ApiResult.Ok).value
-        assertTrue("请求里必须带上这个意图：${seen.single()}",
+        val r = (api.grabAddTarget("tk", l) as ApiResult.Ok).value
+        assertFalse("加入监控不能再请求代抢：${seen.single()}",
             seen.single().contains("\"auto_submit\":true"))
         assertFalse("服务端回 false 就必须是 false —— 不能自己当成功", r.auto_submit)
         assertTrue("路径对不上：${seen.single()}", seen.single().contains("/api/v2/grab/target"))

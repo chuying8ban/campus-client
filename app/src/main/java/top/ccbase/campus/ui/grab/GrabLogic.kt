@@ -6,13 +6,13 @@ import top.ccbase.campus.net.GrabStatus
 import top.ccbase.campus.net.GrabTarget
 
 /**
- * 抢课页的纯逻辑层 —— 不碰 Compose，可以拿 JVM 直接测。
+ * 监控页的纯逻辑层 —— 不碰 Compose，可以拿 JVM 直接测。
  *
  * 为什么单独抽出来：这一页最容易出的错不是"渲染错了"，而是**话说错了**：
- *   - 把"监控已停止"说成"正在监控" → 用户以为有人在抢
+ *   - 把"监控已停止"说成"正在监控" → 用户以为有人在盯
  *   - 把"咱们自己库里的设置"和"教务系统登录状态"混成一句
  *   - 列表空了不说为什么空 → 用户以为坏了（其实是筛选条件太窄）
- *   - 有冲突的课说成"能自动抢" → 抢到了也得退，这是最贵的一种错
+ *   - 有冲突的课说成"能抢" → 真去选也得退，这是最贵的一种错
  * 这些都是字符串问题，正是最该被测试钉住的那类东西。
  */
 object GrabLogic {
@@ -167,9 +167,9 @@ object GrabLogic {
         return if (t.clash_text.isBlank()) base else "$base · ⚠ ${t.clash_text}"
     }
 
-    /** 一条监控目标现在是什么状态 —— 用户最想知道的是"抢到没有" */
+    /** 一条监控目标现在是什么状态 —— 用户最想知道的是"选上没选上" */
     fun targetStateText(t: GrabTarget): String = when {
-        t.grabbed == 1 -> "已抢中"
+        t.grabbed == 1 -> "已选上"
         t.enabled == 0 -> "已暂停"
         else -> "盯守中"
     }
@@ -223,53 +223,6 @@ object GrabLogic {
     }
 
     /**
-     * 自动提交有没有真的发生过 —— 这是"自动抢课到底跑没跑"的唯一证据。
-     * 服务端把提交结果写进 logs（"✅ 已自动提交并成功！"），客户端只认日志。
-     */
-    fun autoSubmitLogs(logs: List<GrabLog>): List<GrabLog> =
-        logs.filter { it.msg.contains("自动提交") }
-
-    fun autoSubmitHeadline(logs: List<GrabLog>): String {
-        val hit = autoSubmitLogs(logs)
-        if (hit.isEmpty()) return ""
-        return "最近 ${hit.size} 条日志和自动提交有关（含没成功的）"
-    }
-
-    // ------------------------------------------------------------ 自动抢课（冲突规则）
-
-    /**
-     * **规则**：只在确认没有任何时间冲突的前提下才允许自动抢某节课；
-     * 有冲突的课，系统不允许抢。
-     *
-     * 冲突维度服务端已经算好了：catalog 每条有 `cn`（冲突数，0 = 无冲突）。
-     *
-     * ⚠️ 客户端这层过滤**不是安全边界** —— 抓包直接调接口就绕过去了。
-     * 真正的"冲突就不许抢"必须由服务端在提交前判定（服务端才是权威）。
-     */
-    fun canAuto(l: GrabLesson): Boolean = l.cn == 0 && l.mine == 0
-
-    /**
-     * 一门清单里的课为什么不能自动抢；null = 可以。
-     * 冲突的课也要能加入监控（盯余量没问题），只是不许自动提交。
-     */
-    fun autoBlockedReason(l: GrabLesson): String? = when {
-        l.mine == 1 -> "我已经选过这门课了"
-        l.cn > 0 && l.clash.isNotEmpty() -> "和课表冲突：${clashText(l)}"
-        l.cn > 0 -> "和课表冲突 ${l.cn} 节，不能自动抢"
-        else -> null
-    }
-
-    /**
-     * 一条已监控目标为什么不能自动抢；null = 可以。
-     * status 的 targets 带的是服务端算好的 clash_text（人话），优先用它。
-     */
-    fun autoBlockedReason(t: GrabTarget): String? =
-        if (t.clash_text.isNotBlank()) "和课表冲突：${t.clash_text}"
-        else if (t.grabbed == 1) "已经抢到了" else null
-
-    fun canAuto(t: GrabTarget): Boolean = autoBlockedReason(t) == null
-
-    /**
      * 冲突明细说人话：和哪门课撞了、什么时候、在哪。
      * 与网页版 `_fmt_clash` 同一个口径（服务端把课名/时间/教室都已经算好下发）。
      */
@@ -285,52 +238,19 @@ object GrabLogic {
         return s
     }
 
-    /** 开启确认层里必须原样出现的一句话（用户点名要求的那句） */
-    const val AUTO_CONFIRM_BODY: String =
-        "开启后服务器会自动向教务系统提交选课，无需你再确认。"
-
-    /** 冲突规则也必须写在确认层里，别让用户以为有冲突的也会被抢 */
-    const val AUTO_RULE: String =
-        "只对无时间冲突的课自动提交；有冲突的课不会抢。"
-
     /**
-     * 页顶那段免责说明（**用户定的原话，一字不改**）。
+     * 页顶说明（**用户定的原话，一字不改**）。
      *
-     * 抢课是测试功能，所以话必须说在前面：它只做到"盯余量 + 提醒"，真选课还得用户自己
-     * 去教务系统操作；接口一变它就可能失效，后果由使用者自担。
+     * 这一页只负责"盯"，不负责"抢"：把想要的课记下来，盯着有没有余位；
+     * 有余位只在手机上提醒，抢不抢、什么时候抢由用户自己去教务系统操作，App 不代选。
      * 界面上默认只露 [DISCLAIMER_HEAD] 一行（不挡操作），点「展开」才看全文。
      */
-    const val DISCLAIMER_HEAD: String = "抢课为测试功能，仅做余量监控与提醒。"
+    const val DISCLAIMER_HEAD: String = "只盯余量，不替抢"
 
     const val DISCLAIMER_BODY: String =
-        "真正的选课仍需你在教务系统里操作。它可能因教务系统改版、限流或接口变化而失效——" +
-            "由此造成的结果（含错过选课、账号被限制）由使用者自行承担，作者不负责。"
-
-    /**
-     * 被自动提交的目标清单（确认层用）：
-     * 只列**无冲突**的监控目标 —— 有冲突的单独列在 `autoExcluded` 里说明原因。
-     */
-    fun autoConfirmLines(targets: List<GrabTarget>, lessons: List<GrabLesson>): List<String> =
-        targets.filter { canAuto(it) }.map { t ->
-            val bits = mutableListOf(t.course.ifBlank { "教学班 ${t.lesson_id}" })
-            if (t.teacher.isNotBlank()) bits += t.teacher
-            lessons.firstOrNull { it.lesson_id == t.lesson_id }?.let { l ->
-                if (l.cls.isNotBlank()) bits += l.cls
-                bits += seatsText(l)
-                bits += seatsDetail(l)
-            }
-            bits.joinToString(" · ")
-        }
-
-    /** 有冲突而**不会**被自动抢的目标 —— 必须写出来，不能只是悄悄不抢 */
-    fun autoExcludedLines(targets: List<GrabTarget>): List<String> =
-        targets.filter { !canAuto(it) }.map { t ->
-            "${t.course.ifBlank { "教学班 ${t.lesson_id}" }} —— ${autoBlockedReason(t)}"
-        }
-
-    /** 确认层里"会被自动抢"那一段的标题（带上数量，用户一眼看到几门） */
-    fun autoConfirmTitle(lines: List<String>): String =
-        if (lines.isEmpty()) "当前没有可自动抢的监控目标" else "会立即变成自动提交的 ${lines.size} 门："
+        "这个页面只做两件事：把你想要的课记下来，盯着它有没有余位。\n" +
+            "有余位就在手机上提醒你 —— 抢不抢、什么时候抢，你自己去教务系统操作。\n" +
+            "App 不会代你提交选课。"
 
     // ------------------------------------------------------------ 反馈与错误
 
@@ -341,7 +261,7 @@ object GrabLogic {
      * 而网页版和接口本来就是**同一个服务**（同一个 FastAPI 应用既发网页也发 /api/v2），
      * 所以直接取构建时的 `API_BASE`。
      *
-     * 现在 App 自己就能开/关监控和自动提交（走 `POST /api/v2/grab/config`）。
+     * 现在 App 自己就能开/关监控（走 `POST /api/v2/grab/config`）。
      * 网页版剩下的是 App 还没有的那几件事：**重建课程清单**、改教务账号密码、
      * 通知渠道配置 —— 所以这里只做"兜底入口"，不再用在监控开关上。
      */
@@ -354,8 +274,7 @@ object GrabLogic {
      * 第三种带上最近一次检查结果 —— 用户在外地看不到界面，这一行就是他的"心跳"。
      */
     fun watchStateText(on: Boolean, notifOk: Boolean, last: String?): String = when {
-        // 关着的时候不能只写一个"关"：页面上别处也有"关"（自动抢课那行），
-        // 而且要说清"关"的后果 —— 这台手机不会弹提醒。
+        // 关着的时候不能只写一个"关"：要说清"关"的后果 —— 这台手机不会弹提醒。
         !on -> "关 · 不会弹提醒"
         !notifOk -> "已开 · 但通知权限没给"
         else -> last?.takeIf { it.isNotBlank() }?.let { "已开 · $it" } ?: "已开"
@@ -388,31 +307,13 @@ object GrabLogic {
         val m = message.takeIf { it.isNotBlank() }?.let { "（$it）" }.orEmpty()
         return when (code) {
             401 -> "登录已过期，请重新登录$m"
-            403 -> "这个功能只对作者开放：当前账号没有抢课权限"
+            403 -> "这个功能只对作者开放：当前账号没有监控权限"
             429 -> "操作太频繁了，等一会儿再试$m"
-            503 -> "服务端抢课模块没部署$m"
+            503 -> "服务端监控模块没部署$m"
             0 -> "网络不通$m"
             -1 -> "服务端返回的内容看不懂$m"
             else -> "服务端错误 $code$m"
         }
     }
 
-    /** 加入/取消监控的反馈文案 */
-    fun addNotice(course: String, clashText: String, autoAccepted: Boolean, askedAuto: Boolean): Notice {
-        val base = if (askedAuto && !autoAccepted) {
-            "$course：已加入监控，但服务端的「自动提交」没打开 —— 点「刷新」再看一次，" +
-                "别当它已经开着了"
-        } else {
-            addedText(course, clashText)
-        }
-        return Notice(base, if (clashText.isNotBlank()) 1 else 2)
-    }
-
-    /**
-     * 页面上必须写清的一件事：自动提交这个动作发生在**服务端** ——
-     * App 是遥控器，不是执行者；而且回读没开成时绝不显示成"已开"。
-     */
-    const val AUTO_SUBMIT_NOTE: String =
-        "自动抢课由服务端执行（这一页能开也能停，但真正提交选课的是服务器）：" +
-            "开启要经过确认；回读没开成就不显示成已开。"
 }

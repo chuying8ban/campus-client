@@ -130,11 +130,11 @@ data class GrabTarget(
     val enabled: Int = 1,
     /**
      * 服务端 targets 表里的 auto_submit（SQLite INTEGER 0/1，所以必须宽容解析）。
-     * App 侧**只显示**它，不乱猜：真正开启的开关在服务端，客户端显示的永远是服务端说的那个值。
+     * 客户端已不再提供代抢，这个字段只为兼容服务端响应而保留，不驱动任何界面开关。
      */
     @Serializable(with = BoolishSerializer::class)
     val auto_submit: Boolean = false,
-    /** 1 = 已经自动提交抢到了 */
+    /** 1 = 服务端记录已选上（App 只展示结果，不代抢） */
     val grabbed: Int = 0,
     val created_at: String = "",
     /** 冲突的人话描述；空串 = 不冲突 */
@@ -156,7 +156,7 @@ data class GrabStatus(
     val configured: Boolean = false,
     /** 服务端监控线程的总开关（cfg.monitor_on） */
     val monitor_on: Boolean = false,
-    /** 服务端全局自动提交开关（cfg.auto_submit） */
+    /** 服务端全局自动提交字段（cfg.auto_submit）；客户端不再发起代抢，仅保留解析以兼容响应。 */
     @Serializable(with = BoolishSerializer::class)
     val auto_submit: Boolean = false,
     /** 轮询间隔（秒） */
@@ -169,9 +169,6 @@ data class GrabStatus(
     val logs: List<GrabLog> = emptyList(),
     val catalog: GrabStats = GrabStats(),
 ) {
-    /** 任一门课开了自动提交（含全局开关）—— 状态指示只认这个，不认界面上的临时动作。 */
-    val autoEnabled: Boolean get() = auto_submit || targets.any { it.auto_submit }
-
     /** 真的在盯东西吗：开关打开 **并且** 至少有一个目标。只看 monitor_on 会说反话。 */
     val watching: Boolean get() = configured && monitor_on && targets.isNotEmpty()
 }
@@ -190,8 +187,7 @@ data class GrabAddResult(
     val ok: Boolean = false,
     val clash_text: String = "",
     /**
-     * 服务端对 App 提交的 auto_submit **永远回 false**：/api/v2/grab/target 里那一列是写死的。
-     * 所以客户端拿到 true 才算开启成功，false 就必须照实说"没开成"，不能假装开了。
+     * 客户端已不再发起代抢；`auto_submit` 仍由服务端返回，保留解析只为兼容既有响应。
      */
     @Serializable(with = BoolishSerializer::class)
     val auto_submit: Boolean = false,

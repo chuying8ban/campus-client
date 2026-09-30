@@ -134,7 +134,7 @@ fun MeScreen(
     onOpenAdmin: () -> Unit = {},
     /** 给 App 提建议 —— **每个用户都有**这个入口（不像后台那节只给作者） */
     onOpenFeedback: () -> Unit = {},
-    /** 点「抢课」：进抢课页（测试功能）。按服务端给的 can_grab 显隐；服务端还会再闸一次 */
+    /** 点「监控」：进监控页。按服务端给的 can_grab 显隐；服务端还会再闸一次 */
     onOpenGrab: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -417,10 +417,10 @@ fun MeScreen(
                 // 内嵌页见 ui/admin/AdminWebScreen.kt
                 onOpenAdmin()
             }
-            // 抢课是**测试功能**（页面顶部有免责说明）：这一格按服务端给的 can_grab 显隐，
+            // 监控页顶部有免责说明；这一格按服务端给的 can_grab 显隐，
             // 底部栏那一格也是同一个判据。真闸仍在服务端（can_grab / 非作者 403）。
             if (TokenStore.canGrab(ctx)) {
-                Action("抢课", "每天替你盯课那套；抢课为测试功能", enabled = !busy) {
+                Action("监控", "盯可选课程余量；只提醒，不代抢", enabled = !busy) {
                     onOpenGrab()
                 }
             }
@@ -433,8 +433,8 @@ fun MeScreen(
             fontSize = 12.sp, lineHeight = 19.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
         )
-        // ⚠️ 这一处认 **is_author**，不再和抢课共用 can_grab 那个闸（2026-09-29 拆闸）：
-        // 抢课是公开的测试功能、按 can_grab 显隐；而密码是别人自己的东西，
+        // ⚠️ 这一处认 **is_author**，不再和监控共用 can_grab 那个闸（2026-09-29 拆闸）：
+        // 监控是公开功能、按 can_grab 显隐；而密码是别人自己的东西，
         // 回传一次就多一个泄露面 —— 凭据回显永远只有作者能看见。
         if (token != null && TokenStore.isAuthor(ctx)) {
             Action("查看服务器上保存的密码", "只有你能用这个入口，30 秒后自动隐藏",
@@ -511,9 +511,9 @@ fun MeScreen(
             },
             onClick = onOpenPermissions,
         )
-        // 抢课（测试功能）的入口不在这一页的正文里：底部栏那一格按 can_grab 显隐，
-        // 作者包里「后台」那一节还有一个。这一页曾经有一行 KV("抢课功能", …) ——
-        // 那是把功能当卖点宣布，跟"它是测试功能、只对拿到 can_grab 的人开放"对不上，已删除。
+        // 监控入口不在这一页的正文里：底部栏那一格按 can_grab 显隐，
+        // 作者包里「后台」那一节还有一个。这一页曾经有一行 KV("监控功能", …) ——
+        // 那是把功能当卖点宣布，跟"它按 can_grab 开放"对不上，已删除。
         Spacer(Modifier.height(14.dp))
         Text(
             "这是一个学生自己做的工具，不是学校官方产品。\n" +

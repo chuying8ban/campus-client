@@ -15,11 +15,11 @@ import top.ccbase.campus.net.ApiUser
 import top.ccbase.campus.ui.theme.CampusTheme
 
 /**
- * 底部 tab 栏上「抢课」那一格的显隐。
+ * 底部 tab 栏上「监控」那一格的显隐，以及看板不再常显。
  *
- * 2026-09-29 的口径：公开版**含抢课**（它是测试功能，页面顶部有免责说明），
+ * 新口径：公开版**含监控**（只盯余量、不代抢，页面顶部有口径说明），
  * 那一格按服务端给的 can_grab 显隐 —— 拿不到权限的人连格子都不存在（不是灰着）；
- * 看板则是**常显**（不再收在「我的」里）。
+ * 看板则从底部栏收进「我的」页（入口还在，只是不再占格子）。
  *
  * 为什么必须在真界面上测（源码级那半在 [TabWiringTest]）：
  * 这一格的存在与否就是用户要的功能本身，而"源码里写了 canGrab"不等于"界面上真长出来了"
@@ -64,32 +64,32 @@ class GrabTabTest {
         rule.onAllNodesWithContentDescription(tab.label, useUnmergedTree = true)
             .fetchSemanticsNodes().size
 
-    /** 先证明底栏真渲染出来了 —— 否则"没有抢课格"可能只是因为整条栏都没出来（假绿）。 */
+    /** 先证明底栏真渲染出来了 —— 否则"没有监控格"可能只是因为整条栏都没出来（假绿）。 */
     private fun assertBarRendered() {
         rule.waitUntil(20_000) { barItems(CampusTab.TODAY) == 1 }
-        assertEquals("底栏必须有「今日」这一格（没有它，下面关于抢课的断言都不算证据）",
+        assertEquals("底栏必须有「今日」这一格（没有它，下面关于监控的断言都不算证据）",
             1, barItems(CampusTab.TODAY))
-        assertEquals("看板常显：底栏必须有「看板」这一格", 1, barItems(CampusTab.BOARD))
+        assertEquals("看板不再常显：底栏不许有「看板」这一格", 0, barItems(CampusTab.BOARD))
     }
 
     @Test
-    fun `拿到 can_grab 的登录用户_底栏出现抢课那一格`() {
+    fun `拿到 can_grab 的登录用户_底栏出现监控那一格`() {
         login(canGrab = true)
         renderShell()
         assertBarRendered()
         assertEquals(
-            "服务端给了 can_grab，底栏却没有「抢课」那一格 —— 用户要的就是这一格",
+            "服务端给了 can_grab，底栏却没有「监控」那一格 —— 用户要的就是这一格",
             1, barItems(CampusTab.GRAB),
         )
     }
 
     @Test
-    fun `没有 can_grab 的登录用户_底栏不出现抢课那一格`() {
+    fun `没有 can_grab 的登录用户_底栏不出现监控那一格`() {
         login(canGrab = false)
         renderShell()
         assertBarRendered()
         assertEquals(
-            "没拿到 can_grab 却看到了「抢课」格 —— 这一格只该按服务端给的权限出现",
+            "没拿到 can_grab 却看到了「监控」格 —— 这一格只该按服务端给的权限出现",
             0, barItems(CampusTab.GRAB),
         )
     }

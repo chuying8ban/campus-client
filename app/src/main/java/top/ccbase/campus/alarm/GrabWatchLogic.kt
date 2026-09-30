@@ -3,7 +3,7 @@ package top.ccbase.campus.alarm
 import top.ccbase.campus.net.GrabLog
 
 /**
- * 「抢课提醒」要不要弹、弹什么 —— **纯逻辑**，能在 JVM 上直接测。
+ * 「监控提醒」要不要弹、弹什么 —— **纯逻辑**，能在 JVM 上直接测。
  *
  * 为什么值得单独一层：提醒这件事错了比不做更烦人。
  *   - 第一次运行如果不记账，用户一开开关就会被**历史上所有提醒**轰一遍（"翻旧账"）；
@@ -34,11 +34,11 @@ object GrabWatchLogic {
     fun notifyBody(msg: String): String =
         msg.split("|")[0].trim().ifBlank { "监控有新的余位" }
 
-    fun notifyTitle(): String = "抢课提醒"
+    fun notifyTitle(): String = "监控提醒"
 
     /** 超过上限时的合并文案 */
-    fun overflowBody(extra: Int): String = "还有 $extra 条新提醒，打开「抢课」页看"
+    fun overflowBody(extra: Int): String = "还有 $extra 条新提醒，打开「监控」页看"
 
     /** 让用户在通知里一眼看出"这台手机自己弹的"，不用猜是谁推的 */
-    fun channelName(): String = "抢课提醒（手机直接弹）"
+    fun channelName(): String = "监控提醒（手机直接弹）"
 }

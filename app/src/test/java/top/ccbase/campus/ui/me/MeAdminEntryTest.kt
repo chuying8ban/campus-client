@@ -142,23 +142,23 @@ class MeAdminEntryTest {
     }
 
     @Test
-    fun `作者能看到抢课入口_点了进抢课页`() {
-        // 2026-09-29 口径：抢课是**测试功能**，底部栏那一格按 can_grab 显隐；
+    fun `作者能看到监控入口_点了进监控页`() {
+        // 新口径：监控只盯余量、不代抢，底部栏那一格按 can_grab 显隐；
         // 「我的 → 后台」这一节里也留一个入口（同一个 can_grab 判据，两条路都通）。
         var opened = 0
         render(isAuthor = true, canGrab = true, onOpenGrab = { opened++ })
-        rule.waitUntil(20_000) { has("抢课") }
-        rule.onNodeWithText("抢课").performClick()
-        assertEquals("点了抢课入口应该进抢课页", 1, opened)
+        rule.waitUntil(20_000) { has("监控") }
+        rule.onNodeWithText("监控").performClick()
+        assertEquals("点了监控入口应该进监控页", 1, opened)
     }
 
     @Test
-    fun `非作者连抢课这两个字都看不到`() {
+    fun `非作者连监控这两个字都看不到`() {
         // 判据是服务端的 can_grab，不是"是不是作者"：render 里 canGrab = false，
-        // 所以这一节里不该长出抢课入口。（这一页当年为此删过一行「抢课功能」——
-        // 那行等于对所有人宣布功能存在，跟"测试功能、按权限开放"对不上。）
+        // 所以这一节里不该长出监控入口。（这一页当年为此删过一行「监控功能」——
+        // 那行等于对所有人宣布功能存在，跟"按权限开放"对不上。）
         render(isAuthor = false, canGrab = false)
         waitStable()
-        assertTrue("同学那边不该出现「抢课」两个字", !has("抢课"))
+        assertTrue("同学那边不该出现「监控」两个字", !has("监控"))
     }
 }

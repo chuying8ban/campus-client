@@ -758,8 +758,9 @@ class CampusApi(
     }
 
     /**
-     * 抢课总开关（监控 / 自动提交 / 轮询间隔）—— App 里所有总控都走这一个口子。
+     * 监控总开关（监控 / 轮询间隔）—— App 里所有总控都走这一个口子。
      *
+     * 客户端不再提供代抢，界面调用点已不传 `autoSubmit`；参数保留只为兼容旧调用。
      * 传 `null` 表示"这一项不动"（服务端只改传上去的那几个字段）。
      * 返回值是**服务端回读的真实状态**，界面只认它，不认我们请求了什么。
      */
@@ -784,9 +785,8 @@ class CampusApi(
     /**
      * 加入监控。只写我们自己库里的 targets —— **不碰教务系统**。
      *
-     * `autoSubmit` 是"顺带把这一门的自动提交打开"的请求，
-     * 值**以服务端回读为准**（[GrabAddResult.auto_submit]）：拿到 false 就得照实说。
-     * 注意服务端要求**全局开关和单门标记同时为真**才会自动提交。
+     * 客户端不再发起代抢，界面已不传 `autoSubmit`；参数保留只为兼容旧调用，
+     * 值**以服务端回读为准**（[GrabAddResult.auto_submit]）。
      */
     suspend fun grabAddTarget(token: String, l: GrabLesson,
                               autoSubmit: Boolean = false): ApiResult<GrabAddResult> {

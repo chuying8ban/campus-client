@@ -1,8 +1,6 @@
 package top.ccbase.campus.ui.grab
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -22,10 +20,8 @@ import org.robolectric.annotation.Config
 import top.ccbase.campus.data.remote.TokenStore
 import top.ccbase.campus.net.ApiUser
 import top.ccbase.campus.net.CampusApi
-import top.ccbase.campus.net.GrabClash
 import top.ccbase.campus.net.GrabCatalog
 import top.ccbase.campus.net.GrabLesson
-import top.ccbase.campus.net.GrabLog
 import top.ccbase.campus.net.GrabStats
 import top.ccbase.campus.net.GrabStatus
 import top.ccbase.campus.net.GrabTarget
@@ -34,15 +30,13 @@ import top.ccbase.campus.net.Transport
 import top.ccbase.campus.ui.theme.CampusTheme
 
 /**
- * 抢课页测试。
+ * 监控页测试。
  *
  * 重点不是"渲染出来了"，而是**话说对了没有**：
  *   - 「我们的监控」和「教务登录」必须分开说（合成一句会自相矛盾）
  *   - 开关开着 ≠ 真的在盯（目标被清空后说"监控中"就是假话）
  *   - 清单空了必须说清为什么空（空列表不说话最像坏掉）
  *   - 冲突必须说（抢到了也得退的课，不能等抢完才发现）
- *   - **有冲突的课不许自动抢，而且不能只是灰着不说原因**
- *   - **自动提交默认必须是关的；开启必须经过确认层**（一次点击就开的路径不许存在）
  *
  * ⚠️ 渲染测试必须给 qualifiers：Robolectric 默认窗口只有 320x470 px，
  *    列表只组合视口内的 item，"找不到"经常是环境骗人（这个坑已经踩过一次）。
@@ -250,14 +244,6 @@ class GrabTest {
         assertEquals("2.5", GrabLogic.trimNum(2.5))
     }
 
-    @Test
-    fun `自动提交的说明必须写清是服务端在执行`() {
-        assertTrue("要写清动作发生在服务端", GrabLogic.AUTO_SUBMIT_NOTE.contains("服务端"))
-        assertTrue("还要写清这一页能开也能停", GrabLogic.AUTO_SUBMIT_NOTE.contains("能开也能停"))
-        assertTrue("回读没开成就不能显示成已开（契约）",
-            GrabLogic.AUTO_SUBMIT_NOTE.contains("回读"))
-    }
-
     // ---------------------------------------------------------------- 课时段/班级/预检
 
     @Test
@@ -289,26 +275,6 @@ class GrabTest {
     // ---------------------------------------------------------------- 冲突规则（用户定的）
 
     @Test
-    fun `有冲突的课不许自动抢_无冲突才允许`() {
-        val ok = GrabLesson(lesson_id = 1, course = "数学分析（I）", cn = 0, free = 5, probe_ok = 1)
-        val clash = GrabLesson(lesson_id = 2, course = "流体力学", cn = 1, free = 5, probe_ok = 1,
-            clash = listOf(GrabClash(course = "通用英语", weekday = 3,
-                time_text = "11:25-13:50", room = "A楼406")))
-        assertTrue("没冲突就该允许", GrabLogic.canAuto(ok))
-        assertFalse("有冲突就不许自动抢", GrabLogic.canAuto(clash))
-        val why = GrabLogic.autoBlockedReason(clash)!!
-        assertTrue("必须说清是冲突：$why", why.contains("和课表冲突"))
-        assertTrue("还要说清和哪门课冲突：$why", why.contains("通用英语"))
-        assertTrue("有冲突的行也要能加入监控（只是不许自动抢）",
-            GrabLogic.addedText(clash.course, GrabLogic.clashText(clash)).contains("已加入监控"))
-    }
-
-    @Test
-    fun `已选过的课也不许自动抢`() {
-        assertFalse(GrabLogic.canAuto(GrabLesson(lesson_id = 1, course = "x", cn = 0, mine = 1)))
-    }
-
-    @Test
     fun `冲突说人话：和哪门课_什么时候_在哪`() {
         val clash = realClashLesson()
         val s = GrabLogic.clashText(clash)
@@ -322,39 +288,6 @@ class GrabTest {
     private fun realClashLesson(): GrabLesson =
         json.decodeFromString<top.ccbase.campus.net.GrabCatalog>(
             sample("grab_catalog_conflict_real.json")).lessons.first { it.lesson_id == 317452 }
-
-    @Test
-    fun `确认层只列无冲突的目标_有冲突的单独说清原因`() {
-        val clean = GrabTarget(id = 1, lesson_id = 318856, turn_id = 242,
-            course = "系统工程与运筹学", teacher = "教师一", limit_cnt = 110, clash_text = "")
-        val dirty = GrabTarget(id = 2, lesson_id = 317452, turn_id = 242,
-            course = "流体力学拓展选讲", teacher = "教师七", limit_cnt = 100,
-            clash_text = "通用英语 周三 11:25-13:50@A楼406")
-        val lessons = listOf(
-            GrabLesson(lesson_id = 318856, course = "系统工程与运筹学", cls = "自动化24-[1-4]班",
-                free = 85, used = 25, limit_cnt = 110),
-            GrabLesson(lesson_id = 317452, course = "流体力学拓展选讲", cls = "油气储运工程23-[1-3]班",
-                free = 88, used = 12, limit_cnt = 100, cn = 1),
-        )
-        val allow = GrabLogic.autoConfirmLines(listOf(clean, dirty), lessons)
-        assertEquals("确认层只能列无冲突的那一门", 1, allow.size)
-        assertTrue("要说到教学班", allow[0].contains("自动化24-[1-4]班"))
-        assertTrue("要说到余量", allow[0].contains("余 85"))
-        assertTrue(GrabLogic.autoConfirmTitle(allow).contains("1 门"))
-
-        val excluded = GrabLogic.autoExcludedLines(listOf(clean, dirty))
-        assertEquals(1, excluded.size)
-        assertTrue("有冲突的必须说明为什么不会被抢", excluded[0].contains("通用英语"))
-        assertTrue(GrabLogic.autoConfirmTitle(emptyList()).contains("没有可自动抢"))
-    }
-
-    @Test
-    fun `确认层必须写清会自动提交_而且有冲突的不抢`() {
-        assertEquals("开启后服务器会自动向教务系统提交选课，无需你再确认。",
-            GrabLogic.AUTO_CONFIRM_BODY)
-        assertTrue(GrabLogic.AUTO_RULE.contains("有冲突的课不会抢"))
-        assertTrue(GrabLogic.AUTO_RULE.contains("无时间冲突"))
-    }
 
     // ---------------------------------------------------------------- 日志
 
@@ -376,17 +309,6 @@ class GrabTest {
         assertTrue("要说多少条：$s", s.contains("20 条"))
         assertTrue("要说最新一条时间：$s", s.contains("01:02:53"))
         assertTrue(GrabLogic.logsSummary(emptyList()).contains("还没有"))
-    }
-
-    @Test
-    fun `自动提交到底跑没跑_只能看日志`() {
-        val logs = realS().logs + GrabLog(id = 1, ts = "2026-09-17 01:03:00", level = "alert",
-            msg = "🎯 有位了！X | ✅ 已自动提交并成功！")
-        val hit = GrabLogic.autoSubmitLogs(logs)
-        assertEquals(1, hit.size)
-        assertTrue(GrabLogic.autoSubmitHeadline(logs).contains("1 条"))
-        assertEquals("没有提交记录就不该硬说有", "",
-            GrabLogic.autoSubmitHeadline(realS().logs))
     }
 
     // ---------------------------------------------------------------- 错误分类
@@ -481,7 +403,7 @@ class GrabTest {
      * 并且真的排上了闹钟 —— 不然"能提醒"只是句标语。
      */
     @Test
-    fun `抢课页的「手机直接提醒」开关点了要真的排上闹钟`() {
+    fun `监控页的「手机直接提醒」开关点了要真的排上闹钟`() {
         val app = RuntimeEnvironment.getApplication()
         top.ccbase.campus.alarm.GrabWatch.setOn(app, false) // 起点：关
         // 通知权限默认给上，否则会走"先要权限"那条支路
@@ -583,7 +505,7 @@ class GrabTest {
         render(fakeApi())
         compose.onNodeWithText("关闭监控").performClick()
         compose.waitForIdle()
-        // 说清后果：不查、不推、不提交
+        // 说清后果：不查、不推
         compose.onNodeWithText("不再查余量、不再推送", substring = true).assertIsDisplayed()
         // 而且要说清目标留着 —— 暂停 ≠ 清空清单
         compose.onNodeWithText("留着", substring = true).assertIsDisplayed()
@@ -603,179 +525,6 @@ class GrabTest {
         // 目标没被删，回读也确实拿到"关"
         assertTrue("关监控不该删目标：$seen", seen.none { it.startsWith("DELETE") })
         assertEquals("目标要留着，用户随时能再开", 3, realS().targets.size)
-    }
-
-    // ---------------------------------------------------------------- 需求 B：自动抢课
-
-    @Test
-    fun `默认必须是关闭状态`() {
-        // 真样本里 auto_submit=false、三条目标全是 0
-        val s = realS()
-        assertFalse("服务端默认就是关的", s.auto_submit)
-        assertTrue(s.targets.none { it.auto_submit })
-        assertFalse(s.autoEnabled)
-
-        render(fakeApi())
-        compose.onNodeWithText("⚡ 自动提交中").assertDoesNotExist()
-        compose.onNodeWithText("服务端已开").assertDoesNotExist()
-        compose.onNodeWithText("自动抢课").assertIsDisplayed()
-    }
-
-    @Test
-    fun `开启必须经过确认层_一次点击不可能打开`() {
-        val seen = mutableListOf<String>()
-        render(fakeApi(seen = seen))
-
-        // 第 1 下：只弹确认层，不带任何写请求
-        compose.onNodeWithText("开启…").performClick()
-        compose.waitForIdle()
-        assertTrue("还没确认就发写请求 = 一次点击就开，绝对不行",
-            seen.none { it.startsWith("POST") })
-        compose.onNodeWithText("开启后服务器会自动向教务系统提交选课，无需你再确认。").assertIsDisplayed()
-        compose.onNodeWithText("开启自动抢课？").assertIsDisplayed()
-        // 规则那句话在页面和确认层里各出现一次
-        compose.onAllNodesWithText("只对无时间冲突的课自动提交；有冲突的课不会抢。").onFirst()
-            .assertExists()
-        compose.onNodeWithText("会立即变成自动提交的 3 门：").assertIsDisplayed()
-        compose.onNodeWithText("⚡ 自动提交中").assertDoesNotExist()
-
-        // 取消 → 仍然关着，且没有发过写请求
-        compose.onNodeWithText("取消").performClick()
-        compose.waitForIdle()
-        assertTrue("取消之后不能有任何写请求", seen.none { it.startsWith("POST") })
-        compose.onNodeWithText("开启后服务器会自动向教务系统提交选课，无需你再确认。").assertDoesNotExist()
-        compose.onNodeWithText("⚡ 自动提交中").assertDoesNotExist()
-    }
-
-    @Test
-    fun `确认之后全局开关和单课标记都要动`() {
-        val seen = mutableListOf<String>()
-        render(fakeApi(seen = seen,
-            addReply = """{"ok":true,"clash":[],"clash_text":"","auto_submit":true}"""))
-        compose.onNodeWithText("开启…").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("确认开启").performClick()
-        awaitCount("已开启自动提交", substring = true)
-        assertTrue("全局开关要开：$seen",
-            seen.any { it.startsWith("POST") && it.contains("/grab/config") &&
-                it.contains("\"auto_submit\":true") })
-        assertTrue("单门标记也要开（服务端要求两者同时为真）：$seen",
-            seen.count { it.contains("/grab/target") && it.contains("\"auto_submit\":true") } >= 1)
-    }
-
-    @Test
-    fun `服务端回读没接受_就必须照实说没开成`() {
-        // 契约：显示只认服务端回读。回读 false 时不能显示成"已开启"
-        render(fakeApi())   // 默认 addReply 里 auto_submit=false
-        compose.onNodeWithText("开启…").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("确认开启").performClick()
-        awaitCount("服务端没接受开启", substring = true)
-        compose.onNodeWithText("⚡ 自动提交中").assertDoesNotExist()
-        compose.onNodeWithText("服务端已开").assertDoesNotExist()
-    }
-
-    @Test
-    fun `服务端真的开了_才显示醒目的自动提交中`() {
-        val on = json.encodeToString(GrabStatus.serializer(), realS().copy(auto_submit = true))
-        render(fakeApi(statusSeq = listOf(on)))
-        compose.onNodeWithText("⚡ 自动提交中").assertIsDisplayed()
-        compose.onNodeWithText("立刻停止全部自动提交").assertIsDisplayed()
-        compose.onNodeWithText("服务端已开").assertIsDisplayed()
-        // 一键停：要走确认层
-        compose.onNodeWithText("立刻停止全部自动提交").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("停止自动抢课？").assertIsDisplayed()
-    }
-
-    @Test
-    fun `有冲突的目标_自动抢开关置灰且说清原因`() {
-        // 把唯一一条目标造成"和课表冲突"（clash_text 用服务端 _fmt_clash 的真实格式）
-        val one = realS().targets.first().copy(clash_text = "通用英语 周三 11:25-13:50@A楼406")
-        val conflicted = json.encodeToString(GrabStatus.serializer(),
-            realS().copy(targets = listOf(one)))
-        val seen = mutableListOf<String>()
-        render(fakeApi(statusSeq = listOf(conflicted), seen = seen))
-        compose.onNodeWithText("不可自动抢 —— 和课表冲突：通用英语 周三 11:25-13:50@A楼406")
-            .assertIsDisplayed()
-        // 开关确实是"灰的"（点不动），不是只换个颜色
-        compose.onNodeWithText("自动抢：关").assertIsNotEnabled()
-        assertTrue("有冲突的课绝不许开自动抢（连写请求都不该发）：$seen",
-            seen.none { it.startsWith("POST") })
-        compose.onNodeWithText("开启后服务器会自动向教务系统提交选课，无需你再确认。").assertDoesNotExist()
-    }
-
-    @Test
-    fun `无冲突的目标_自动抢开关可点_但一样要过确认层`() {
-        val one = realS().targets.first()   // 真样本这条 clash_text 是空的 = 无冲突
-        val clean = json.encodeToString(GrabStatus.serializer(),
-            realS().copy(targets = listOf(one)))
-        val seen = mutableListOf<String>()
-        render(fakeApi(statusSeq = listOf(clean), seen = seen))
-        compose.onNodeWithText("自动抢：关").assertIsEnabled()
-        compose.onNodeWithText("自动抢：关").performClick()
-        compose.waitForIdle()
-        assertTrue("确认之前不许发写请求：$seen", seen.none { it.startsWith("POST") })
-        compose.onNodeWithText("开启后服务器会自动向教务系统提交选课，无需你再确认。").assertIsDisplayed()
-        compose.onNodeWithText("会立即变成自动提交的 1 门：").assertIsDisplayed()
-    }
-
-    @Test
-    fun `无冲突的课_自动抢徽标是可用的`() {
-        render(fakeApi())
-        compose.onAllNodesWithText("自动抢 ✓").onFirst().assertIsDisplayed()
-        compose.onNodeWithText("自动抢 ✕").assertDoesNotExist()
-    }
-
-    @Test
-    fun `有冲突的课允许加入监控_但自动抢徽标是灰的`() {
-        val conflictCatalog = sample("grab_catalog_conflict_real.json")
-        render(fakeApi(catalog = conflictCatalog))
-        compose.onAllNodesWithText("流体力学拓展选讲").onFirst().assertIsDisplayed()
-        compose.onAllNodesWithText("自动抢 ✕").onFirst().assertIsNotEnabled()
-        // 精确匹配：这门课只撞了「通用英语」一门
-        compose.onNodeWithText("不可自动抢 —— 和课表冲突：通用英语 周三 11:25-13:50@A楼406")
-            .assertIsDisplayed()
-        // 加入监控仍然可用（冲突只挡自动抢，不挡盯余量）
-        compose.onAllNodesWithText("加入监控").onFirst().assertExists()
-        // 这一屏里不该出现任何"可自动抢"的绿灯
-        compose.onNodeWithText("自动抢 ✓").assertDoesNotExist()
-    }
-
-    @Test
-    fun `确认层要写清是哪些课_哪个教学班_余量多少`() {
-        // 这门课在默认档位（能抢且不冲突）里查不到 —— 确认层必须自己按课名补查一次，
-        // 否则用户按下"确认开启"之前根本看不到会被提交的是哪个教学班、还剩多少位
-        val t = realS().targets.first().copy(id = 9, lesson_id = 317452,
-            course = "流体力学拓展选讲", teacher = "教师七", limit_cnt = 100)
-        val only = json.encodeToString(GrabStatus.serializer(), realS().copy(targets = listOf(t)))
-        val seen = mutableListOf<String>()
-        render(fakeApi(statusSeq = listOf(only), seen = seen,
-            byQuery = mapOf("流体力学拓展选讲" to sample("grab_catalog_conflict_real.json"))))
-        compose.onNodeWithText("开启…").performClick()
-        awaitCount("· 流体力学拓展选讲 · 教师七", substring = true)
-        // 一行里要能看到：哪门课/哪位老师 + 哪个教学班 + 还有多少余位
-        assertTrue("要写出教学班", count("· 流体力学拓展选讲 · 教师七 · 油气储运工程23-[1-3]班",
-            substring = true) >= 1)
-        assertTrue("要写出余量（带分母）", count("余 88 · 12/100", substring = true) >= 1)
-        assertTrue("必须真的去补查清单：$seen", seen.any { it.contains("q=%E6%B5%81") })
-    }
-
-    @Test
-    fun `确认层里无冲突的列出来_有冲突的写清为什么不会被抢`() {
-        val clean = realS().targets.first()
-        val dirty = clean.copy(id = 2, lesson_id = 317452, course = "流体力学拓展选讲",
-            teacher = "教师七", limit_cnt = 100,
-            clash_text = "通用英语 周三 11:25-13:50@A楼406")
-        val mixed = json.encodeToString(GrabStatus.serializer(),
-            realS().copy(targets = listOf(clean, dirty)))
-        render(fakeApi(statusSeq = listOf(mixed)))
-        compose.onNodeWithText("开启…").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("会立即变成自动提交的 1 门：").assertIsDisplayed()
-        compose.onNodeWithText("不会自动抢的（有冲突）：").assertIsDisplayed()
-        compose.onNodeWithText("· 流体力学拓展选讲 —— 和课表冲突：通用英语 周三 11:25-13:50@A楼406")
-            .assertIsDisplayed()
     }
 
     @Test
