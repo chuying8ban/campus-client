@@ -23,12 +23,36 @@
 - `versionCode` **只增不减**：更新判定是「清单里的号 > 当前装的号」，号不涨的包在用户设备上不会被视为更新（静默不动，界面上也看不出问题）。
 - 同一个 `applicationId` 才能覆盖安装；换包名等于另起一个 App，用户的本地数据不会跟过去。
 - 若同一个仓库里还维护着别的构建线（作者自用那条），它的号必须**永远高于**公开包——号低的那条会被高的那条在它自己设备上"更新"掉。细节见仓外手册。
+- 两条线的号在 `app/build.gradle` 里写成 **`versionCode(authorBuild ? 作者号 : 公开号)`**（Groovy 表达式，不是两个字面量）。发布脚本 ① 现在按这个表达式改，改完**回读断言** `(公开=$VC, 作者=$VC+1, name=$VER)`，对不上就当场停；`tools/audit.py` 也把「作者号 == 公开号 +1」当硬断言。
+- ⚠️ **为什么这两处非改不可**（2026-09-30 实测）：旧的脚本用 `re.sub(r'versionCode\s+\d+')` 改号，而这个表达式**匹配不到**——它一个字符都不改，却照样打印 `versionCode 66 / versionName 1.86`。结果是打出 `code` 还是 64 的包：已装用户**永远**等不到更新提示，而所有闸门都是绿的。
+
+## 更新说明（notes）怎么写
+
+App 的更新面板是 `m.notes.forEach { Text("· $n") }`——**一条一个圆点，一行就是一条**，所以说文案本身就是结构：
+
+- **一件事一条**，别把三件事挤成一条 46 字长句。
+- **每条 ≤ 40 字**、不许带换行（`tools/audit.py` 的闸门会拦：条数 ≤ 6、长度、前缀、渠道禁词）。
+- **不要写版本号/渠道前缀**（"公开版 1.85：…"）——面板上方已经写着"需要更新到 x.y"了。
+- **公开版清单里不许提渠道内务**（作者版、后台、凭据回显）：公开用户看不到也用不上，还平白宣告存在另一条通道。
+- **不许超出实现范围**：例线上 1.85 写的"新增抢课"，会被读成"它能替我抢课"，而实现只是**余量监控与提醒**；GitHub Release 正文里有抢课免责，App 内这条没有 → 两处口气要一起想清楚。
+- 闸门：`python3 tools/audit.py --manifest dist/manifest.json`（`publish.sh` 已内置为硬闸门，写在生成 `dist/manifest.json` 之后）。
 
 ## 签名
 
 - 所有对外发布的包用**同一把 keystore**（证书 SHA-256 前 8 位 `6eb42692`）。换钥匙意味着已装用户必须先卸载，本地数据一起丢。
 - 口令只放受控文件（本机 `local.properties` 或 `~/.config/` 下的 600 文件）：**不进仓库、不进命令行参数、不进聊天**，构建脚本从文件或环境变量读。
 - 每次打包后必核：`apksigner verify --print-certs` 的证书 SHA-256 **逐字符等于基准**，不等就停、不上传。
+
+## 网络：不要用 curl 回读这个域名（2026-09-30 起）
+
+`study.ccbase.top` 被**阿里云备案合规拦截**：`:80` 带真 Host 回 `Server: Beaver` + `<title>Non-compliance ICP Filing</title>` 的 403 页，跳 `aliyun.com/beian/beian-block?id=…`。**域名级、按 SNI/Host 执行**：
+
+- **带 SNI 的握手（浏览器、`curl`、`curl --resolve`）一律被 RST**：`http=000` / `(35) Recv failure`。看上去像"线上挂了"，其实不是。
+- **不带 SNI 的握手完全正常**：TLSv1.2 通、`/healthz` 200、`/updates/manifest.json` 200（我实测：连续 3 次 200）。**这不是绕过，而是 App 每天都在走的那条路**——`net/DialTransport.kt` 的选路第一优先就是 `NoSniTransport` + `RawTls.connectNoSni`，`campus-1.27-T1` 起就在包里，所以**已装用户不受影响**。
+- 判断"线上到底通不通"的顺序：① **服务器 `access.log` 为准**（被拦的握手在服务器上**不留记录**，日志只能证有、不能证无）；② `python3 tools/no_sni_fetch.py <url>`（系统信任库校链 + 自核 SAN，输出 sha256/size/status）；③ **绝不要**拿手机浏览器打开 `/updates/manifest.json` 当判别法 —— 浏览器必发 SNI，必然失败，会把活着的 App 误判成全网挂。
+- `tools/publish.sh` 的 ④⑤⑦ 已按此改写：清单与包体取**服务器本地真文件**（SSH），包体再用 `no_sni_fetch.py` 从用户视角实取一次。**别改回 curl。**
+- **别把 `study.ccbase.top` 的解析或边缘切到 Cloudflare**：CF 靠 SNI 分流，不发 SNI 直接 `handshake failure`——2026-09-26 换 CF 边缘时全量卡死过一次（见 `DialTransport.kt` 顶部注释）。要另起入口就用**另一个域名**。
+- 根治是备案；在那之前"无 SNI"这条路要保持可用，所以别动这个域名的边缘。
 
 ## 发版顺序
 
