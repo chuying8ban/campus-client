@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import top.ccbase.campus.BuildConfig
 import top.ccbase.campus.ui.theme.C
-import top.ccbase.campus.ui.theme.pageSurface
+import top.ccbase.campus.ui.theme.overlaySurface
 
 /** 后台管理页：挂在同一个站点的 `/admin/` 下（地址由构建参数 apiBase 决定）。App 内嵌与电脑浏览器用的是**同一个页面**。 */
 val ADMIN_URL = BuildConfig.API_BASE + "/admin/"
@@ -143,7 +143,7 @@ fun AdminWebScreen(ctx: Context, token: String?, onClose: () -> Unit) {
         if (w != null && w.canGoBack()) w.goBack() else onClose()
     }
 
-    Column(Modifier.fillMaxSize().pageSurface) {
+    Column(Modifier.fillMaxSize().overlaySurface) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

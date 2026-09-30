@@ -43,7 +43,7 @@ import top.ccbase.campus.ui.theme.BackgroundPhoto
 import top.ccbase.campus.ui.theme.BgPresets
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.brush
-import top.ccbase.campus.ui.theme.pageSurface
+import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.presetById
 
 /**
@@ -89,7 +89,7 @@ fun AppearanceScreen(onClose: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .pageSurface
+            .overlaySurface
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {

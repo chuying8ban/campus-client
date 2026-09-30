@@ -13,6 +13,10 @@ import org.junit.Test
  *    所以清单里存储类权限必须**保持 0 条** —— 这条路上"不申请"才是正确答案。
  * ③ **设了背景图要真的看得见**：页面不许自己再画一层不透明的整页底（`C.bg`），
  *    否则就是把 Theme 里的背景层整个盖住，表现为"换了背景图但哪一页都没变"。
+ * ④ **整屏浮层不许用"页面底"**：浮层存在的意义是盖住下面那页，所以它的底必须**恒不透明**；
+ *    用 `pageSurface` 就变成"设过背景时底一个像素都不画"，下层那页的字会整篇透上来
+ *    （2026-09-30 用户截图抓到的外观面板 bug，同一类的还有反馈页与后台页）。
+ *    这条规则按 **CampusApp 实际挂载谁**来查，不靠人记名单 —— 新挂一个整屏浮层就自动被查。
  */
 class AppearanceGuardTest {
 
@@ -101,5 +105,74 @@ class AppearanceGuardTest {
                 "直接 .background(C.bg) 会把背景层盖住（设了背景图却看不见）：\n" + bad.joinToString("\n"),
             bad.isEmpty(),
         )
+    }
+
+    @Test
+    fun `整屏浮层必须用 overlaySurface_不许用 pageSurface`() {
+        val campusApp = read("java/top/ccbase/campus/ui/CampusApp.kt")
+        val mounted = overlayScreens(campusApp)
+        // 反向确认：正则/写法变了就当场喊，别让这条守卫变成"永远绿的空转"
+        val mustSee = listOf("SafetyScreen", "AppearanceScreen", "CrawlScreen", "PlanScreen",
+            "PermissionsScreen", "AdminWebScreen", "FeedbackScreen")
+        assertTrue(
+            "没能从 CampusApp 的 `if (showXxx)` 块里认出这些整屏浮层：${mustSee - mounted}（挂载写法变了？）",
+            mounted.containsAll(mustSee),
+        )
+
+        // 豁免：**自绘半透明遮罩 + 不透明卡片**的那一类（遮罩本来就该透）——
+        // PermissionsScreen / DiagOverlay 用的是 background(Color(0xB3000000)) + surface 卡片。
+        val selfDrawnScrim = setOf("PermissionsScreen")
+
+        val uiRoot = File(root, "java/top/ccbase/campus/ui")
+        val bad = mutableListOf<String>()
+        mounted.filterNot { it in selfDrawnScrim }.forEach { name ->
+            val f = uiRoot.walkTopDown().firstOrNull { it.name == "$name.kt" }
+            if (f == null) {
+                bad += "$name：CampusApp 挂载了它，但 ui/ 下找不到源文件"
+                return@forEach
+            }
+            val text = f.readText()
+            if (!text.contains(".overlaySurface")) {
+                bad += "$name：整屏浮层的底必须用 .overlaySurface（恒不透明）"
+            }
+            if (text.contains(".pageSurface")) {
+                bad += "$name：用了 .pageSurface —— 设过背景的机器上会透出下层那页的字（2026-09-30 真机 bug）"
+            }
+        }
+        assertTrue(
+            "整屏浮层的底必须恒不透明（Theme.overlaySurface）；pageSurface 是有背景图时的\"透明底\"，\n" +
+                "浮层用它就会让下面那页的字与浮层的字叠在一起：\n" + bad.joinToString("\n"),
+            bad.isEmpty(),
+        )
+    }
+
+    /**
+     * 从 CampusApp 里抠出**由 `if (showXxx) { … }` 挂载的整屏浮层**。
+     *
+     * 为什么按花括号配平扫、而不是一句正则了事：`when (tab)` 那些**页面**是直接调用的，
+     * 它们用 `pageSurface` 才是对的；一句宽正则会把 LibraryScreen / GrabScreen 这些页面
+     * 也当成浮层（第一次写就是这样，修好的代码反而被判红）。浮层的判据是"挂在 `showXxx` 开关下"。
+     * 条件里带别的东西也算（例：`if (BuildConfig.AUTHOR_BUILD && showAdmin)` —— 后台页就长这样）。
+     */
+    private fun overlayScreens(campusApp: String): Set<String> {
+        val lines = campusApp.lines()
+        val found = mutableSetOf<String>()
+        val showIf = Regex("""^\s*if \(.*\bshow[A-Z]\w*""")
+        val call = Regex("""\b(\w+Screen)\(""")
+        var i = 0
+        while (i < lines.size) {
+            if (!showIf.containsMatchIn(lines[i])) { i++; continue }
+            var depth = 0
+            var j = i
+            while (j < lines.size) {
+                val code = lines[j].substringBefore("//")
+                depth += code.count { it == '{' } - code.count { it == '}' }
+                call.findAll(code).forEach { found += it.groupValues[1] }
+                j++
+                if (depth <= 0) break          // 这个 if 块合上了
+            }
+            i = if (j > i) j else i + 1
+        }
+        return found
     }
 }
