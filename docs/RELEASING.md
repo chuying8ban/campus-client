@@ -35,7 +35,9 @@ App 的更新面板是 `m.notes.forEach { Text("· $n") }`——**一条一个�
 - **不要写版本号/渠道前缀**（"公开版 1.85：…"）——面板上方已经写着"需要更新到 x.y"了。
 - **公开版清单里不许提渠道内务**（作者版、后台、凭据回显）：公开用户看不到也用不上，还平白宣告存在另一条通道。
 - **不许超出实现范围**：例线上 1.85 写的"新增抢课"，会被读成"它能替我抢课"，而实现只是**余量监控与提醒**；GitHub Release 正文里有抢课免责，App 内这条没有 → 两处口气要一起想清楚。
-- 闸门：`python3 tools/audit.py --manifest dist/manifest.json`（`publish.sh` 已内置为硬闸门，写在生成 `dist/manifest.json` 之后）。
+- 闸门：`python3 tools/audit.py --manifest dist/manifest.json`（`publish.sh` 已内置为硬闸门，写在生成 `dist/manifest.json` 之后）。作者通道加 `--channel author`（否则「公开清单禁渠道内务」那条会把它拦下）；闸门还会核对**清单版本 vs `app/build.gradle` 版本**——所以它必须在 ① 改号之后跑。
+- notes 别手抄：`tools/publish.sh 1.86 66 @notes.txt`（一行一条，空行自动跳过）。手抄漏过整条（1.85→1.86 的作者清单），文本进文件之后发布工单可以直接当输入。
+- ② 里还有一条**真包号断言**（`aapt dump badging` 读**要上传的那个文件**）：包里号没涨的"谎包"（dex 里有新功能、`version_code` 还是旧号、其余闸门全绿）只有这里能拦。
 
 ## 签名
 
