@@ -70,6 +70,7 @@ App 的更新面板是 `m.notes.forEach { Text("· $n") }`——**一条一个�
 - **构建机 = 本机 Mac**（JDK 17 + Android SDK；`local.properties` 的 `sdk.dir` 必须指本机，别留别的机器的路径——那个错会让构建当场失败，而报错看着像环境问题）。
 - `tools/publish.sh` 顶上那段现在**把机器相关的东西都参数化了**（JAVA_HOME / 部署私钥 / SDK+apksigner / 锁 / sha256 / 文件大小），每一项可用 `STUDY_JAVA_HOME`、`STUDY_DEPLOY_KEY`、`STUDY_HOST`、`STUDY_APKSIGNER`、`STUDY_PROD` 覆盖。**换机器只动那一段**，别再往别处写死路径。
 - macOS 没有 `flock(1)`、`stat` 是 BSD 版（`stat -c%s` 报 `illegal option -- c`），所以锁走 `tools/with_lock.py`（`flock -w` 的 python 替身，Linux 上同一份也能跑），大小/摘要走 `filesize()`、`sha256_of()` 两个 helper。**别改回 `flock` / `stat -c%s`。**
+- ⚠️ **本机 `/usr/bin/env bash` 是 bash 3.2.57**（macOS 自带、没装新版）：它会把 `$VAR` 后面紧跟的高位字节**并进变量名** —— 于是 `echo "…$VER（…）"` 里的全角括号会被吃掉，`set -u` 下直接 `unbound variable` 把发布打断（2026-09-30 干跑时真断在 `$NOTES_FILE（` 这一行）。**中文/全角字符紧跟在变量后面时，一律写 `${VAR}`。**
 - **依赖取件**：Robolectric 的 `android-all` jar 在这台机器上走本机离线目录（`~/.config/study-native/robolectric-deps/`）——写法是**条件式**：目录存在才打开 `robolectric.offline=true` 并把 `dependency.dir` 指过去，否则照旧走仓里配的 aliyun 镜像。**别把 `offline=true` 写死**，那会让没预置的机器、或升完版本的新包直接构建失败。升 Robolectric 版本时要往那个目录再放一个对应版本的 jar（文件名绑版本号）。
 - **换构建机后，产物的 `sha256` 必须重取**（构建不是逐字节可复现）；**源码指纹与签名证书指纹与机器无关**，不用重算。
 - 发布完把临时产物（解出的包、日志、中间目录、临时 keystore）清掉，别留在别的机器上。
