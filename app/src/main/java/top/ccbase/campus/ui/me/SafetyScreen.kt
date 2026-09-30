@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.overlaySurface
 
 /**
  * 「安全与隐私」整页声明 —— 用户第一句问的是「我凭什么把教务密码给你」，
@@ -43,7 +44,7 @@ fun SafetyScreen(onClose: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(C.bg)
+            .overlaySurface
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {

@@ -41,6 +41,7 @@ import top.ccbase.campus.net.StudentError
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.alarm.Rescheduler
 import top.ccbase.campus.ui.settings.NudgeStrip
+import top.ccbase.campus.update.UpdatePrefs
 
 /**
  * 「我的」—— 账户、密码、关于。
@@ -69,6 +70,16 @@ private fun SectionTitle(text: String, first: Boolean = false) {
          color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f))
     Spacer(Modifier.height(6.dp))
 }
+
+/**
+ * 「更新检查」那行后面的时刻（毫秒 → 本地 `MM-dd HH:mm`）。
+ *
+ * 显示用本地时区；**判据不在这里**（什么时候该查由 `UpdateLogic` 的节流决定，与显示无关）。
+ */
+private fun fmtCheckedAt(ms: Long): String =
+    if (ms <= 0) "" else "（" + java.time.Instant.ofEpochMilli(ms)
+        .atZone(java.time.ZoneId.systemDefault())
+        .format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm")) + "）"
 
 @Composable
 private fun KV(k: String, v: String) {
@@ -114,6 +125,7 @@ fun MeScreen(
     /** 点「网络自检」：连不上服务器时用来定位断在哪一层 */
     onOpenDiag: () -> Unit = {},
     onOpenSafety: () -> Unit = {},
+    onOpenAppearance: () -> Unit = {},
     /** 点「手机自己抓课表」：教务密码不出手机的抓取路径 */
     onOpenCrawl: () -> Unit = {},
     /** 点「授权与白名单」：缺哪个权限、缺了会怎样、App 内直接去要 */
@@ -134,6 +146,10 @@ fun MeScreen(
     // 「课表自检」（App 打开/回前台时自己核对）的结果与时刻 —— 不许静默，摆在这一页
     var autoCheck by remember { mutableStateOf<String?>(null) }
     var autoCheckAt by remember { mutableStateOf<String?>(null) }
+    // 「更新检查」（进 App / 回前台时自动查版本）的结果与时刻 —— 同样不许静默：
+    // 服务端清单 404、作者通道的随机段被轮换，表现都是"已是最新"，不留痕就只能靠猜。
+    var updCheck by remember { mutableStateOf<String?>(null) }
+    var updCheckAt by remember { mutableStateOf(0L) }
     // 服务端支不支持「重读教务课表」：yes/no/还不知道 —— 决定按钮副标题怎么说实话
     var resync by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -155,6 +171,8 @@ fun MeScreen(
         syncedAt = db.dao().metaGet(PlanApplier.K_AT)
         autoCheck = db.dao().metaGet(PlanApplier.K_CHECK_RES)
         autoCheckAt = db.dao().metaGet(PlanApplier.K_CHECK_AT)
+        updCheck = UpdatePrefs.lastResult(ctx)
+        updCheckAt = UpdatePrefs.lastResultAt(ctx)
         resync = db.dao().metaGet(PlanApplier.K_RESYNC)
         token = TokenStore.token(ctx)
         name = TokenStore.name(ctx) ?: ""
@@ -353,6 +371,11 @@ fun MeScreen(
             if (!autoCheck.isNullOrBlank()) {
                 KV("课表自检", autoCheck + (autoCheckAt?.take(16)?.replace("T", " ")?.let { "（$it）" } ?: ""))
             }
+            // 「App 自己查更新」的结果同样摆出来：作者通道的随机段被轮换、服务端清单 404，
+            // 在界面上的表现都是"已是最新" —— 没有这一行，失效就无从发现（1.85 那轮踩过）。
+            if (!updCheck.isNullOrBlank()) {
+                KV("更新检查", updCheck + fmtCheckedAt(updCheckAt))
+            }
             Spacer(Modifier.height(10.dp))
             if (busy) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -472,6 +495,11 @@ fun MeScreen(
             text = "安全与隐私",
             hint = "你的教务密码怎么加密、谁能看到、怎么一键删除 —— 逐条写清楚",
             onClick = onOpenSafety,
+        )
+        Action(
+            text = "外观",
+            hint = "深色 / 浅色 / 跟随系统 · 背景图（内置渐变或自己上传，只存本机）",
+            onClick = onOpenAppearance,
         )
         Action(
             text = "授权与白名单",

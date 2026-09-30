@@ -283,6 +283,8 @@ object UpdatePrefs {
     private const val K_NOTIFIED = "notified_version_code"
     private const val K_AVAIL_CODE = "available_version_code"
     private const val K_AVAIL_NAME = "available_version_name"
+    private const val K_RES = "last_check_result"
+    private const val K_RES_AT = "last_check_result_at"
 
     fun lastCheck(ctx: Context): Long =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getLong(K_LAST, 0L)
@@ -311,6 +313,25 @@ object UpdatePrefs {
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
             .putInt(K_AVAIL_CODE, code).putString(K_AVAIL_NAME, name).apply()
     }
+
+    /**
+     * 最近一次检查的**结果 + 时间**（成败都记）。
+     *
+     * 为什么必须落下来：自动检查失败以前是**零留痕** —— 界面只在用户手动点「检查更新」时才说话，
+     * 于是「服务端那条清单路径 404」「作者通道的随机段被轮换」这类失效在手机上表现为
+     * **"已是最新"，而且哪儿都没痕迹**（这正是 1.85 那一轮踩过的静默失败）。留下一行，
+     * 「我的」页就能把它照实显示出来；轮换段那种操作也才有验收依据。
+     */
+    fun markResult(ctx: Context, text: String, at: Long = System.currentTimeMillis()) {
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
+            .putString(K_RES, text).putLong(K_RES_AT, at).apply()
+    }
+
+    fun lastResult(ctx: Context): String? =
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getString(K_RES, null)
+
+    fun lastResultAt(ctx: Context): Long =
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getLong(K_RES_AT, 0L)
 
     fun availableCode(ctx: Context): Int =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getInt(K_AVAIL_CODE, 0)

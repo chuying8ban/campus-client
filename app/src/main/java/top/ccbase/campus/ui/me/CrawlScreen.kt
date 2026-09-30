@@ -55,6 +55,7 @@ import top.ccbase.campus.net.EamsClient
 import top.ccbase.campus.net.EamsLoginFailed
 import top.ccbase.campus.net.Net
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.net.StudentError
 
 /**
@@ -223,7 +224,7 @@ fun CrawlScreen(
         // 底色必须自己画：这一页在 CampusApp 里是 Scaffold 的**兄弟节点**（整屏盖住，
         // 连底栏一起盖），不画底色就是一层透明薄膜 —— 下层「我的」页的文字会整片透上来，
         // 两页的字叠在一起（2026-09-18 真机踩过，用户截图）。
-        Modifier.fillMaxSize().background(C.bg)
+        Modifier.fillMaxSize().overlaySurface
             .padding(horizontal = 24.dp, vertical = 30.dp)
             .verticalScroll(rememberScrollState()),
     ) {

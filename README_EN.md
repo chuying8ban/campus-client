@@ -31,15 +31,24 @@ Bottom navigation plus entries under Me:
 | Study | Stage switching, task cards, study steps and progress; the "AI study plan" entry sits at the top | Everyone |
 | Library | Shared resource catalogue: pick links by course or type, and they become tasks in your own list | Everyone |
 | Board | Stat cards, a 14-day chart, milestones, self-check | Everyone |
-| Me | Account, password management, network self-check, security and privacy, permissions and allowlist, check for updates, feedback | Everyone |
+| Me | Account, password management, network self-check, security and privacy, permissions and allowlist, appearance, check for updates, feedback | Everyone |
 | Admin page | The site backend (the web version's `/admin/`, embedded) | Author build only (entry) |
 | Stored-credential reveal | Shows the academic-affairs password kept on the server | Author build only |
 
 In the public build those last two rows have no entry point: **the admin page is not rendered** (its implementation and strings still travel inside the package, because this repository does not enable code shrinking; the build flag removes the entry, so ordinary users never see it). The credential reveal is the same story, and the server allows it only for the author: that is someone else's password, and showing it once is one more leak surface.
 
-Around that: automatic reminders before class and auto-mute during class (both need system permissions, and a dedicated screen walks you through granting them), plus in-app update (check version, download, hand off to the system installer) because the app is sideloaded.
+Around that: automatic reminders before class and auto-mute during class (both need system permissions, and a dedicated screen walks you through granting them), plus in-app update, because the app is sideloaded: **when a new version is published the app asks about the version when it comes back to the foreground and prompts you in-app to update** (each version is announced once, so it will not nag; Me → check for updates also asks on demand), then downloads the package and hands off to the system installer. That check looks at version numbers only, not at who you are; details in [docs/RELEASING.md](docs/RELEASING.md) (Chinese).
 
 **About the seat-grab tab**: it watches and notifies. It polls how many seats a course has left and pings you at the right time; you still do the actual enrolment yourself in the academic affairs system. Rebuilding the course list and changing academic-affairs credentials happen in the web version, and the app tells you so where it matters.
+
+**The timetable keeps itself fresh**: when the app comes back to the foreground it checks whether the timetable has been read from the academic affairs system today, and fetches it if not (with a minimum interval, so it does not pester that system, and it never interrupts you with an error). The Me tab shows when the last successful read happened, so you can see how fresh your data is.
+
+## Appearance
+
+Two things live under Me → Appearance:
+
+- **Theme**: dark (default), light, or follow the system; switching takes effect immediately.
+- **Background**: a plain colour by default, then a few built-in backgrounds (programmatically generated gradients), then your own picture. Picking a picture goes through the system photo picker, so **the app requests no storage permission**; the image is stored only in the app's directory on this phone and is **never uploaded**, and you can switch back to a built-in background or a plain colour at any time. A scrim sits on top so the main text stays readable; **in the dark theme the faintest grey text is dimmer than usual in picture mode** (the brighter the picture, the more so). That is a deliberate trade-off, not an oversight.
 
 ## Build
 
@@ -126,8 +135,13 @@ python3 tools/privacy_scan.py dist/your-build.apk
 - This repository is the Android side of one tool. The same author's web version (Python / FastAPI) is not included; `apiBase` points at it, and it also serves the admin page, which only the author build links to.
 - What was read for reference, which techniques are generic, and what would count as copying: see [docs/PRIOR-ART.md](docs/PRIOR-ART.md).
 - Timetable rules (week-number conversion, streak semantics and so on) were aligned with the web version item by item and encoded in tests, not invented here: a divergence between the two implementations turns the suite red.
+- The built-in background images are **programmatically generated vector graphics** (original work by this project, generated plus hand-checked); no third-party assets are included, and any picture you pick stays on your own phone.
 - Besides the in-app feedback form, bugs and questions can go to [issues](https://github.com/chuying8ban/campus-client/issues).
 - Deeper documentation lives in docs/ and is Chinese for now.
+
+## Maintaining this repository
+
+Releasing a new version (packaging, signing, both update channels): see [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 

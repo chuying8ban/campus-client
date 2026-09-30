@@ -112,7 +112,20 @@ android {
             // Robolectric 要能读到 App 的资源/manifest
             includeAndroidResources = true
             all {
-                // Robolectric 运行时要去 Maven 下 android-all jar；走阿里镜像，别从原站慢慢等
+                // Robolectric 运行时要去 Maven 下 android-all jar；走阿里镜像，别从原站慢慢等。
+                //
+                // ⚠️ 本机若有离线目录（`~/.config/study-native/robolectric-deps/`，放对应的
+                // `android-all-instrumented-<sdk>-robolectric-<build>-iN.jar`），就直接用本地那份：
+                // 不联网、结果可复现（国内构建机上，测试 JVM 对某些源的握手会失败，2026-09-30 实见）。
+                // 为什么不写死 `offline=true`：别的机器没预置就会当场构建失败 —— 这里只在目录确实存在时才切。
+                // ⚠️ 升级 Robolectric 版本后，artifact 名会变（尾号 `-iN`），**要往那个目录再放一个对应的 jar**，
+                //    否则这一台会退回联网取件（其余机器不受影响）。
+                def robotDir = file("${System.properties['user.home']}/.config/study-native/robolectric-deps")
+                def robotJars = robotDir.isDirectory() ? (robotDir.listFiles()?.findAll { it.name.endsWith('.jar') } ?: []) : []
+                if (!robotJars.isEmpty()) {
+                    systemProperty 'robolectric.offline', 'true'
+                    systemProperty 'robolectric.dependency.dir', robotDir.absolutePath
+                }
                 systemProperty 'robolectric.dependency.repo.id', 'aliyun'
                 systemProperty 'robolectric.dependency.repo.url', 'https://maven.aliyun.com/repository/public'
                 // JDK17 模块访问：测试里既有 Robolectric 的沙箱（会 instrument InetAddress），

@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.vector.ImageVector
+import top.ccbase.campus.ui.theme.AppearanceStore
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -218,6 +220,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 网络自检浮层：连不上服务器时用户自己跑一次，把「断在哪一层」摆出来
     var showDiag by remember { mutableStateOf(false) }
     var showSafety by remember { mutableStateOf(false) }
+    var showAppearance by remember { mutableStateOf(false) }
     // 「手机自己抓课表」浮层：教务密码不出手机的抓取路径
     var showCrawl by remember { mutableStateOf(false) }
     // 「AI 规划学习计划」浮层：先看建议再勾选入库。
@@ -317,6 +320,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CheckOutcome.Latest -> updHint = if (force) "已经是最新版本（$version）" else null
                 is CheckOutcome.Failed -> updHint = if (force) "检查更新失败：${outcome.message}" else null
             }
+            // **成败都留痕**（「我的」页照实显示）：自动检查失败以前是零留痕，
+            // 而"服务端清单 404 / 作者通道的随机段被轮换"这类失效的表现恰好就是"已是最新"——
+            // 没有这一行，用户和我们都无从发现，只能等下一次手动点。轮换段那种操作也才有验收依据。
+            UpdatePrefs.markResult(appCtx, updateTraceText(outcome))
         }
     }
     // 进入 App 就查一次（1 分钟下限）：用户要求进来就知道有没有新版本
@@ -364,7 +371,14 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     DisposableEffect(lifecycleOwner) {
         val obs = LifecycleEventObserver { _, e ->
             // ON_RESUME 在首次进入时也会走一次 —— "打开 App"与"回到前台"共用这一条路
-            if (e == Lifecycle.Event.ON_RESUME) checkTimetable()
+            if (e == Lifecycle.Event.ON_RESUME) {
+                checkTimetable()
+                // 版本检查也在这一条路上补一次：原来只有 `LaunchedEffect(Unit)`，
+                // 而它挂在 root 组合上、**进程常驻时就只在冷启动跑过一次** ——
+                // 一直在后台没被杀的用户可能好几天看不到"有新版本"。
+                // 这里走 6 小时下限（entry=false ⇒ shouldCheckNow），冷启动那条 1 分钟下限不变。
+                checkUpdate(force = false)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
@@ -410,7 +424,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
-        containerColor = C.bg,
+        // 有背景图（预设/自选）时让出底色：这层不透明的 C.bg 会把 Theme 里的背景层整个盖住
+        containerColor = if (AppearanceStore.background.value == AppearanceStore.BG_SOLID) C.bg
+                         else Color.Transparent,
         bottomBar = {
             NavigationBar(
                 containerColor = C.bgSoft,
@@ -467,6 +483,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onCheckUpdate = { checkUpdate(force = true) },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
+                    onOpenAppearance = { showAppearance = true },
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
                     onOpenAdmin = { showAdmin = true },
@@ -517,6 +534,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     if (showSafety) {
         top.ccbase.campus.ui.me.SafetyScreen(onClose = { showSafety = false })
+    }
+    if (showAppearance) {
+        top.ccbase.campus.ui.me.AppearanceScreen(onClose = { showAppearance = false })
     }
     if (showCrawl) {
         // 这里拿不到下面 when 分支里的局部 app，用 LocalContext 取（和 162/328 行同一个写法）
@@ -786,3 +806,16 @@ internal const val MERGED_LIST_TAG = "learning-merged-list"
  * 用户就是嫌它"往下翻还杵在那儿"。
  */
 private const val HIDE_ENTRY_AFTER_PX = 96
+
+/**
+ * 一次更新检查的结果 →「我的」页那行给人看的字。
+ *
+ * 三种结果**都要留痕**（包括"已是最新"）：只记失败的话，"检查根本没跑起来"这种更常见的失效
+ * 仍然看不见。它与「课表自检」那套（`PlanApplier.recordCheck`）是同一条规矩 ——
+ * **自动发生的事必须留痕**，否则用户只会看到现象、看不到原因。
+ */
+private fun updateTraceText(o: CheckOutcome): String = when (o) {
+    is CheckOutcome.Update -> "有新版本 ${o.manifest.versionName}（${o.manifest.versionCode}）"
+    CheckOutcome.Latest -> "已是最新版本"
+    is CheckOutcome.Failed -> "检查失败：${o.message}"
+}

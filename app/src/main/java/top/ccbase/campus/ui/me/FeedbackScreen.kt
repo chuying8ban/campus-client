@@ -40,6 +40,7 @@ import top.ccbase.campus.net.ApiResult
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.net.FeedbackItem
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.pageSurface
 
 /** 用例里的抓手（和项目其它页面一致，用 testTag 而不是按文案点） */
 const val FB_INPUT = "fb-input"
@@ -111,7 +112,7 @@ fun FeedbackScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(C.bg)) {
+    Column(Modifier.fillMaxSize().pageSurface) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

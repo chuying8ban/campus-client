@@ -108,8 +108,10 @@ class CrawlScreenTest {
             val f = File("src/main/java/top/ccbase/campus/$rel")
             assertTrue("找不到 $rel（测试工作目录变了？）", f.isFile)
             val code = f.readText()
-            // 主题底色 C.bg，或 Color(0xB3…) 这类压暗遮罩，都算"不是透明的"
-            !code.contains("background(C.bg)") && !code.contains("background(Color(0x")
+            // 主题底色 C.bg，或 Color(0xB3…) 这类压暗遮罩，都算"不是透明的"；
+            // 具名的 `overlaySurface`（theme 里定义，语义就是"始终不透明"）同样算
+            !code.contains("background(C.bg)") && !code.contains("overlaySurface") &&
+                !code.contains("background(Color(0x")
         }
         assertTrue(
             "这些浮层没画不透明底色，会把底下的页面透上来（真机已出过叠字）：$missing",

@@ -54,6 +54,7 @@ import top.ccbase.campus.net.PlanCounts
 import top.ccbase.campus.net.PlanRes
 import top.ccbase.campus.net.PlanSuggest
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.util.Links
 
 /**
@@ -287,7 +288,7 @@ fun PlanScreen(db: CampusDb, api: CampusApi, onClose: () -> Unit, onGoTasks: () 
         }
     }
 
-    Box(Modifier.fillMaxSize().background(C.bg)) {
+    Box(Modifier.fillMaxSize().overlaySurface) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 30.dp)
                 .verticalScroll(rememberScrollState()),

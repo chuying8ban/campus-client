@@ -6,10 +6,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import top.ccbase.campus.alarm.NudgePrefs
 import top.ccbase.campus.alarm.Notify
 import top.ccbase.campus.ui.CampusApp
 import top.ccbase.campus.ui.theme.CampusTheme
+import top.ccbase.campus.ui.theme.resolvePalette
 
 /**
  * 全 App 只有一个 Activity（单 Activity + Compose 导航）——
@@ -24,6 +27,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         askNotificationsOnce()
         setContent {
+            // 系统栏（状态栏/导航栏）跟着主题走 —— 三档的解析只在 resolvePalette 一处，
+            // 这里读同一个值，免得"内容浅色、状态栏还是深色"这种两套判断走偏的观感。
+            val barColor = resolvePalette().bg.toArgb()
+            SideEffect {
+                window.statusBarColor = barColor
+                window.navigationBarColor = barColor
+            }
             CampusTheme {
                 CampusApp(version = BuildConfig.VERSION_NAME)
             }

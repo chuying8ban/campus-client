@@ -43,6 +43,13 @@ class CampusApplication : Application() {
         // 而它的调用链有的（引导页 / 等待页）手里没有 Context —— 靠这份缓存兜住，
         // 才能保证"哪条路上都不会静默跳过重放"。
         runCatching { top.ccbase.campus.data.plan.TplLoader.load(this) }
+        // 外观（主题档 + 背景）**在进程启动时读一次**，之后只走内存里的快照状态。
+        //
+        // 为什么不放在 CampusTheme 里用 LaunchedEffect 读：那样每个页面/每次组合都会发起一次
+        // "读 SharedPreferences → 写状态"的活儿，而它在 Robolectric+Espresso 下会表现为
+        // "主 looper 一直不空闲"（`AppNotIdleException`，2026-09-30 实见：全量跑时 11 条红、单类全绿）。
+        // 读一次、之后纯内存，既省事也把这个测试环境陷阱消掉。
+        runCatching { top.ccbase.campus.ui.theme.AppearanceStore.bind(this) }
         // 抢课提醒：开关开着就把闹钟补上（重启、升级、被杀进程后都能自愈）
         runCatching {
             if (top.ccbase.campus.alarm.GrabWatch.isOn(this)) {
