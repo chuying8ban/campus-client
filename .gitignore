@@ -41,3 +41,5 @@ tools/no_sni_fetch.py
 tools/with_lock.py
 # —— 内部发版手册（含 SNI/拦截、作者通道、发布闸门等内部面，不进公开仓；公开那份见 docs/RELEASING.md）——
 tools/RELEASING-internal.md
+# —— 落工单工具（与 publish.sh 同族的内部件）——
+tools/new_release_ticket.py

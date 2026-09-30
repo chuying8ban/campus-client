@@ -1,11 +1,10 @@
 {
-  "version_code": 66,
-  "version_name": "1.86",
-  "url": "/updates/campus-1.86.apk",
-  "sha256": "6109c5dce01c1af3f02894642ffde8c388653036d072d4390adbf9b7859092aa",
-  "size": 7618152,
+  "version_code": 68,
+  "version_name": "1.86.1",
+  "url": "/updates/campus-1.86.1.apk",
+  "sha256": "44574075c7f95ec99be589bc999edf58e29f3c6ead45b0708435d400577c66c9",
+  "size": 7618156,
   "notes": [
-    "新增主题与背景：深色 / 浅色 / 跟随系统，内置渐变或相册取图",
-    "底部「抢课」（测试）：目前只监控余位并提醒，自动提交以服务端为准"
+    "修好外观面板：面板底色不再透出下面那页的字"
   ]
 }
