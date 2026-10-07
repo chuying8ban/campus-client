@@ -17,9 +17,9 @@ import top.ccbase.campus.data.local.Task
  *
  * 两个文件分工不同，别混：
  *  - `seed.json`           —— 作者本人的实例数据（课表 11 门 / 自习 / 39 任务 / 68 步骤 / 165 资源）。
- *                            自用版直接用它。由 `~/study-app/seed_export.py` 从 study.db 导出。
+ *                            自用版直接用它。由 `~/ChenC/projects/study-app/seed_export.py` 从 study.db 导出。
  *  - `plan_templates.json` —— 课程模板 + 模块包。同学版登录后按自己的课表匹配它生成计划。
- *                            由 `~/study-app/plan_templates.py` 生成。
+ *                            由 `~/ChenC/projects/study-app/plan_templates.py` 生成。
  *
  * 字段名与 Room 实体逐字一致（同一个类既是实体又是序列化目标），
  * 避免再抄一份 DTO —— 抄一份就多一处会漂移的地方。

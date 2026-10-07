@@ -189,7 +189,10 @@ class TabWiringTest {
 
         val safety = File("src/main/java/top/ccbase/campus/ui/me/SafetyScreen.kt").readText()
         assertTrue("声明要写清加密方式", safety.contains("AES-GCM"))
-        assertTrue("声明要写清密码的边界（谁能看到）", safety.contains("只对作者本人开放"))
+        // 2026-10-07：后台搬去网页端、App 不再有凭据回显入口，这句"能查看、只对作者开放"的
+        // 内务说明从用户可见的声明里删掉了 —— 用户看不到也用不上，写在那儿只是多一个疑点。
+        assertTrue("声明要写清边界：谁能看到（不再提后台内部能力）",
+            safety.contains("只有服务器管理员可读") && !safety.contains("只对作者本人开放"))
         assertTrue("声明要写清可一键删除", safety.contains("一键删除"))
         assertTrue("声明要写清全程 HTTPS", safety.contains("HTTPS"))
         assertTrue("声明要承认管理员理论可解密（写做不到的承诺更伤信任）",

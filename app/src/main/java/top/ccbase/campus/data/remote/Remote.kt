@@ -31,7 +31,6 @@ object TokenStore {
     private const val K_NAME = "name"
     private const val K_SID = "student_id"
     private const val K_GRAB = "can_grab"
-    private const val K_AUTHOR = "is_author"
 
     private fun sp(ctx: Context) = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
@@ -42,22 +41,8 @@ object TokenStore {
             .putString(K_NAME, user.name)
             .putString(K_SID, user.student_id)
             .putBoolean(K_GRAB, user.canGrab)
-            .putBoolean(K_AUTHOR, user.isAuthor)
             .apply()
     }
-
-    /** 单独补作者标记：老会话（这个版本之前登录的）本地没存过它，靠一次 /me 补上 */
-    fun saveAuthor(ctx: Context, isAuthor: Boolean) {
-        sp(ctx).edit().putBoolean(K_AUTHOR, isAuthor).apply()
-    }
-
-    /**
-     * 是不是作者本人（决定「我的」页要不要显示「后台管理」入口）。
-     *
-     * 注意：**这只是界面开关，不是权限**。真正的闸在服务端 admin 那几条接口上：
-     * 非作者拿着令牌去调，服务端回 403。所以这里就算被改成本地 true，也看不到任何数据。
-     */
-    fun isAuthor(ctx: Context): Boolean = sp(ctx).getBoolean(K_AUTHOR, false)
 
     fun token(ctx: Context): String? = sp(ctx).getString(K_TOKEN, null)
 

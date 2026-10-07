@@ -207,8 +207,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var idx by rememberSaveable { mutableIntStateOf(0) }
 
     val appCtx = LocalContext.current
-    // 监控那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）；
-    // 后台那类"只进作者包"的东西另有一层编译期闸（BuildConfig.AUTHOR_BUILD）。
+    // 监控那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）。
+    // （2026-10-07 起没有"只进作者包"的东西了：包只有一个，后台搬去了网页端。）
 
     // ------------------------------------------------------------------
     // 应用内更新（旁加载的 App 没有应用商店，得自己查版本、自己下、自己拉安装器）
@@ -229,8 +229,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showPlan by remember { mutableStateOf(false) }
     // 授权/白名单浮层：这些开关缺了对应的功能会静默失效，所以要有地方能直接去要
     var showPerms by remember { mutableStateOf(false) }
-    // 后台管理：App 内嵌打开（不丢浏览器 —— 丢浏览器会弹系统框、用户点拒绝还静默无反应）
-    var showAdmin by remember { mutableStateOf(false) }
     var showFeedback by remember { mutableStateOf(false) }
     // 全 App 共用一个传输层：它自己会在"直连被链路掐掉"时切到不带 SNI 的握手，
     // 而且这个选择要**跨请求记住**（每次新建一个就等于每请求重探一遍）
@@ -482,7 +480,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onOpenAppearance = { showAppearance = true },
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
-                    onOpenAdmin = { showAdmin = true },
                     onOpenFeedback = { showFeedback = true },
                 )
                 else -> ShellScreen(shown, version)
@@ -571,16 +568,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onClose = { showPerms = false },
         )
     }
-    // 后台管理内嵌页：也盖在最外层（要盖住底部导航），令牌直接交给页面 = 不用再登一次。
-    // 外面这层是**编译期**闸：公开包的 AUTHOR_BUILD 恒为 false，整段是死代码
-    // （开 R8 会连 AdminWebScreen 一起摘掉）。作者包里才轮到运行期那层（MeScreen 的 isAuthor）。
-    if (top.ccbase.campus.BuildConfig.AUTHOR_BUILD && showAdmin) {
-        top.ccbase.campus.ui.admin.AdminWebScreen(
-            ctx = appCtx,
-            token = TokenStore.token(appCtx),
-            onClose = { showAdmin = false },
-        )
-    }
+    // 后台内嵌页（AdminWebScreen）2026-10-07 整块删除：双通道拆掉之后包只有一个，
+    // 后台搬去了网页端 `https://<站点>/admin/`（只有作者口令能进，与 App 无关）。
+    // 好处不只是少一页：那一页的字符串原先要靠 R8 才摘得干净，不开压缩就留在每个人的 dex 里。
     // 提建议：独立一页，谁都进得来（服务端那条接口对全体用户开放）
     if (showFeedback) {
         top.ccbase.campus.ui.me.FeedbackScreen(

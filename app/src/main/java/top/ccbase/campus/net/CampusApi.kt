@@ -68,7 +68,8 @@ data class ApiUser(
     @SerialName("can_grab") val canGrab: Boolean = false,
     @SerialName("has_credentials") val hasCredentials: Boolean = false,
     @SerialName("cred_updated") val credUpdated: String? = null,
-    /** 作者标记（服务端 `/me` 与登录返回都带）。老服务端没有这个 key → 默认 false。"我的"页据此显示「后台管理」入口。 */
+    /** 作者标记（服务端 `/me` 与登录返回都带）。老服务端没有这个 key → 默认 false。
+     *  2026-10-07 起 App 里没有依赖它的界面了（后台搬去网页端）；字段留着是因为服务端仍在回。 */
     @SerialName("is_author") val isAuthor: Boolean = false,
 )
 

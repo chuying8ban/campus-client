@@ -140,24 +140,11 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `作者能看到查看密码的入口`() {
-        TokenStore.save(
-            ctx = ApplicationProvider.getApplicationContext(),
-            token = "tok",
-            expiresAt = "2099-01-01",
-            // 拆闸之后这一处认的是 **is_author**（不再借 can_grab）：这里故意把 can_grab
-            // 留成 false，好证明"能看到回显"跟"能监控"已经是两件事了。
-            user = ApiUser(uid = 1, student_id = "2026000000", name = "测试用户", isAuthor = true),
-        )
-        meScreen()
-        waitFor("查看服务器上保存的密码")
-    }
-
-    @Test
     fun `能监控但不是作者_也不许看到密码回显`() {
-        // 拆闸钉的就是这一格：监控按 can_grab 显隐，
-        // 而**凭据回显永远只有作者**（密码是别人自己的东西，回传一次就多一个泄露面）。
-        // 只测"作者能看到"是不够的 —— 两个闸共用一个字段时那条也是绿的。
+        // 2026-10-07 之后 App 里**谁都没有**这个入口（连作者也没有）——
+        // 后台整块搬到浏览器里了，看服务器上存了什么密码在网页后台的「我的凭据」。
+        // 这条留着是因为它测的是"别因为 can_grab 顺手把别人自己的密码回显放开"：
+        // 哪天有人又想在 App 里加回显，这一格会先红。
         TokenStore.save(
             ctx = ApplicationProvider.getApplicationContext(),
             token = "tok",
@@ -170,7 +157,7 @@ class ScreenSmokeTest {
         waitFor("只用于每天自动登录读课表")
         rule.waitForIdle()
         assertTrue(
-            "能监控的非作者看到了密码回显入口 —— 回显只该认 is_author，不该跟着 can_grab 一起放开",
+            "App 里不该有密码回显入口 —— 它只在网页后台里，不该跟着 can_grab 一起放开",
             rule.onAllNodesWithText("查看服务器上保存的密码", substring = true)
                 .fetchSemanticsNodes().isEmpty()
         )

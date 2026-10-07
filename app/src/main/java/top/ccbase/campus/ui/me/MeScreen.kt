@@ -54,12 +54,6 @@ import top.ccbase.campus.update.UpdatePrefs
  * 密码删掉之后服务器就没法每天替用户读课表了，这个后果要当面说清。
  */
 
-/**
- * 后台管理页地址（作者专用，只读）。
- *
- * 为什么写成常量：测试要能断言**发出去的就是这个真地址**。
- * 对外链接一律走自有域名（用户明确不要 trycloudflare 那种临时隧道）。
- */
 /** 分组标题：一根细上边线 + 小字，不用填充卡片（跟全局观感一致） */
 @Composable
 private fun SectionTitle(text: String, first: Boolean = false) {
@@ -130,9 +124,7 @@ fun MeScreen(
     onOpenCrawl: () -> Unit = {},
     /** 点「授权与白名单」：缺哪个权限、缺了会怎样、App 内直接去要 */
     onOpenPermissions: () -> Unit = {},
-    /** 点「后台管理」：切成 App 内嵌的后台页（只有作者看得到；服务端还会再闸一次 403） */
-    onOpenAdmin: () -> Unit = {},
-    /** 给 App 提建议 —— **每个用户都有**这个入口（不像后台那节只给作者） */
+    /** 给 App 提建议 —— 每个用户都有这个入口 */
     onOpenFeedback: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -154,10 +146,8 @@ fun MeScreen(
     var msg by remember { mutableStateOf<String?>(null) }
     // 这一条消息要不要给「重新登录」按钮
     var needRelogin by remember { mutableStateOf(false) }
-    var isAuthor by remember { mutableStateOf(TokenStore.isAuthor(ctx)) }
     var askLogout by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
-    var revealed by remember { mutableStateOf<String?>(null) }
     // 入口上直接写「还差几项」：缺权限的表现是静默失效（闹钟不响、更新装不上），
     // 不摆在明处就没人会去点它。页面内部还会每 1.5 秒自己重读。
     val missingPerms = top.ccbase.campus.alarm.SilenceDiag
@@ -177,25 +167,6 @@ fun MeScreen(
         sid = TokenStore.studentId(ctx) ?: ""
     }
     LaunchedEffect(Unit) { reload() }
-
-    /**
-     * 补一次「作者标记」。
-     *
-     * 为什么不能只靠登录返回：已经在用的账号是**这个版本之前**登录的，本地没存过这个字段，
-     * 不补的话他得重新登录一次才看得到入口。失败就沿用本地的值，不影响这一页其他内容。
-     */
-    LaunchedEffect(Unit) {
-        val t = TokenStore.token(ctx) ?: return@LaunchedEffect
-        (api.me(t) as? ApiResult.Ok)?.let { r ->
-            TokenStore.saveAuthor(ctx, r.value.isAuthor)
-            isAuthor = r.value.isAuthor
-        }
-    }
-
-    // 看过就藏起来：不留在屏幕上给别人（或下一个拿起手机的人）看
-    LaunchedEffect(revealed) {
-        if (revealed != null) { delay(30_000); revealed = null }
-    }
 
     /** 退回「从服务器同步」：能做的是这个，就只说这个（`honest` = 顺带说清为什么） */
     suspend fun fallbackSync(t: String, honest: Boolean = false) {
@@ -315,18 +286,6 @@ fun MeScreen(
         }
     }
 
-    fun doReveal() {
-        val t = token ?: return
-        scope.launch {
-            busy = true
-            when (val r = api.credentials(t)) {
-                is ApiResult.Ok -> { revealed = r.value.password; msg = null }
-                is ApiResult.Err -> msg = if (r.code == 404) "服务器上没有保存密码。" else r.message
-            }
-            busy = false
-        }
-    }
-
     fun doDeleteCred() {
         val t = token ?: return
         scope.launch {
@@ -419,55 +378,18 @@ fun MeScreen(
         // 监控现在只在底部菜单栏那一格，同一件事不留第二个入口（两个入口只会让人犹豫点哪个）。
         // 监控本身仍然对每个登录用户开放，判据在底部栏那边（不看登录时缓存的 can_grab）。
 
-        // 「后台」这一节整份只进**作者包**。两层闸各管一件事：
-        //  · AUTHOR_BUILD 是编译期闸 —— 公开包里它恒为 false，整段是死代码
-        //    （开 R8 会被整段摘掉，连"后台管理"这几个字都不进 dex）；
-        //  · isAuthor 是运行期闸 —— 作者包里登着别人的账号时也看不到。
-        // 注意 isAuthor 只是界面开关：真闸在服务端（非作者 403），改本地也拿不到数据。
-        if (BuildConfig.AUTHOR_BUILD && isAuthor) {
-            SectionTitle("后台")
-            Action("后台管理", "用户数量、用量、系统状态；只有作者能进", enabled = !busy) {
-                // 走 App 内嵌，不再丢给系统浏览器：丢浏览器会弹「是否允许打开 XX 浏览器」，
-                // 点「拒绝」时 Android 不抛异常 → 一声不吭；进去还得再登一次。
-                // 内嵌页见 ui/admin/AdminWebScreen.kt
-                onOpenAdmin()
-            }
-        }
+        // 这里也曾经有一节「后台」，整份只进作者包（编译期 AUTHOR_BUILD + 运行期 is_author 两层闸）。
+        // 2026-10-07 用户口径：「**以后 App 不区分作者版和用户版，所有人的都一样**」——
+        // 包只有一个，后台不再进包：看后台改在网页端 `https://<站点>/admin/`（只有作者口令能进）。
+        // 顺带解决了一件旧事：那两页的字符串原先是靠 R8 摘的，不开压缩时仍留在每个人的 dex 里。
 
         SectionTitle("密码")
         Text(
             "教务系统密码由你本人提供，加密后保存在服务器上、不以明文存放，只用于每天自动登录读课表。\n" +
-            "服务端提供查看能力，但那个入口只对作者本人开放；你随时可以删掉它。",
+            "你随时可以删掉它 —— 删掉后课表不再每天自动更新，其他功能不受影响。",
             fontSize = 12.sp, lineHeight = 19.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
         )
-        // ⚠️ 这一处认 **is_author**，不再和监控共用 can_grab 那个闸（2026-09-29 拆闸）：
-        // 监控是公开功能、按 can_grab 显隐；而密码是别人自己的东西，
-        // 回传一次就多一个泄露面 —— 凭据回显永远只有作者能看见。
-        if (token != null && TokenStore.isAuthor(ctx)) {
-            Action("查看服务器上保存的密码", "只有你能用这个入口，30 秒后自动隐藏",
-                   enabled = !busy) { doReveal() }
-            revealed?.let { pw ->
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 6.dp)
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                RoundedCornerShape(8.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        pw,
-                        fontSize = 15.sp,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text("隐藏", fontSize = 12.sp,
-                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                         modifier = Modifier.clickable { revealed = null }.padding(6.dp))
-                }
-            }
-        }
         if (token != null) {
             Action("删除服务器上保存的密码", "删掉后不再自动更新课表，其他功能不受影响",
                    danger = true, enabled = !busy) { askDelete = true }

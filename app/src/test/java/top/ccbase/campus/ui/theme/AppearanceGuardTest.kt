@@ -113,7 +113,7 @@ class AppearanceGuardTest {
         val mounted = overlayScreens(campusApp)
         // 反向确认：正则/写法变了就当场喊，别让这条守卫变成"永远绿的空转"
         val mustSee = listOf("SafetyScreen", "AppearanceScreen", "CrawlScreen", "PlanScreen",
-            "PermissionsScreen", "AdminWebScreen", "FeedbackScreen")
+            "PermissionsScreen", "FeedbackScreen")
         assertTrue(
             "没能从 CampusApp 的 `if (showXxx)` 块里认出这些整屏浮层：${mustSee - mounted}（挂载写法变了？）",
             mounted.containsAll(mustSee),
@@ -152,7 +152,7 @@ class AppearanceGuardTest {
      * 为什么按花括号配平扫、而不是一句正则了事：`when (tab)` 那些**页面**是直接调用的，
      * 它们用 `pageSurface` 才是对的；一句宽正则会把 LibraryScreen / GrabScreen 这些页面
      * 也当成浮层（第一次写就是这样，修好的代码反而被判红）。浮层的判据是"挂在 `showXxx` 开关下"。
-     * 条件里带别的东西也算（例：`if (BuildConfig.AUTHOR_BUILD && showAdmin)` —— 后台页就长这样）。
+     * 条件里带别的东西也算（例：`if (ready && showSafety)` —— 这种写法出现过）。
      */
     private fun overlayScreens(campusApp: String): Set<String> {
         val lines = campusApp.lines()
