@@ -43,8 +43,8 @@ android {
         applicationId "top.ccbase.campus"
         minSdk 26
         targetSdk 34
-        versionCode 84
-        versionName "2.1"
+        versionCode 85
+        versionName "2.1.1"
     }
 
     // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）

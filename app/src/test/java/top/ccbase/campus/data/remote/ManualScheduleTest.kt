@@ -36,6 +36,6 @@ class ManualScheduleTest {
   assertNotNull(ManualSchedule.validate("课程",1,"08:00","09:00","31"))
   assertNull(ManualSchedule.validate("课程",4,"08:00","09:00","6,8"))
   val now=LocalDateTime.of(2026,10,8,20,0)
-  assertEquals(now.plusDays(1),DailyTimetableCheck.next(now,"20:00"))
+  assertTrue(DailyTimetableCheck.due(now,null))
  }
 }

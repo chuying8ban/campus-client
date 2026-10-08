@@ -2,38 +2,19 @@ package top.ccbase.campus.alarm
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.content.*
-import java.time.*
+import android.content.Context
+import android.content.Intent
+import java.time.LocalDateTime
 
-/** 每日核对提醒，不联网，不访问教务，不改变静音状态。 */
+/** 固定08:00起、仅前台入口提示。schedule只取消升级前的旧闹钟。 */
 object DailyTimetableCheck {
- const val ID=9301
  private fun sp(ctx:Context)=ctx.getSharedPreferences("daily_timetable_check",Context.MODE_PRIVATE)
- fun enabled(ctx:Context)=sp(ctx).getBoolean("enabled",false)
- fun time(ctx:Context)=sp(ctx).getString("time","20:00")!!
- fun configure(ctx:Context,on:Boolean,time:String) {
-  LocalTime.parse(time)
-  sp(ctx).edit().putBoolean("enabled",on).putString("time",time).apply()
-  schedule(ctx)
- }
- fun next(now:LocalDateTime,time:String):LocalDateTime {
-  val today=now.toLocalDate().atTime(LocalTime.parse(time))
-  return if(today.isAfter(now)) today else today.plusDays(1)
- }
+ fun due(now:LocalDateTime,suppressed:String?):Boolean = now.hour>=8 && suppressed!=now.toLocalDate().toString()
+ fun due(ctx:Context,now:LocalDateTime=LocalDateTime.now())=due(now,sp(ctx).getString("suppressed_day",null))
+ fun suppressToday(ctx:Context,now:LocalDateTime=LocalDateTime.now()) {sp(ctx).edit().putString("suppressed_day",now.toLocalDate().toString()).apply()}
  fun schedule(ctx:Context) {
-  val am=ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-  val pi=PendingIntent.getBroadcast(ctx,ID,Intent(ctx,DailyTimetableCheckReceiver::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-  am.cancel(pi)
-  if(!enabled(ctx)) return
-  val ms=next(LocalDateTime.now(),time(ctx)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-  am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,ms,pi)
- }
-}
-class DailyTimetableCheckReceiver:BroadcastReceiver() {
- override fun onReceive(ctx:Context,intent:Intent) {
-  if(!DailyTimetableCheck.enabled(ctx)) return
-  Notify.post(ctx,"记得核对教务课表","请查看学校官方课表是否调课；有变化时重新导入或手动修改。这是核对提醒，不是自动更新结果。")
-  DiagLog.append(ctx,Attempt(DiagLog.now(),"每日课表核对",Notify.allowed(ctx),if(Notify.allowed(ctx)) "" else "通知权限未开启"))
-  DailyTimetableCheck.schedule(ctx)
+  val old=PendingIntent.getBroadcast(ctx,9301,Intent().setClassName(ctx.packageName,"top.ccbase.campus.alarm.DailyTimetableCheckReceiver"),PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+  if(old!=null) { (ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(old);old.cancel() }
+  sp(ctx).edit().remove("enabled").remove("time").apply()
  }
 }

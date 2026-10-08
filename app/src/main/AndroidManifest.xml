@@ -46,10 +46,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".alarm.DailyTimetableCheckReceiver"
-            android:exported="false" />
-
         <!-- 重启后 AlarmManager 里的闹钟会被清空，必须自己重排 -->
         <receiver
             android:name=".alarm.BootReceiver"

@@ -139,7 +139,6 @@ fun TodayScreen(db: CampusDb) {
         // 刷新条放在列表**内部**当第一项。原因是实测出来的：
         // 先前把它和 LazyColumn 写成兄弟节点，而调用方的容器是 Box，
         // 于是全屏的 LazyColumn 直接盖在刷新条上，两行文字叠成一团。
-        item { RefreshBar(db = db) }
 
         item { Head(v) }
 

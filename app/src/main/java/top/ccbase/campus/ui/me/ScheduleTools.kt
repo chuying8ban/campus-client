@@ -15,27 +15,6 @@ import top.ccbase.campus.data.seed.Seed
 import top.ccbase.campus.alarm.*
 
 @Composable
-fun ScheduleTools(ctx:Context,db:CampusDb,onEdit:()->Unit = {}) {
- var daily by remember { mutableStateOf(false) }
- TextButton(onClick=onEdit) { Text("编辑课程与早晚自习") }
- TextButton(onClick={daily=true}) { Text("每日课表核对提醒") }
- if(daily) {
-  var on by remember { mutableStateOf(DailyTimetableCheck.enabled(ctx)) }
-  var time by remember { mutableStateOf(DailyTimetableCheck.time(ctx)) }
-  var error by remember { mutableStateOf<String?>(null) }
-  AlertDialog(onDismissRequest={daily=false},title={Text("每日课表核对提醒")},text={Column {
-   Text("只提醒核对，不自动读取教务。系统省电可能延迟通知；请在授权页面开启通知权限。")
-   Row { Text("开启每日提醒");Switch(on,{on=it}) }
-   OutlinedTextField(time,{time=it},label={Text("时间 HH:mm")})
-   error?.let { Text(it) }
-  }},confirmButton={TextButton(onClick={
-   if(!Regex("\\d{2}:\\d{2}").matches(time)||runCatching { java.time.LocalTime.parse(time) }.isFailure) error="请输入有效时间，如20:00"
-   else { DailyTimetableCheck.configure(ctx,on,time);error=if(on&&!Notify.allowed(ctx)) "设置已保存，但通知权限未开启；请先去授权" else "设置已保存" }
-  }) {Text("保存设置")}},dismissButton={TextButton(onClick={daily=false}){Text("关闭")}})
- }
-}
-
-@Composable
 fun ScheduleEditor(ctx:Context,db:CampusDb,close:()->Unit) {
  val scope=rememberCoroutineScope()
  var plan by remember { mutableStateOf<Seed?>(null) }

@@ -440,7 +440,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
             when (shown) {
                 CampusTab.TODAY -> TodayScreen(app.db)
-                CampusTab.SCHEDULE -> ScheduleScreen(app.db)
+                CampusTab.SCHEDULE -> ScheduleScreen(app.db, onUpdate = { showCrawl = true }, onEdit = { showScheduleEditor = true })
                 CampusTab.TASKS -> TasksLearnScreen(app.db, onOpenPlan = { showPlan = true })
                 CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LibraryScreen(app.db)
                 CampusTab.BOARD -> BoardScreen(app.db)
@@ -465,7 +465,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
                     onOpenFeedback = { showFeedback = true },
-                    onEditSchedule = { showScheduleEditor = true },
                 )
                 else -> ShellScreen(shown, version)
             }
@@ -526,6 +525,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             // 登录过期时，抓课表页上的「重新登录」直接落到登录页（不用用户自己回「我的」找）
             onRelogin = { showCrawl = false; onLogin() },
         )
+    }
+    if (!showCrawl && !showScheduleEditor) {
+        top.ccbase.campus.ui.schedule.DailyCheckPrompt(appCtx) { showCrawl = true }
     }
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }

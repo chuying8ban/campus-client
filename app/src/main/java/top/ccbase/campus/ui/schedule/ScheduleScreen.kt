@@ -43,12 +43,19 @@ import kotlinx.coroutines.flow.first
  * （比如 3~19 周的课，翻到第 1 周就是空的 —— 那也算有用信息）。
  */
 @Composable
-fun ScheduleScreen(db: CampusDb) {
+fun ScheduleScreen(db: CampusDb, onUpdate: () -> Unit = {}, onEdit: () -> Unit = {}) {
     // 外层必须是 Box：详情面板要靠它做浮层。
     // 教训：把浮层塞进别处的 Box（比如"加载中"那个）会变成"点了没反应"。
     var pickedCourse by remember { mutableStateOf<Course?>(null) }
     Box(Modifier.fillMaxSize()) {
-        ScheduleBody(db = db, onPickCourse = { pickedCourse = it })
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp)) {
+                androidx.compose.material3.TextButton(onClick = onUpdate) { Text("更新课表") }
+                Spacer(Modifier.weight(1f))
+                androidx.compose.material3.TextButton(onClick = onEdit) { Text("编辑课表") }
+            }
+            Box(Modifier.weight(1f)) { ScheduleBody(db = db, onPickCourse = { pickedCourse = it }) }
+        }
         pickedCourse?.let { picked ->
             CourseDetailPanel(db = db, course = picked, onClose = { pickedCourse = null })
         }
@@ -108,7 +115,6 @@ private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
         }
 
         // 刷新条（课表/任务从服务器重取）
-        RefreshBar(db = db, modifier = Modifier.padding(horizontal = 22.dp))
         Spacer(Modifier.height(4.dp))
 
         // （原来这里还有一行「一 二 三 四 五 六 日」的旧表头：它是老版周视图的表头，
