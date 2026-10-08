@@ -159,7 +159,7 @@ fun TodayScreen(db: CampusDb) {
         }
 
         if (rows.isEmpty()) {
-            item { Empty("今天没有课也没有自习。", "要不要从「开发环境与工具」开始？它门槛最低。") }
+            item { Empty("今天没有已记录的课程或自习安排。", "早晚自习不来自教务课表；旧版安排丢失时可到「我的」恢复，并核对班级通知。") }
         } else {
             items(rows) { r -> TimeRow(r, v.weekNo) }
         }

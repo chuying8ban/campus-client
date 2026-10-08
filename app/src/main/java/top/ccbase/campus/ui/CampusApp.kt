@@ -221,6 +221,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showCrawl by remember { mutableStateOf(false) }
     // 「AI 规划学习计划」浮层：先看建议再勾选入库。
     // 入口在「学习」标签页（任务页顶部那个明处的卡片）—— 用户要求从「我的」搬过来
+    var showScheduleEditor by remember { mutableStateOf(false) }
     var showPlan by remember { mutableStateOf(false) }
     // 授权/白名单浮层：这些开关缺了对应的功能会静默失效，所以要有地方能直接去要
     var showPerms by remember { mutableStateOf(false) }
@@ -464,6 +465,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
                     onOpenFeedback = { showFeedback = true },
+                    onEditSchedule = { showScheduleEditor = true },
                 )
                 else -> ShellScreen(shown, version)
             }
@@ -524,6 +526,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             // 登录过期时，抓课表页上的「重新登录」直接落到登录页（不用用户自己回「我的」找）
             onRelogin = { showCrawl = false; onLogin() },
         )
+    }
+    if (showScheduleEditor) {
+        top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }
     }
     if (showPlan && TokenStore.token(appCtx).isNullOrBlank()) {
         top.ccbase.campus.ui.common.CloudAccessGate(

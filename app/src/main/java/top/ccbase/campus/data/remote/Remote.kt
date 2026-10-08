@@ -1,7 +1,9 @@
 package top.ccbase.campus.data.remote
 
 import android.content.Context
+import kotlinx.coroutines.flow.first
 import top.ccbase.campus.data.local.CampusDb
+import top.ccbase.campus.data.local.ManualSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.ccbase.campus.data.local.Content
@@ -83,8 +85,12 @@ object PlanApplier {
         }
         // 内容整体替换（含清理多余行）统一走 Content.replace，
         // 与内置种子导入只此一份规则 —— 两套替换逻辑迟早会分叉
+        // 云端课表快照不拥有本机独立作息；空自习列表不能表示删除。
+        val localSelfStudy = db.dao().selfStudy().first()
+        val merged = if (plan.selfstudy.isEmpty()) plan.copy(selfstudy = localSelfStudy) else plan
+        val manual = ManualSchedule.overlay(db, merged)
         val c = Content.replace(
-            db, plan,
+            db, manual,
             extraMeta = listOf(Meta(K_SOURCE, source), Meta(K_AT, at)),
         )
         replayUserPicks(db, templates)

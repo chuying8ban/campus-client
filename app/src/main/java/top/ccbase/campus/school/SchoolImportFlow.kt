@@ -68,6 +68,7 @@ fun SchoolImportFlow(
     var cloudMessage by remember { mutableStateOf<String?>(null) }
     var cloudSynced by remember { mutableStateOf(false) }
     var showCloudTerms by remember { mutableStateOf(false) }
+    var keepManual by remember { mutableStateOf(true) }
 
     androidx.activity.compose.BackHandler { if (!busy) onCancel() }
 
@@ -78,7 +79,7 @@ fun SchoolImportFlow(
                     val acts = activitiesFrom(raw)
                         ?: throw IllegalStateException("课表页里没有 activities")
                     val cleaned = SchoolImportPolicy.activityAllowlist(acts.toString())
-                    EamsLocalImport.import(db, cleaned).let {
+                    EamsLocalImport.import(db, cleaned, keepManual).let {
                         if (!it.imported) throw IllegalStateException("课表里没有可导入的课程")
                         it to cleaned
                     }
@@ -130,6 +131,10 @@ fun SchoolImportFlow(
                 Box(
                     Modifier.fillMaxWidth().background(Color(0x1FE5484D), RoundedCornerShape(10.dp)).padding(12.dp),
                 ) { Text(it, fontSize = 12.sp, color = Color(0xFFC4454A)) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Checkbox(checked = keepManual, onCheckedChange = { keepManual = it })
+                Text("保留手动课表修改（取消勾选将用官方课表替换课程时段，自习保留）", fontSize = 12.sp, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(24.dp))
             Box(

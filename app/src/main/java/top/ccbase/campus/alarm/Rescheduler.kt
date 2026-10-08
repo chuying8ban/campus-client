@@ -37,6 +37,7 @@ object Rescheduler {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun request(ctx: Context, reason: String) {
+        DailyTimetableCheck.schedule(ctx)
         val app = ctx.applicationContext as? CampusApplication ?: return
         scope.launch {
             try {

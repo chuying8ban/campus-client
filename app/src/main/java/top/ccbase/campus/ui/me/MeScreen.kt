@@ -126,6 +126,7 @@ fun MeScreen(
     onOpenPermissions: () -> Unit = {},
     /** 给 App 提建议 —— 每个用户都有这个入口 */
     onOpenFeedback: () -> Unit = {},
+    onEditSchedule: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf(TokenStore.token(ctx)) }
@@ -373,6 +374,8 @@ fun MeScreen(
         )
 
         SectionTitle("提醒")
+        ScheduleTools(ctx, db, onEditSchedule)
+        SelfStudyRepair(ctx, db)
         NudgeStrip()
 
         SectionTitle("看板")
