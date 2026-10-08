@@ -148,7 +148,7 @@ fun RefreshBar(
             Spacer(Modifier.height(3.dp))
             Text(
                 // 说清这次刷的是哪来的数据，避免"以为刷了教务系统"
-                "刷新是从服务器取一次（服务器每天从教务系统同步课表）",
+                "刷新只取已保存的云端内容；教务课表变化需重新导入",
                 color = C.txt3, fontSize = 10.sp,
                 modifier = Modifier.padding(start = 2.dp),
             )

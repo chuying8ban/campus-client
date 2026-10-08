@@ -92,7 +92,12 @@ fun FeedbackScreen(
 
     fun submit() {
         val t = text.trim()
-        if (t.isEmpty() || busy || token.isNullOrBlank()) return
+        if (t.isEmpty() || busy) return
+        if (token.isNullOrBlank()) {
+            bad = true
+            msg = "此功能需要有效云端身份，请在「我的」中导入课表并同意云端同步"
+            return
+        }
         busy = true
         msg = null
         scope.launch {
@@ -155,7 +160,7 @@ fun FeedbackScreen(
                     Text("${text.length}/$FB_MAX", color = C.txt3, fontSize = 11.sp)
                 }
                 Spacer(Modifier.weight(1f))
-                val can = text.isNotBlank() && !busy && !token.isNullOrBlank()
+                val can = text.isNotBlank() && !busy
                 Box(
                     Modifier.background(
                         if (can) C.cyan else C.card, RoundedCornerShape(10.dp),

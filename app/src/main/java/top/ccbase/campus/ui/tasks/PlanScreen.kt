@@ -176,7 +176,7 @@ fun PlanScreen(db: CampusDb, api: CampusApi, onClose: () -> Unit, onGoTasks: () 
         if (busy) return
         val token = TokenStore.token(ctx)
         if (token.isNullOrBlank()) {
-            err = "这台设备还没有登录 App，先退出重登一次"
+            err = "此功能需要有效云端身份，请在「我的」中导入课表并同意云端同步"
             return
         }
         busy = true; err = null; ok = null; step = PlanLogic.GENERATING
@@ -224,7 +224,7 @@ fun PlanScreen(db: CampusDb, api: CampusApi, onClose: () -> Unit, onGoTasks: () 
         }
         val token = TokenStore.token(ctx)
         if (token.isNullOrBlank()) {
-            err = "这台设备还没有登录 App，先退出重登一次"
+            err = "此功能需要有效云端身份，请在「我的」中导入课表并同意云端同步"
             return
         }
         busy = true; err = null; ok = null; step = PlanLogic.APPLYING
@@ -260,7 +260,7 @@ fun PlanScreen(db: CampusDb, api: CampusApi, onClose: () -> Unit, onGoTasks: () 
         askUndo = false
         val token = TokenStore.token(ctx)
         if (token.isNullOrBlank()) {
-            err = "这台设备还没有登录 App，先退出重登一次"
+            err = "此功能需要有效云端身份，请在「我的」中导入课表并同意云端同步"
             return
         }
         busy = true; err = null; ok = null; step = "正在撤销…"

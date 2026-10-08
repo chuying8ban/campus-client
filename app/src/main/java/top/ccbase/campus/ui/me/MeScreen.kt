@@ -291,7 +291,7 @@ fun MeScreen(
         scope.launch {
             busy = true
             when (val r = api.deleteCredentials(t)) {
-                is ApiResult.Ok -> msg = "已删除服务器上保存的教务密码。\n课表不再每天自动更新，其他功能不受影响。"
+                is ApiResult.Ok -> msg = "已删除服务器上保存的教务密码。\n课表有变化时请重新从学校官方页面导入。"
                 is ApiResult.Err -> msg = r.message
             }
             reload()
@@ -450,7 +450,7 @@ fun MeScreen(
         // 重新登录 + 短信二次认证）。二次确认仍然保留（见下面的 askLogout 弹窗）。
         if (token != null) {
             Spacer(Modifier.height(22.dp))
-            Action("退出登录", "课表和打卡记录留在手机里；仅停止自动更新") { askLogout = true }
+            Action("退出登录", "本机课表和打卡记录保留；断开云端身份") { askLogout = true }
         }
 
         msg?.let {
@@ -465,7 +465,7 @@ fun MeScreen(
         AlertDialog(
             onDismissRequest = { askLogout = false },
             title = { Text("退出登录？", fontSize = 16.sp) },
-            text = { Text("退出后不再自动更新课表。已经下载到手机上的课表、任务和打卡记录都会保留。", fontSize = 13.sp) },
+            text = { Text("退出后断开此设备的云端身份，本机课表、任务和打卡记录保留。课表有变化时需重新导入；随机身份退出后不支持找回。", fontSize = 13.sp) },
             confirmButton = { TextButton({ askLogout = false; doLogout() }) { Text("退出登录") } },
             dismissButton = { TextButton({ askLogout = false }) { Text("取消") } },
         )

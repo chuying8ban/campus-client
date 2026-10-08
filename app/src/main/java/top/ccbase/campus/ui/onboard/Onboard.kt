@@ -194,7 +194,7 @@ fun TimetableScreen(db: CampusDb, onNext: () -> Unit) {
         }
 
         Text(
-            "不对的话，先在「我的」里退出登录再来一次。课表每天会自动更新。",
+            "不对的话，请在「我的」里重新导入。课表有变化时也需重新导入。",
             fontSize = 12.sp, lineHeight = 19.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
         )

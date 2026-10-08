@@ -525,7 +525,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onRelogin = { showCrawl = false; onLogin() },
         )
     }
-    if (showPlan) {
+    if (showPlan && TokenStore.token(appCtx).isNullOrBlank()) {
+        top.ccbase.campus.ui.common.CloudAccessGate(
+            onClose = { showPlan = false },
+            onImport = { showPlan = false; showCrawl = true },
+        )
+    }
+    if (showPlan && !TokenStore.token(appCtx).isNullOrBlank()) {
         // 和上面 CrawlScreen 同一套写法：浮层拿不到 when 分支里的局部 app，用 LocalContext 取
         val appNow = LocalContext.current.applicationContext as CampusApplication
         top.ccbase.campus.ui.tasks.PlanScreen(
@@ -555,7 +561,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 后台搬去了网页端 `https://<站点>/admin/`（只有作者口令能进，与 App 无关）。
     // 好处不只是少一页：那一页的字符串原先要靠 R8 才摘得干净，不开压缩就留在每个人的 dex 里。
     // 提建议：独立一页，谁都进得来（服务端那条接口对全体用户开放）
-    if (showFeedback) {
+    if (showFeedback && TokenStore.token(appCtx).isNullOrBlank()) {
+        top.ccbase.campus.ui.common.CloudAccessGate(
+            onClose = { showFeedback = false },
+            onImport = { showFeedback = false; showCrawl = true },
+        )
+    }
+    if (showFeedback && !TokenStore.token(appCtx).isNullOrBlank()) {
         top.ccbase.campus.ui.me.FeedbackScreen(
             ctx = appCtx,
             version = version,
