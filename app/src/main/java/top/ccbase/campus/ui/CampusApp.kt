@@ -116,8 +116,6 @@ import top.ccbase.campus.net.StudentError
 enum class CampusTab(val label: String, val icon: ImageVector, val soon: String) {
     TODAY("今日", Icons.Filled.Home, "今天的课 + 早晚自习 + 今日任务 + 课前提醒开关"),
     SCHEDULE("课表", Icons.Filled.DateRange, "周视图 + 当天课程 + 本学期 11 门课"),
-    // 枚举 id 保留 GRAB（历史名字）：换 id 会牵动一批接线测试。这一格现在只做监控，不代抢。
-    GRAB("监控", Icons.Filled.Star, "盯可选课程余量；只提醒，不代抢"),
     // 2026-09-18 用户要求：「把任务标签改为学习」；2026-09-19 又要求把它里面那半
     // （按课程摊开的资料列表）删掉 —— 那半和「学习库」重复。所以这一格现在**只有任务**，
     // 「AI 规划学习计划」的入口仍钉在这一页顶部；资源一律去「学习库」看。
@@ -136,7 +134,6 @@ private val CampusTab.accent: androidx.compose.ui.graphics.Color
     get() = when (this) {
         CampusTab.TODAY -> C.violet
         CampusTab.SCHEDULE -> C.cyan
-        CampusTab.GRAB -> C.amber
         CampusTab.TASKS -> C.green
         CampusTab.LIBRARY -> C.cyan
         CampusTab.BOARD -> C.magenta
@@ -445,7 +442,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.SCHEDULE -> ScheduleScreen(app.db)
                 CampusTab.TASKS -> TasksLearnScreen(app.db, onOpenPlan = { showPlan = true })
                 CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LibraryScreen(app.db)
-                CampusTab.GRAB -> top.ccbase.campus.ui.grab.GrabScreen(appCtx)
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },

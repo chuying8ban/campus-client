@@ -32,9 +32,9 @@ class RetryTest {
                 calls++
                 if (calls == 1) throw SocketException("Connection reset")
                 assertEquals("GET", method)
-                HttpReply(200, "{\"monitor_on\":false,\"targets\":[],\"logs\":[]}")
+                HttpReply(200, "{\"user\":{\"uid\":1,\"student_id\":\"guest-test\",\"name\":\"test\"}}")
             },
-        ).grabStatus("tok")
+        ).me("tok")
         assertEquals("应该正好试了两次", 2, calls)
         assertTrue("第二次通了就该当成功，不该再报红：$r", r is ApiResult.Ok)
     }
@@ -47,7 +47,7 @@ class RetryTest {
                 calls++
                 throw SocketException("Connection reset")
             },
-        ).grabStatus("tok")
+        ).me("tok")
         assertEquals("只重试一次，不能无脑循环", 2, calls)
         assertTrue(r is ApiResult.Err)
         // 界面只给一句话；"Connection reset" 这种真因只进 logcat（2026-09-24 定稿）
@@ -62,7 +62,7 @@ class RetryTest {
                 calls++
                 throw SocketException("Connection reset")
             },
-        ).grabDelTarget("tok", 7)
+        ).planUndo("tok")
         assertEquals("提交类请求一次就是一次", 1, calls)
         assertTrue(r is ApiResult.Err)
     }
@@ -131,7 +131,7 @@ class RetryTest {
     @Test
     fun `普通接口读超时不许跟着重试`() = runBlocking {
         val probe = TimeoutProbe("{}", failFirstTimes = 9)
-        val r = CampusApi(base = "https://example.invalid", transport = probe).grabStatus("t")
+        val r = CampusApi(base = "https://example.invalid", transport = probe).me("t")
         assertEquals("读超时只有慢接口才重试，普通接口一次就是一次", 1, probe.calls)
         assertTrue(r is ApiResult.Err)
         assertEquals("普通接口仍用默认超时", listOf(DEFAULT_READ_MS), probe.seenMs)

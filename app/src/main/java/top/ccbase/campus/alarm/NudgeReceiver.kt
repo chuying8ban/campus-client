@@ -99,7 +99,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         // 抢课提醒（手机直接弹通知）：重启后系统会清空闹钟，这里补上。
         // 和下面提醒/静音是两套独立开关，所以放在那个判断**之前**。
-        if (GrabWatch.isOn(context)) GrabWatch.schedule(context)
+        RetiredMonitorCleanup.cancel(context)
         if (!NudgePrefs.anyEnabled(context)) return
         // 真正的重排放在 Rescheduler 里（它要读数据库算窗口），这里只负责触发
         Rescheduler.request(context, reason = "boot")

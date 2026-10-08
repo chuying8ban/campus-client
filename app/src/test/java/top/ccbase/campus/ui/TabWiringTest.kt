@@ -1,6 +1,5 @@
 package top.ccbase.campus.ui
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -24,34 +23,7 @@ class TabWiringTest {
 
     private val src = File("src/main/java/top/ccbase/campus/ui/CampusApp.kt").readText()
 
-    @Test
-    fun `页顶那一块在滚动容器里_往下翻能收起`() {
-        // 用户口径 2026-09-30：「往下翻的时候上面的标签可以全部收起」。
-        // 做法：说明 / 状态 / 搜索框 / 筛选标签都变成 LazyColumn 的前三项（h-head / h-search /
-        // h-filters），不再是钉在列表上方的固定头 —— 钉着的时候小半屏永远收不回去。
-        for (k in listOf("h-head", "h-search", "h-filters")) {
-            assertTrue("页顶那一块的 $k 应该是列表里的一项（钉在列表上方就收不起来）",
-                grabSrc.contains("item(key = \"$k\")"))
-        }
-    }
 
-    @Test
-    fun `操作结果必须是弹窗_有标题也有得点`() {
-        // 用户口径 2026-09-30：「里面的所有操作做完都会有弹窗提示，否则用户都不知道自己干了什么」。
-        // 钉住它是**浮在页面上的卡片**（结果标题 +「点一下关掉」），不是页顶一行 11sp 小字。
-        assertTrue("结果弹窗没了", grabSrc.contains("private fun NoticePopup("))
-        assertTrue("弹窗要按结果分档给标题", grabSrc.contains("\"没成功\"") && grabSrc.contains("\"已完成\""))
-        assertTrue("弹窗要能点掉", grabSrc.contains("\"点一下关掉\""))
-    }
-
-    @Test
-    fun `加入监控不许再被开关拦住`() {
-        // 2026-09-30 的死锁：这个按钮原来写成 `if (watchOn) onAdd() else onAddBlocked()`，
-        // 而 watchOn = "开关在跑 且 目标非空" —— 目标为空时恒为假 ⇒ **第一门课永远加不进去**。
-        // 加一门课只是"记下来"，跟开关在不在跑无关：它必须恒可点。
-        assertTrue("加入监控又被开关拦住了（onAddBlocked 那套回来了）",
-            !grabSrc.contains("onAddBlocked"))
-    }
 
     /**
      * 真实的 tab 分支出现的位置（行号）。
@@ -72,45 +44,7 @@ class TabWiringTest {
     private fun elseLine(): Int =
         src.lines().indexOfFirst { it.trim().startsWith("else -> ShellScreen") }
 
-    @Test
-    fun `监控 tab 必须接真实页面而不是空壳`() {
-        val i = branchLine("GRAB")
-        assertTrue("CampusTab.GRAB 没有分支 —— 点进去会看到'空壳'页（这个问题真实发生过）", i >= 0)
-        assertTrue("GRAB 分支里必须挂 GrabScreen", src.lines()[i].contains("GrabScreen"))
-    }
 
-    @Test
-    fun `底部栏_过滤看板_监控那一格人人都有`() {
-        // 新口径（2026-09-30 用户原话：「新版本每个用户的手机上都会显示监控，而不需要重新登录」）：
-        //   · 看板从底部栏收进「我的」页 —— 底部构造处要把它过滤掉；
-        //   · 监控那一格**不再按 can_grab 显隐**：can_grab 是登录那一刻写进本地的缓存，
-        //     老用户装上这个版本也不会重新登录，按它显隐 = 那一格永远长不出来。
-        //     服务端同时把监控那几个接口从 can_grab 放开成"登录即可"（grab/config 仍只给作者）。
-        val lines = src.lines()
-        val i = lines.indexOfFirst { it.contains("CampusTab.entries.filter") }
-        assertTrue("找不到底部 tab 的构造点（实现改了就把这条用例一起更新）", i >= 0)
-        val block = lines.subList(i, minOf(i + 4, lines.size)).joinToString("\n")
-        assertTrue("看板必须从底部栏过滤掉（入口改在「我的」页）", block.contains("CampusTab.BOARD"))
-        assertTrue(
-            "监控那一格不许再拿本地缓存的 can_grab 当判据（用户口径：不重新登录也要看得见）：$block",
-            !block.contains("TokenStore.canGrab("),
-        )
-        assertTrue(
-            "底部栏不许把 tabs 冻成只算一次的值：$block",
-            !lines[i].contains("remember") && !block.contains("remember"),
-        )
-    }
-
-    @Test
-    fun `监控入口只接在底部栏_「我的」页不再接一份`() {
-        // 2026-09-30 用户口径：「把我的里面的监控删了」。
-        // 反面教训是当年那句「页面写好了、入口没接线」—— 用户看到空壳。所以这里两头都钉：
-        // 底部栏那一格必须接上（下面那条用例），「我的」里不许再接第二份。
-        assertTrue(
-            "「我的」里又出现了监控入口（用户口径：删掉它，只在底部栏留一格）",
-            !src.contains("onOpenGrab = { extra = CampusTab.GRAB }"),
-        )
-    }
 
     @Test
     fun `学习库 tab 必须接真实页面而不是空壳`() {
@@ -124,7 +58,7 @@ class TabWiringTest {
     fun `所有真实 tab 的分支都要在 else 之前`() {
         val e = elseLine()
         assertTrue("找不到 else -> ShellScreen，这个测试需要跟着改", e >= 0)
-        listOf("TODAY", "SCHEDULE", "TASKS", "LIBRARY", "BOARD", "ME", "GRAB").forEach { tab ->
+        listOf("TODAY", "SCHEDULE", "TASKS", "LIBRARY", "BOARD", "ME").forEach { tab ->
             val i = branchLine(tab)
             assertTrue("$tab 没有分支", i >= 0)
             assertTrue("$tab 的分支落在 else 之后 → 是死代码，永远走不到（Kotlin 只给警告）", i < e)
@@ -214,34 +148,5 @@ class TabWiringTest {
         assertTrue("导入页要写明课表默认不发服务器", flow.contains("不会发给任何服务器"))
     }
 
-    // ---------------------------------------------------------------- 监控页交互接线
-    //
-    // 监控页最容易"编译过、测试绿、用户点不到"：交互入口藏在长列表里，
-    // 或者用了 Robolectric 看不见的浮层。这几条是源码级契约，跑得快、专门咬这类回归。
 
-    private val grabSrc = File("src/main/java/top/ccbase/campus/ui/grab/GrabScreen.kt").readText()
-
-    @Test
-    fun `监控页必须能注入 api_否则交互根本没法测`() {
-        assertTrue("GrabScreen 要有可注入的 api 参数（默认值照旧）",
-            grabSrc.contains("fun GrabScreen(ctx: Context, api: CampusApi ="),
-            )
-    }
-
-    @Test
-    fun `确认层不许用 Dialog_必须用 Box 浮层`() {
-        // Robolectric 里 Dialog 是独立窗口，测试框架看不见 —— 这个坑本项目踩过。
-        assertTrue("确认层要用普通 Box 画", grabSrc.contains("Sheet.MONITOR_ON ->"))
-        assertFalse("不许用 AlertDialog", grabSrc.contains("AlertDialog("))
-        assertFalse("不许用 Dialog(", grabSrc.contains("Dialog("))
-    }
-
-    @Test
-    fun `关闭监控要有入口`() {
-        assertTrue("要有「关闭监控」入口", grabSrc.contains("\"关闭监控\""))
-        assertTrue("要有「确认关闭」的确认层", grabSrc.contains("\"确认关闭\""))
-        assertTrue("开/关监控必须真调服务端（走配置接口，不是画开关）",
-            grabSrc.contains("grabConfig("))
-        assertTrue("页面不许再出现自动提交入口", !grabSrc.contains("自动提交"))
-    }
 }

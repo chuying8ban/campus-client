@@ -55,14 +55,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- 手机直接提醒：闹钟到点唤醒查一次新的余位提醒（App 不必常驻后台） -->
-        <receiver
-            android:name=".alarm.GrabWatchReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="top.ccbase.campus.GRAB_WATCH" />
-            </intent-filter>
-        </receiver>
+
 
         <!-- 自动更新：把 cacheDir/update/*.apk 交给系统安装器（Android 7 起必须走 FileProvider） -->
         <provider

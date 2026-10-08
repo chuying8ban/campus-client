@@ -54,11 +54,7 @@ open class CampusApplication : Application() {
         // 读一次、之后纯内存，既省事也把这个测试环境陷阱消掉。
         runCatching { top.ccbase.campus.ui.theme.AppearanceStore.bind(this) }
         // 抢课提醒：开关开着就把闹钟补上（重启、升级、被杀进程后都能自愈）
-        runCatching {
-            if (top.ccbase.campus.alarm.GrabWatch.isOn(this)) {
-                top.ccbase.campus.alarm.GrabWatch.schedule(this)
-            }
-        }
+        runCatching { top.ccbase.campus.alarm.RetiredMonitorCleanup.cancel(this) }
         seedJob = scope.launch {
             try {
                 val full = SeedLoader.load(this@CampusApplication)
