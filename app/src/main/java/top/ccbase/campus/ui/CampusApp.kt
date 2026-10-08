@@ -155,7 +155,7 @@ fun CampusApp(version: String) {
     val ctx = LocalContext.current
     val app = ctx.applicationContext as CampusApplication
     var ready by remember { mutableStateOf<Boolean?>(null) }
-    // 有没有未过期的会话令牌 —— 未登录只给登录页，不允许预览任何内容
+    // 是否已走完引导。本地导入默认离线：不再拿「有没有云端令牌」当进门条件。
     var loggedIn by remember { mutableStateOf(false) }
     // 从引导/登录返回时 +1，触发重新判断（刚登录成功要能进得去）
     var gateTick by remember { mutableStateOf(0) }
@@ -164,14 +164,12 @@ fun CampusApp(version: String) {
         // 等种子导完再决定 —— 否则引导第 2 屏会读到空课表。
         // 库操作一律在 IO 上做：主线程读 Room 会抛异常，界面会永远停在"正在准备…"
         // 两个一起算完再赋值：否则会"先闪一下引导页再进主界面"
-        val pair = withContext(Dispatchers.IO) {
+        val onboarded = withContext(Dispatchers.IO) {
             runCatching { app.seedJob.join() }
-            val onboarded = runCatching { PlanApplier.onboarded(app.db) }.getOrDefault(false)
-            val token = runCatching { TokenStore.token(ctx) != null }.getOrDefault(false)
-            onboarded to token
+            runCatching { PlanApplier.onboarded(app.db) }.getOrDefault(false)
         }
-        loggedIn = pair.second
-        ready = pair.first
+        loggedIn = onboarded
+        ready = onboarded
         /**
          * 重排提醒闹钟（进 App、以及登录/引导返回后各一次）。
          *
@@ -396,19 +394,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
 
     // 系统返回键 · 主界面：**先提示，再按一次才退出**。
     // 手机一点返回就掉回桌面太容易误触（尤其单手刷课表时）。
-    val hostActivity = LocalContext.current as? android.app.Activity
-    var exitHint by remember { mutableStateOf(false) }
-    var lastBackAt by remember { mutableStateOf(0L) }
-    androidx.activity.compose.BackHandler(enabled = extra == null) {
-        val now = System.currentTimeMillis()
-        if (now - lastBackAt < 2000) {
-            hostActivity?.finish()
-        } else {
-            lastBackAt = now
-            exitHint = true
-            scope.launch { kotlinx.coroutines.delay(2000); exitHint = false }
-        }
-    }
+    // 根页面交给 MainActivity 的退出确认，不再双击直接退出。
+    val exitHint = false
 
     // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格**人人都有**。
     //

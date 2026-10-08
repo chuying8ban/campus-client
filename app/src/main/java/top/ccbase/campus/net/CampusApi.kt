@@ -78,6 +78,8 @@ data class LoginResponse(
     val token: String,
     @SerialName("expires_at") val expiresAt: String = "",
     val user: ApiUser,
+    /** 仅访客引导返回；说明本机保存/卸载后无法找回，不虚构跨设备恢复。 */
+    @SerialName("recovery") val recovery: String = "",
 )
 
 @Serializable
@@ -413,14 +415,18 @@ class CampusApi(
         return ApiResult.Err(reply.code, msg.ifBlank { StudentError.http(reply.code, "$base$path") })
     }
 
-    suspend fun login(studentId: String, password: String, keepPassword: Boolean = true): ApiResult<LoginResponse> {
-        val payload = buildString {
-            append("{\"student_id\":").append(quote(studentId))
-            append(",\"password\":").append(quote(password))
-            append(",\"keep_password\":").append(keepPassword)
-            append("}")
-        }
-        return when (val r = call("POST", "/api/v2/login", payload = payload)) {
+    /**
+     * 旧学号+密码登录已退役（credential-free migration）。
+     *
+     * 官方学校登录只发生在客户端官方 HTTPS WebView；本方法**不发任何网络请求**，
+     * 统一返回 422，给仍引用它的旧测试留一个诚实、无传输的兼容入口。
+     */
+    suspend fun login(studentId: String, password: String, keepPassword: Boolean = true): ApiResult<LoginResponse> =
+        ApiResult.Err(422, StudentError.TEXT)
+
+    /** 云端引导：用服务端随机生成的不透明访客身份换一条 Bearer 令牌。 */
+    suspend fun guest(): ApiResult<LoginResponse> =
+        when (val r = call("POST", "/api/v2/guest", payload = "")) {
             is ApiResult.Ok -> try {
                 ApiResult.Ok(json.decodeFromString<LoginResponse>(r.value))
             } catch (e: Exception) {
@@ -428,7 +434,6 @@ class CampusApi(
             }
             is ApiResult.Err -> r
         }
-    }
 
     /** 查看服务器上保存的教务密码 —— 服务端只对作者开放，普通用户会拿到 403 */
     suspend fun credentials(token: String): ApiResult<CredInfo> =

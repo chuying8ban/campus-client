@@ -84,14 +84,14 @@ class ScreenSmokeTest {
                 )
             }
         }
-        // 锚点必须挑页面上真实存在的文案：未登录时显示的是"还没登录…"，
+        // 锚点必须挑页面上真实存在的文案：未登录时显示的是"还没登录云端…"，
         // 不是应用名 —— 用不存在的锚点会让"页面渲染正常"被误判成"页面坏了"。
         waitFor("我的")
-        // 未登录状态必须给一条出路
-        waitFor("用学号登录")
-        // 「我凭什么把密码给你」必须当场回答，这是这一页存在的理由
-        waitFor("只用于每天自动登录读课表")
-        waitFor("不以明文存放")
+        // 本地优先：未登录也要说清"不登录也能用"
+        waitFor("不登录也能用")
+        // 「我凭什么把密码给你」必须当场回答，这是这一页存在的理由（新契约：密码不上传）
+        waitFor("不读取、不保存")
+        waitFor("上传到我们的服务器")
         // 对外自称与免责
         waitFor("非学校官方产品")
         waitFor("不对数据准确性负责")
@@ -130,7 +130,7 @@ class ScreenSmokeTest {
     fun `非作者看不到查看密码的入口`() {
         TokenStore.clear(ApplicationProvider.getApplicationContext())
         meScreen()
-        waitFor("用学号登录")
+        waitFor("不登录也能用")
         rule.waitForIdle()
         assertTrue(
             "同学版不该出现查看密码入口 —— 密码回传一次就多一个泄露面",
@@ -154,7 +154,7 @@ class ScreenSmokeTest {
         )
         meScreen()
         // 正锚点：先证明这一页真渲染到位了，否则下面那条负断言可能因为"页面根本没出来"而假绿
-        waitFor("只用于每天自动登录读课表")
+        waitFor("不读取、不保存")
         rule.waitForIdle()
         assertTrue(
             "App 里不该有密码回显入口 —— 它只在网页后台里，不该跟着 can_grab 一起放开",
@@ -164,7 +164,7 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `登录框的眼睛开关真的能把密码露出来`() {
+    fun `登录页只走官方页面_没有密码输入框`() {
         rule.setContent {
             CampusTheme {
                 LoginScreen(
@@ -176,16 +176,16 @@ class ScreenSmokeTest {
                 )
             }
         }
-        waitFor("教务系统密码")
-        rule.onNode(hasSetTextAction() and hasText("教务系统密码", substring = true))
-            .performTextInput("pw123456")
-        rule.waitForIdle()
+        waitFor("打开官方教务登录")
+        // 新契约：这一页没有密码框（登录发生在学校官方 HTTPS 页面里）
         assertTrue(
-            "密码框默认必须是挡着的",
-            rule.onAllNodesWithText("pw123456", substring = true).fetchSemanticsNodes().isEmpty()
+            "引导登录页不该再有密码输入框",
+            rule.onAllNodesWithText("教务系统密码", substring = true).fetchSemanticsNodes().isEmpty()
         )
-        rule.onNodeWithText("显示").performClick()
-        waitFor("pw123456")
+        assertTrue(
+            "必须写明 App 不读取、不保存密码",
+            rule.onAllNodesWithText("不读取", substring = true).fetchSemanticsNodes().isNotEmpty()
+        )
     }
 
     private fun waitFor(text: String) {
@@ -204,7 +204,7 @@ class ScreenSmokeTest {
     @Test
     fun `首次启动先出引导页而不是主界面`() {
         rule.setContent { CampusTheme { CampusApp(version = "test") } }
-        waitFor("用学号登录")
+        waitFor("去官方教务登录，导入我的课表")
         // 引导页绝不该出现底部导航 —— 直接进主界面等于把新用户丢进空白功能里
         listOf("今日", "看板").forEach { tab ->
             assertTrue(
@@ -222,23 +222,28 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `引导走完但没登录_仍然进不了主界面`() = runBlocking {
-        // 引导标记写了不算数 —— 没有会话令牌就只能看到登录/引导。
-        // （原先是"跳过也能进主界面"，被明确要求改成不允许预览。）
+    fun `引导走完没登录也能离线进主界面`() = runBlocking {
+        // 本地优先（credential-free）：引导走完就该能进主界面，**不再**拿"有没有云端令牌"当门。
+        // 课表来自本机导入，任务/打卡/专注都在手机上；云端账号是可选的。
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { PlanApplier.markOnboarded(app().db) }
+        TokenStore.clear(ApplicationProvider.getApplicationContext())
         rule.setContent { CampusTheme { CampusApp(version = "test") } }
-        rule.waitForIdle()
         // 按底栏图标自带的 contentDescription 判（= tab 的名字），而不是按文字判：
-        // 底栏那一格已从「任务」改名「学习」，写死文字会漏掉改名，写文字还可能撞上
-        // 登录页里同名的普通文字。这里直接问"底栏有没有出现"。
         // useUnmergedTree：底栏图标的 contentDescription 只在未合并的语义树里（实测）。
-        CampusTab.entries.map { it.label }.distinct().forEach { tab ->
-            assertTrue(
-                "未登录却看到了主界面底栏（$tab）—— 不允许预览内容",
+        val labels = CampusTab.entries.map { it.label }.distinct()
+        rule.waitUntil(20_000) {
+            labels.any { tab ->
                 rule.onAllNodesWithContentDescription(tab, useUnmergedTree = true)
-                    .fetchSemanticsNodes().isEmpty()
-            )
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
         }
+        assertTrue(
+            "引导走完、没有云端令牌时应当能离线进主界面（底栏要出现）",
+            labels.any { tab ->
+                rule.onAllNodesWithContentDescription(tab, useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            },
+        )
     }
 
     @Test

@@ -13,71 +13,7 @@ import top.ccbase.campus.net.ApiResult
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.data.local.Meta
 import top.ccbase.campus.data.seed.Seed
-import top.ccbase.campus.net.ApiUser
 import top.ccbase.campus.net.TimetableStatus
-
-/**
- * 登录令牌的本地保存。
- *
- * 用普通 SharedPreferences：它在 App 私有目录里，非 root 设备上别的 App 读不到。
- * 上 EncryptedSharedPreferences 要多一个依赖，而这里存的只是一个 30 天到期、
- * 可被服务端随时吊销的登录令牌 —— 收益和成本不成比例。
- * 真正不能落地的（教务密码）从来就没有离开过服务器。
- */
-object TokenStore {
-    private const val PREF = "campus_session"
-    private const val K_TOKEN = "token"
-    private const val K_EXP = "expires_at"
-    private const val K_NAME = "name"
-    private const val K_SID = "student_id"
-    private const val K_GRAB = "can_grab"
-
-    private fun sp(ctx: Context) = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-
-    fun save(ctx: Context, token: String, expiresAt: String, user: ApiUser) {
-        sp(ctx).edit()
-            .putString(K_TOKEN, token)
-            .putString(K_EXP, expiresAt)
-            .putString(K_NAME, user.name)
-            .putString(K_SID, user.student_id)
-            .putBoolean(K_GRAB, user.canGrab)
-            .apply()
-    }
-
-    fun token(ctx: Context): String? = sp(ctx).getString(K_TOKEN, null)
-
-    fun studentId(ctx: Context): String? = sp(ctx).getString(K_SID, null)
-
-    fun name(ctx: Context): String? = sp(ctx).getString(K_NAME, null)
-
-    /** 令牌到期时刻（服务端登录时给的 `expires_at`，30 天） */
-    fun expiresAt(ctx: Context): String? = sp(ctx).getString(K_EXP, null)
-
-    /**
-     * 本机记的到期时间是不是已经过了。
-     *
-     * 为什么以前没这个判据不行：`expires_at` 一直都在存，**从来没人读**。
-     * 于是令牌过期后 App 还照常拿它发请求，直到某次操作被服务端回 401 才知道 ——
-     * 「手机自己抓课表」就是在最后一步（上传）才撞上的：用户白填了一遍教务密码。
-     *
-     * ⚠️ 这只是**提前提示**用的近似判断（手机时间可能不准、服务端也可能提前吊销）：
-     * 真正的判据永远是服务端返回的 401。所以**解析不出来时一律当没过期**，
-     * 绝不能因为时间格式变了就把人挡在外面。
-     */
-    fun expired(ctx: Context, now: java.time.LocalDateTime = java.time.LocalDateTime.now()): Boolean {
-        val raw = expiresAt(ctx)?.trim().orEmpty()
-        if (raw.isBlank()) return false
-        val at = runCatching { java.time.LocalDateTime.parse(raw) }.getOrNull()
-            ?: runCatching { java.time.OffsetDateTime.parse(raw).toLocalDateTime() }.getOrNull()
-            ?: return false
-        return !at.isAfter(now)
-    }
-
-    /** 抢课权限：**只用来决定要不要显示入口**。真正的边界在服务端，客户端这个值可以随便改。 */
-    fun canGrab(ctx: Context): Boolean = sp(ctx).getBoolean(K_GRAB, false)
-
-    fun clear(ctx: Context) = sp(ctx).edit().clear().apply()
-}
 
 /**
  * 把服务端下发的计划写进本地库。
@@ -97,6 +33,7 @@ object PlanApplier {
     const val K_AT = "plan_synced_at"
     const val K_ONBOARD = "onboarded"
     const val REMOTE = "remote"
+    const val LOCAL = "local"
     const val SEED = "seed"
 
     /**
@@ -283,7 +220,12 @@ object RemoteSync {
         api: CampusApi,
         token: String,
         templates: Templates? = null,
+        /** 本地课表只允许在用户显式同意云端同步后由云端覆盖。 */
+        allowLocalOverride: Boolean = false,
     ): ApiResult<PlanApplier.Result> = withContext(Dispatchers.IO) {
+        if (!allowLocalOverride && PlanApplier.source(db) == PlanApplier.LOCAL) {
+            return@withContext ApiResult.Err(409, "本机课表来自本地导入；只有明确同意云端同步后才会覆盖")
+        }
         when (val p = api.planBundle(token)) {
             is ApiResult.Err -> p
             is ApiResult.Ok -> {
@@ -319,6 +261,10 @@ object RemoteSync {
         // （他点「去生成 / 同步」是显式动作，走 sync()，不受这里影响。）
         if (PlanApplier.source(db) == PlanApplier.NONE) {
             return@withContext ApiResult.Ok(Freshness(false, "已重置：等你自己点「去生成 / 同步」"))
+        }
+        // 本地导入默认离线：后台自检绝不把本地课表覆盖成云端计划。
+        if (PlanApplier.source(db) == PlanApplier.LOCAL) {
+            return@withContext ApiResult.Ok(Freshness(false, "本地课表，已跳过云端自检"))
         }
         when (val p = api.planBundle(token)) {
             is ApiResult.Err -> p

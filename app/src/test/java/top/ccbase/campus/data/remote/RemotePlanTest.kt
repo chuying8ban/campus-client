@@ -189,47 +189,72 @@ class RemotePlanTest {
         assertEquals("拉取失败必须原样保留本地内容", before, db.dao().tasks().first().size)
     }
 
-    // ---------------------------------------------------------- API 客户端
+    // ------------------------------------------------- 旧登录入口（已退休）
 
+    /**
+     * 学号+密码登录已退役（credential-free migration）。
+     *
+     * 钉住**行为**：这个入口一个网络请求都不许发 —— 密码永远不该离开手机。
+     * 统一返回 422（服务端同口径），而不是把请求打出去等后端拒绝。
+     */
     @Test
-    fun `登录成功返回令牌与用户`() = runBlocking {
-        val api = apiReturning {
-            HttpReply(200, """{"token":"tok123","expires_at":"2026-10-16T00:00:00",
-              "user":{"uid":2,"student_id":"2026000000","name":"同学","can_grab":false,
-              "has_credentials":true}}""")
-        }
+    fun `旧学号密码登录已退休_不发任何请求`() = runBlocking {
+        var called = 0
+        val api = apiReturning { called++; HttpReply(200, "{}") }
         val r = api.login("2026000000", "pw")
-        assertTrue(r is ApiResult.Ok)
-        val v = (r as ApiResult.Ok).value
-        assertEquals("tok123", v.token)
-        assertEquals("同学", v.user.name)
-        assertFalse(v.user.canGrab)
-    }
-
-    @Test
-    fun `密码错误是 401 而不是网络错误`() = runBlocking {
-        val api = apiReturning { HttpReply(401, """{"detail":"学号或教务系统密码不正确"}""") }
-        val r = api.login("2026000000", "bad")
         assertTrue(r is ApiResult.Err)
-        assertEquals(401, (r as ApiResult.Err).code)
-        assertEquals("学号或教务系统密码不正确", r.message)
+        assertEquals(422, (r as ApiResult.Err).code)
+        assertEquals("退休的登录入口不许再碰网络（密码不该离开手机）", 0, called)
     }
 
     @Test
-    fun `限流是 429`() = runBlocking {
-        val api = apiReturning { HttpReply(429, """{"detail":"尝试过于频繁，请 10 分钟后再试"}""") }
-        val r = api.login("2026000000", "pw")
-        assertEquals(429, (r as ApiResult.Err).code)
+    fun `退休登录入口绝不把密码写进任何请求体`() = runBlocking {
+        var body: String? = null
+        val api = CampusApi(
+            base = "https://example.invalid",
+            transport = Transport { _, _, _, b -> body = b; HttpReply(200, "{}") },
+        )
+        val msg = (api.login("2026000000", "SUPER-SECRET-PW") as ApiResult.Err).message
+        assertNull("退休入口不许发请求", body)
+        assertFalse("报错里不能出现密码明文：$msg", msg.contains("SUPER-SECRET-PW"))
+    }
+
+    // ------------------------------------------------- 访客引导（新身份入口）
+
+    /** 没有账号时走随机访客：`POST /api/v2/guest`，请求体不含任何凭据。 */
+    @Test
+    fun `访客引导换令牌_只打 guest 端点且不带凭据`() = runBlocking {
+        var path = ""
+        var body = ""
+        val api = CampusApi(
+            base = "https://example.invalid",
+            transport = Transport { m, u, _, b ->
+                path = "$m ${u.substringAfter("example.invalid")}"
+                body = b ?: ""
+                HttpReply(
+                    200,
+                    """{"token":"g123","expires_at":"2099-01-01T00:00:00",
+                        "user":{"uid":9,"student_id":"guest-9","name":"访客"},"recovery":"卸载后无法找回"}""",
+                )
+            },
+        )
+        val r = api.guest()
+        assertTrue(r is ApiResult.Ok)
+        assertEquals("POST /api/v2/guest", path)
+        val v = (r as ApiResult.Ok).value
+        assertEquals("g123", v.token)
+        assertEquals("访客", v.user.name)
+        assertEquals("卸载后无法找回", v.recovery)
+        assertFalse("访客引导不该带任何学号/密码", body.contains("password") || body.contains("student_id"))
     }
 
     @Test
-    fun `网络异常归零而不是假装成 401`() = runBlocking {
+    fun `guest 网络失败归零而不是假装成 401`() = runBlocking {
         val api = CampusApi(
             base = "https://example.invalid",
             transport = Transport { _, _, _, _ -> throw java.io.IOException("连不上") },
         )
-        val r = api.login("2026000000", "pw")
-        assertEquals(0, (r as ApiResult.Err).code)
+        assertEquals(0, (api.guest() as ApiResult.Err).code)
     }
 
     @Test
@@ -241,20 +266,6 @@ class RemotePlanTest {
         )
         api.plan("my-token")
         assertEquals("Bearer my-token", seen["Authorization"])
-    }
-
-    @Test
-    fun `密码里的引号和反斜杠不会破坏请求体`() = runBlocking {
-        var body = ""
-        val api = CampusApi(
-            base = "https://example.invalid",
-            transport = Transport { _, _, _, b -> body = b ?: ""; HttpReply(401, "{}") },
-        )
-        api.login("2026000000", "pa\"ss\\word\n")
-        assertTrue("JSON 必须仍然合法", body.contains("""pa\"ss\\word\n"""))
-        // 能被解析回来才算对
-        val parsed = kotlinx.serialization.json.Json.parseToJsonElement(body)
-        assertNotNull(parsed)
     }
 
     @Test
@@ -275,7 +286,7 @@ class RemotePlanTest {
     fun `网络请求必须跑在 IO 线程而不是主线程`() {
         // 真机上 HttpURLConnection 跑主线程会直接抛 NetworkOnMainThreadException，
         // 而**假传输层完全不关心线程** —— 所以这个洞在测试里一直是隐形的（实际踩过一次）。
-        // Robolectric 里有真 Looper，能断言出来。
+        // Robolectric 里有真 Looper，能断言出来。用仍会联网的 guest 入口来验。
         var ranOnMain: Boolean? = null
         val api = CampusApi(
             base = "https://example.invalid",
@@ -284,7 +295,7 @@ class RemotePlanTest {
                 throw java.io.IOException("到此为止，只为看线程")
             },
         )
-        runBlocking { api.login("2026000000", "pw") }
+        runBlocking { api.guest() }
         assertEquals(
             "网络请求跑在主线程上了 —— 真机会抛 NetworkOnMainThreadException",
             false, ranOnMain,
@@ -319,7 +330,7 @@ class RemotePlanTest {
             base = "https://example.invalid",
             transport = Transport { _, _, _, _ -> throw e },
         )
-        (api.login("2026000000", "pw") as ApiResult.Err).message
+        (api.guest() as ApiResult.Err).message
     }
 
     /**
@@ -355,15 +366,18 @@ class RemotePlanTest {
 
     @Test
     fun `报错里绝不能出现密码`() = runBlocking {
-        // 登录请求体里有明文密码，异常信息里一个字符都不能带出来
+        // 即便假传输层把请求体塞进异常信息，我们也不许把它带出去。
+        // 现在退休入口根本不发请求，这里额外确认：一次请求没发，密码也就不在线上。
+        var sent = false
         val api = CampusApi(
             base = "https://example.invalid",
             transport = Transport { _, _, _, body ->
-                // 异常信息里故意"泄露"请求体，验证我们不会把它透出去
+                sent = true
                 throw java.io.IOException("failed while sending: ${body}")
             },
         )
         val msg = (api.login("2026000000", "SUPER-SECRET-PW") as ApiResult.Err).message
+        assertFalse("退休入口不该把带密码的请求发出去", sent)
         assertTrue("报错里出现了密码明文：$msg", !msg.contains("SUPER-SECRET-PW"))
     }
 

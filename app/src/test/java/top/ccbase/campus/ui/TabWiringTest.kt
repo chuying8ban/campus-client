@@ -174,9 +174,12 @@ class TabWiringTest {
     /**
      * 用户原话：「要在app和网站里做一下安全声明，告诉用户密码隐藏等信息，让用户放心」。
      *
-     * 这条钉三件事：① 入口在我的页**明处**（不是只能改地址进的隐藏页，用户反复强调过讨厌那种）；
-     * ② 整页声明**真的写清了**加密方式/谁能看到/可删除；③ 输密码那一页也提一句。
-     * 声明里的每一句都必须与实现对得上（加密走 multiuser.encrypt 的 AES-GCM）。
+     * 迁移后这条钉的是**新事实**。旧版声明承诺"服务端 AES-GCM 加密保管你的教务密码"，
+     * 那套做法已退役 —— 现在根本不收密码，再写"我们加密存着"就是假承诺（比不写更伤信任）。
+     *  ① 入口在我的页**明处**（不是只能改地址进的隐藏页，用户反复强调过讨厌那种）；
+     *  ② 整页声明写清：只在官方 HTTPS 页输入 / App 不读取不保存 / 不发给我们的服务器 /
+     *     导入结束清 Cookie+网页存储+缓存 / 旧版本存过的凭据可删；
+     *  ③ 反向断言：不许再出现"服务端加密保管密码"这类已不成立的承诺。
      */
     @Test
     fun `安全声明要从我的页明处点进去且写清关键事实`() {
@@ -188,18 +191,27 @@ class TabWiringTest {
         assertTrue("入口要真的接上页面", app.contains("SafetyScreen("))
 
         val safety = File("src/main/java/top/ccbase/campus/ui/me/SafetyScreen.kt").readText()
-        assertTrue("声明要写清加密方式", safety.contains("AES-GCM"))
-        // 2026-10-07：后台搬去网页端、App 不再有凭据回显入口，这句"能查看、只对作者开放"的
-        // 内务说明从用户可见的声明里删掉了 —— 用户看不到也用不上，写在那儿只是多一个疑点。
-        assertTrue("声明要写清边界：谁能看到（不再提后台内部能力）",
-            safety.contains("只有服务器管理员可读") && !safety.contains("只对作者本人开放"))
-        assertTrue("声明要写清可一键删除", safety.contains("一键删除"))
-        assertTrue("声明要写清全程 HTTPS", safety.contains("HTTPS"))
-        assertTrue("声明要承认管理员理论可解密（写做不到的承诺更伤信任）",
-            safety.contains("技术上可以解密"))
+        assertTrue("声明要写清密码只在官方 HTTPS 页输入",
+            safety.contains("官方") && safety.contains("HTTPS"))
+        assertTrue("声明要写清 App 不读取、不保存密码",
+            safety.contains("不读取") && safety.contains("不保存"))
+        assertTrue("声明要写清不把密码/Cookie 发给我们的服务器", safety.contains("我们的服务器"))
+        assertTrue("声明要写清导入结束即清理（Cookie/网页存储/缓存）",
+            safety.contains("Cookie") && safety.contains("网页存储") && safety.contains("缓存"))
+        assertTrue("声明要写清旧版本凭据可一键删除", safety.contains("一键删除"))
+        assertTrue(
+            "声明不该再承诺「服务端加密保管你的密码」—— 已经根本不收密码了，写上就是假承诺",
+            !safety.contains("AES-GCM"),
+        )
+        assertTrue(
+            "声明不该再说教务密码存在服务器上（凭据上传路径已退役）",
+            !safety.contains("服务器管理员可读"),
+        )
 
-        val onboard = File("src/main/java/top/ccbase/campus/ui/onboard/Onboard.kt").readText()
-        assertTrue("输密码那一页也要提一句并指向声明", onboard.contains("安全与隐私"))
+        // 登录/导入那一页也要**自己**说清（不能只靠别处指个链接）
+        val flow = File("src/main/java/top/ccbase/campus/school/SchoolImportFlow.kt").readText()
+        assertTrue("导入页要写明 App 不读取密码", flow.contains("不读取"))
+        assertTrue("导入页要写明课表默认不发服务器", flow.contains("不会发给任何服务器"))
     }
 
     // ---------------------------------------------------------------- 监控页交互接线

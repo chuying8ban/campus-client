@@ -65,7 +65,7 @@ class BoardBackTest {
     }
 
     private fun launchBoard() {
-        rule.setContent { CampusTheme { CampusApp(version = "test") } }
+        rule.setContent { CampusTheme { top.ccbase.campus.ExitConfirmation(onExit = { rule.activity.finish() }) { CampusApp(version = "test") } } }
         rule.waitForIdle()
         rule.onNodeWithText("我的").performClick()
         rule.waitForIdle()
@@ -104,7 +104,7 @@ class BoardBackTest {
     // ------------------------------------------------- 主界面按返回：先提示，再按一次才退出
 
     private fun launchMain() {
-        rule.setContent { CampusTheme { CampusApp(version = "test") } }
+        rule.setContent { CampusTheme { top.ccbase.campus.ExitConfirmation(onExit = { rule.activity.finish() }) { CampusApp(version = "test") } } }
         rule.waitForIdle()
     }
 
@@ -115,7 +115,7 @@ class BoardBackTest {
         rule.waitForIdle()
         assertTrue(
             "按返回没给任何提示（用户会以为按了没用，或者直接被踢出去）",
-            rule.onAllNodesWithText("再按一次", substring = true).fetchSemanticsNodes().isNotEmpty(),
+            rule.onAllNodesWithText("退出校园助手？", substring = true).fetchSemanticsNodes().isNotEmpty(),
         )
         assertFalse("第一次按返回就把 App 关掉了", rule.activity.isFinishing)
     }
@@ -125,9 +125,9 @@ class BoardBackTest {
         launchMain()
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
-        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.onNodeWithText("退出").performClick()
         rule.waitForIdle()
-        assertTrue("提示之后第二次按返回应该真的退出", rule.activity.isFinishing)
+        assertTrue("点击退出应结束 App", rule.activity.isFinishing)
     }
 
     @Test
@@ -138,7 +138,7 @@ class BoardBackTest {
         assertFalse("在看板里按返回把看板退掉就行，别顺手把 App 也关了", rule.activity.isFinishing)
         assertTrue(
             "子页里按返回不该出现「要退出 App」的提示",
-            rule.onAllNodesWithText("再按一次", substring = true).fetchSemanticsNodes().isEmpty(),
+            rule.onAllNodesWithText("退出校园助手？", substring = true).fetchSemanticsNodes().isEmpty(),
         )
     }
 

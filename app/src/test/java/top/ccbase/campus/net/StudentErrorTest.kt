@@ -22,8 +22,8 @@ class StudentErrorTest {
 
     @Test
     fun `A串必须与服务端逐字相同`() {
-        // 服务端 errors.py: STUDENT_ERROR_TEXT = "遇到问题请联系学生会"
-        assertEquals("遇到问题请联系学生会", StudentError.TEXT)
+        // 服务端 errors.py: STUDENT_ERROR_TEXT = "暂时无法完成，请稍后重试"
+        assertEquals("暂时无法完成，请稍后重试", StudentError.TEXT)
     }
 
     @Test

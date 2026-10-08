@@ -24,7 +24,7 @@ import android.util.Log
 object StudentError {
 
     /** A 串：与 `errors.py` 的 `STUDENT_ERROR_TEXT` **必须逐字相同**。 */
-    const val TEXT = "遇到问题请联系学生会"
+    const val TEXT = "暂时无法完成，请稍后重试"
 
     /** B 串：只在整屏错误页/登录失败页出（指向 App 内已有的入口，名字要对得上）。 */
     const val HOW = "可在「我的 → 关于 → 给 App 提建议」里告诉我们"

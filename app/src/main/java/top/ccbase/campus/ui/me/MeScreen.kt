@@ -308,7 +308,8 @@ fun MeScreen(
 
         SectionTitle("账户")
         if (token == null) {
-            Text("还没登录。登录后课表每天从你的教务系统自动更新。", fontSize = 13.sp, lineHeight = 21.sp,
+            Text("还没登录云端。不登录也能用：课表在本机导入，任务、打卡、专注记录都只存在这台手机上。",
+                 fontSize = 13.sp, lineHeight = 21.sp,
                  color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
             Spacer(Modifier.height(16.dp))
             Box(
@@ -317,7 +318,7 @@ fun MeScreen(
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
                     .clickable(enabled = !busy) { onLogin() },
                 contentAlignment = Alignment.Center,
-            ) { Text("用学号登录", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp) }
+            ) { Text("登录 / 新建云端账号（可选）", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp) }
         } else {
             KV("学号", sid)
             KV("姓名", name.ifBlank { "—" })
@@ -342,11 +343,14 @@ fun MeScreen(
                          color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                 }
             } else {
-                // 副标题按服务端能力说实话：能重读教务就说重读，不能就说是"从服务器同步"
-                Action("立即更新课表", SyncLogic.syncSubtitle(resync)) { doSync() }
-                // 让服务器代读，还是手机自己去读，用户自己选 —— 后者密码不出手机
-                Action("手机自己抓课表", "用我的教务账号读一次，密码不出手机",
-                       onClick = { onOpenCrawl() })
+                // 读教务只有一条路：打开学校官方登录页，密码不出手机、不上传。
+                // 旧版「立即更新课表」靠服务端存的教务密码代读 —— 那条路已退休
+                // （凭据上传不再发生），所以这里不保留第二个入口。
+                Action(
+                    "更新教务课表",
+                    "打开学校官方登录页读一次；密码不出手机、不上传",
+                    onClick = { onOpenCrawl() },
+                )
             }
             // 登录过期时给一条明路：光说"失败"没用，用户只会反复点
             if (needRelogin && !busy) {
@@ -385,13 +389,13 @@ fun MeScreen(
 
         SectionTitle("密码")
         Text(
-            "教务系统密码由你本人提供，加密后保存在服务器上、不以明文存放，只用于每天自动登录读课表。\n" +
-            "你随时可以删掉它 —— 删掉后课表不再每天自动更新，其他功能不受影响。",
+            "教务密码只在学校的官方登录页里输入：App 不读取、不保存，也不上传到我们的服务器。\n" +
+            "如果你在旧版本里存过教务密码（已停用的功能），可以在这里把它从服务器删掉。",
             fontSize = 12.sp, lineHeight = 19.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
         )
         if (token != null) {
-            Action("删除服务器上保存的密码", "删掉后不再自动更新课表，其他功能不受影响",
+            Action("删除服务器上的旧教务密码", "旧版本存过才需要删；删掉后不再有这一项，其他功能不受影响",
                    danger = true, enabled = !busy) { askDelete = true }
         } else {
             Text("（登录后才会保存）", fontSize = 12.sp,
@@ -419,7 +423,7 @@ fun MeScreen(
         // 安全声明放明处：用户第一反应是「我凭什么把教务密码给你」——不能只藏在登录页一句小字里
         Action(
             text = "安全与隐私",
-            hint = "你的教务密码怎么加密、谁能看到、怎么一键删除 —— 逐条写清楚",
+            hint = "你的教务密码在哪儿输入、会不会离开手机 —— 逐条写清楚",
             onClick = onOpenSafety,
         )
         // 「外观」2026-09-30 也搬去「建议与外观」那一节了，这里不再重复。
@@ -469,10 +473,10 @@ fun MeScreen(
     if (askDelete) {
         AlertDialog(
             onDismissRequest = { askDelete = false },
-            title = { Text("删除服务器上的密码？", fontSize = 16.sp) },
+            title = { Text("删除服务器上的旧教务密码？", fontSize = 16.sp) },
             text = {
-                Text("删掉之后，服务器就不能再替你每天读课表了 —— 课表会停在上次更新的版本，" +
-                     "新增或调整的课不会自动出现。想恢复的话，退出登录再登一次即可。", fontSize = 13.sp)
+                Text("删掉之后，服务器上就不再有你的教务凭据（旧版本才存过）。" +
+                     "课表留在手机里；新增或调整的课请在「更新教务课表」里重新读一次。", fontSize = 13.sp)
             },
             confirmButton = { TextButton({ askDelete = false; doDeleteCred() }) { Text("删除") } },
             dismissButton = { TextButton({ askDelete = false }) { Text("取消") } },

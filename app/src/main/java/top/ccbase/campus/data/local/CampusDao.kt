@@ -20,6 +20,10 @@ interface CampusDao {
     @Query("SELECT * FROM courses ORDER BY sort, id")
     fun courses(): Flow<List<Course>>
 
+    /** 一次性快照（导入时用来复用同名课程的既有 id，避免生成新 id 丢用户进度）。 */
+    @Query("SELECT * FROM courses")
+    suspend fun allCoursesOnce(): List<Course>
+
     /** 课程详情要用：这门课的全部时间段 */
     @Query("SELECT * FROM slots WHERE course_id = :courseId ORDER BY weekday, p_start, sort, id")
     fun slotsOfCourse(courseId: Int): Flow<List<Slot>>

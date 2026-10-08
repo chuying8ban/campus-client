@@ -121,9 +121,10 @@ fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
         )
         Spacer(Modifier.height(44.dp))
-        PrimaryButton("用学号登录，读我的课表") { onStart() }
+        PrimaryButton("去官方教务登录，导入我的课表") { onStart() }
         Spacer(Modifier.height(6.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            TextLink("先离线进入（课表以后在「我的」导入）") { onSkip() }
         }
         Spacer(Modifier.height(20.dp))
         Text(
@@ -133,7 +134,7 @@ fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
     }
 }
 
-// ---------------------------------------------------------------- 2. 登录
+// ---------------------------------------------------------------- 2. 登录（本地优先，官方 WebView）
 
 @Composable
 fun LoginScreen(
@@ -141,134 +142,16 @@ fun LoginScreen(
     api: CampusApi,
     db: CampusDb,
     onDone: () -> Unit,
-    /** 服务端要花时间生成时才走这条路（带上令牌）。老用户/已生成好不会触发。 */
+    /** 本地导入流程不再走服务端等待页；保留签名兼容旧调用点。 */
     onWait: (String) -> Unit = {},
     onBack: () -> Unit,
 ) {
-    var sid by remember { mutableStateOf("") }
-    var pw by remember { mutableStateOf("") }
-    var busy by remember { mutableStateOf(false) }
-    var showPw by remember { mutableStateOf(false) }
-    // 刚敲下的那个字符短暂可见（0.9 秒后自己隐去）—— 企业登录框的常见做法：
-    // 既能核对刚输入的内容，又不会把整个密码留在屏幕上。
-    // 每次输入都会重启计时（LaunchedEffect 的 key 是 pw）。
-    var revealLast by remember { mutableStateOf(false) }
-    LaunchedEffect(pw) {
-        if (pw.isNotEmpty()) {
-            revealLast = true
-            delay(900)
-            revealLast = false
-        }
-    }
-    var err by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    fun submit() {
-        if (busy || sid.isBlank() || pw.isBlank()) return
-        busy = true; err = null
-        scope.launch {
-            when (val r = api.login(sid.trim(), pw)) {
-                is ApiResult.Ok -> {
-                    TokenStore.save(ctx = ctx, token = r.value.token,
-                        expiresAt = r.value.expiresAt, user = r.value.user)
-                    // 登录成功之后，服务端要**用他自己的账号**去教务读课表、排计划，
-                    // 这要几秒到几十秒。先问一句状态：
-                    //   · 还在生成 → 去等待页（把"正在发生什么"讲清楚，而不是让他看着
-                    //     一张别人的/空的课表）
-                    //   · 老用户、或者已经生成好了 → 照旧直接进去（这些人一秒都不用多等）
-                    val ob = api.onboard(r.value.token)
-                    if (ob is ApiResult.Ok && !OnboardLogic.settled(ob.value)) {
-                        pw = ""      // 密码用完立刻从内存里丢掉，不留在界面状态里
-                        onWait(r.value.token)
-                        busy = false
-                        return@launch
-                    }
-                    when (val p = api.plan(r.value.token)) {
-                        is ApiResult.Ok -> withContext(Dispatchers.IO) {
-                            PlanApplier.apply(db, p.value)
-                        }
-                        // 登录成功了但课表没拿到（比如服务端刚重启）：
-                        // 绝不能把人卡在这一屏 —— 让他先进去，课表稍后会补上
-                        is ApiResult.Err -> Unit
-                    }
-                    pw = ""      // 密码用完立刻从内存里丢掉，不留在界面状态里
-                    onDone()
-                }
-                is ApiResult.Err -> err = r.message
-            }
-            busy = false
-        }
-    }
-
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 36.dp).verticalScroll(rememberScrollState()),
-    ) {
-        StepDots(0)
-        Text("连接教务系统", fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
-             color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "用你的学号和教务系统密码登录一次。密码只用来登录教务系统验证身份\n"
-                + "输入时不显示明文；密码 AES-GCM 加密保存在服务器上，仅用于代你登录教务，"
-                + "在「我的」→「安全与隐私」看细则，或随时一键删除。",
-            fontSize = 13.sp, lineHeight = 21.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-        )
-        Spacer(Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = sid, onValueChange = { sid = it },
-            label = { Text("学号", fontSize = 13.sp) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(14.dp))
-        OutlinedTextField(
-            value = pw, onValueChange = { pw = it },
-            label = { Text("教务系统密码", fontSize = 13.sp) },
-            singleLine = true,
-            // 眼睛开关：密码框默认挡着，但必须能自己看一眼 ——
-            // 输错密码又看不见自己输了什么，是登录失败最主要的来源之一
-            visualTransformation = when {
-                showPw -> VisualTransformation.None            // 眼睛开关：一直明文
-                revealLast -> LastCharVisible()                // 刚敲的字符闪一下
-                else -> PasswordVisualTransformation()
-            },
-            trailingIcon = {
-                Text(
-                    if (showPw) "隐藏" else "显示",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-                    modifier = Modifier.clickable { showPw = !showPw }.padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        err?.let {
-            Spacer(Modifier.height(14.dp))
-            Text(StudentError.screenText(it), fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
-        }
-
-        Spacer(Modifier.height(28.dp))
-        if (busy) {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("正在登录教务系统读取课表…", fontSize = 12.sp,
-                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                }
-            }
-        } else {
-            PrimaryButton("登录并读取课表", enabled = sid.isNotBlank() && pw.isNotBlank()) { submit() }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TextLink("返回") { onBack() }
-            }
-        }
-    }
+    top.ccbase.campus.school.SchoolImportFlow(
+        db = db,
+        api = api,
+        onDone = onDone,
+        onCancel = onBack,
+    )
 }
 
 // ---------------------------------------------------------------- 3. 认课表
@@ -391,7 +274,7 @@ fun ModulePickerScreen(tpl: Templates, db: CampusDb, onDone: () -> Unit) {
 
 // ---------------------------------------------------------------- 门闸
 
-private enum class Step { Welcome, Login, Waiting, Timetable, Modules }
+private enum class Step { Welcome, Login, Timetable, Modules }
 
 /** 首屏读取期间的样子 —— 不能是空白页，否则用户以为 App 坏了 */
 @Composable
@@ -420,21 +303,8 @@ fun OnboardingFlow(
     onFinish: () -> Unit,
 ) {
     var step by remember { mutableStateOf(Step.Welcome) }
-    var waitToken by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val api = remember { CampusApi() }
-
-    // 上次没等到生成完就退出去了？重进时直接回到等待页接着看进度。
-    // 界面上那句"退出 App 也没关系，回来还能看到进度"必须由这里兑现
-    // —— 否则就是骗人：答应了不看护着，比不答应更糟。
-    LaunchedEffect(Unit) {
-        val t = TokenStore.token(ctx) ?: return@LaunchedEffect
-        val ob = api.onboard(t)
-        if (ob is ApiResult.Ok && !OnboardLogic.settled(ob.value)) {
-            waitToken = t
-            step = Step.Waiting
-        }
-    }
 
     fun finish() {
         scope.launch {
@@ -453,37 +323,10 @@ fun OnboardingFlow(
             api = api,
             db = db,
             onDone = { step = Step.Timetable },
-            onWait = { t -> waitToken = t; step = Step.Waiting },
+            onWait = {},
             onBack = { step = Step.Welcome },
-        )
-        Step.Waiting -> WaitingScreen(
-            api = api,
-            db = db,
-            token = waitToken,
-            // 生成好了进去看的是**他自己的**课表；失败时点"先跳过"进去看的是模板
-            onDone = { step = Step.Timetable },
-            onSkip = { step = Step.Timetable },
         )
         Step.Timetable -> TimetableScreen(db = db, onNext = { step = Step.Modules })
         Step.Modules -> ModulePickerScreen(tpl = tpl, db = db, onDone = { finish() })
-    }
-}
-
-
-/**
- * 只把**最后一个字符**露出来，其余打点。
- *
- * 企业登录框的常见做法：刚敲下的那个字符短暂可见（约 0.9 秒），
- * 之后自己隐去 —— 既能核对刚输入的内容，又不会把整个密码留在屏幕上。
- * 长度不变，所以 OffsetMapping 用 Identity 即可（光标位置不会错位）。
- */
-private class LastCharVisible : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val s = text.text
-        if (s.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
-        return TransformedText(
-            AnnotatedString("\u2022".repeat(s.length - 1) + s.last()),
-            OffsetMapping.Identity,
-        )
     }
 }

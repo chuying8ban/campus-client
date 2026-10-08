@@ -7,6 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.SideEffect
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.toArgb
 import top.ccbase.campus.alarm.NudgePrefs
 import top.ccbase.campus.alarm.Notify
@@ -35,7 +40,9 @@ class MainActivity : ComponentActivity() {
                 window.navigationBarColor = barColor
             }
             CampusTheme {
-                CampusApp(version = BuildConfig.VERSION_NAME)
+                ExitConfirmation(onExit = { finish() }) {
+                    CampusApp(version = BuildConfig.VERSION_NAME)
+                }
             }
         }
     }

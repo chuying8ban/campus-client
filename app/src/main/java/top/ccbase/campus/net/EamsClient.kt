@@ -36,7 +36,18 @@ class EamsClient(
 
     companion object {
         const val DEFAULT_BASE = "https://eams.cupk.edu.cn"
-        private const val STUDENT = "/student"
+        const val STUDENT = "/student"
+
+        /** 课表首页：`var semesters` / `var currentSemester` 就写在这一页里。 */
+        const val COURSE_TABLE_PATH = "$STUDENT/for-std/course-table"
+
+        /**
+         * print-data 的**真实**路径（与 [fetchTimetableJson] 同源）。
+         * WebView 端必须走这里，不许自己拼一个"看起来对"的 URL —— 猜错学期 id 或参数
+         * 教务会照样 200 返回空 activities，静默清空课表。
+         */
+        fun printDataPath(semesterId: Int): String =
+            "$COURSE_TABLE_PATH/semester/$semesterId/print-data?semesterId=$semesterId&hasExperiment=true"
         private val JSON = Json { ignoreUnknownKeys = true; isLenient = true }
     }
 
@@ -111,14 +122,14 @@ class EamsClient(
      * 两个静默失败点都在这里挡掉：学期 id 找不到、以及会话失效（302 / 不是 JSON）。
      */
     fun fetchTimetableJson(): String {
-        val home = call("GET", "$STUDENT/for-std/course-table")
+        val home = call("GET", COURSE_TABLE_PATH)
         if (home.code in 300..399) throw EamsAuthLost("被重定向（HTTP ${home.code}）→ 会话失效，需要重新登录")
         if (home.code !in 200..299) throw EamsAuthLost("课表页打不开（HTTP ${home.code}）")
 
         val semId = currentSemesterId(home.text)
             ?: throw EamsAuthLost("课表页里没有学期列表 —— 多半是会话失效（被重定向到登录页）")
 
-        val url = "$STUDENT/for-std/course-table/semester/$semId/print-data?semesterId=$semId&hasExperiment=true"
+        val url = printDataPath(semId)
         val r = call("GET", url)
         if (r.code in 300..399) throw EamsAuthLost("被重定向（HTTP ${r.code}）→ 会话失效，需要重新登录")
         if (r.code !in 200..299) throw EamsAuthLost("课表接口返回 HTTP ${r.code}")

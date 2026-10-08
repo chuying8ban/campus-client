@@ -19,8 +19,11 @@ import top.ccbase.campus.data.seed.SeedLoader
  *    对用户来说"打开是空的"远比"点开就闪退"可接受，而且日志里能查到原因。
  * ② **导入是异步的，但界面必须等它** —— 否则首次启动会先渲染一个空页面，
  *    看起来像"这个 App 什么数据都没有"。所以暴露 seedJob 让界面 await。
+ *
+ * `open` 是给**测试**用的：Robolectric 上通过 `TestCampusApplication` 注入可逆的
+ * TokenStore cipher（JVM 没有 AndroidKeyStore），生产不带任何行为差异。
  */
-class CampusApplication : Application() {
+open class CampusApplication : Application() {
 
     lateinit var db: CampusDb
         private set
