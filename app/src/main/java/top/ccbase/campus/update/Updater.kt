@@ -78,7 +78,9 @@ object Updater {
 
     const val DIR = "update"
 
-    fun manifestUrl(base: String): String = UpdateLogic.manifestUrl(base)
+    fun manifestUrl(base: String): String = if (base == top.ccbase.campus.BuildConfig.UPDATE_BASE && top.ccbase.campus.BuildConfig.APPLICATION_ID.endsWith(".privacytest"))
+        base + top.ccbase.campus.BuildConfig.UPDATE_PATH
+        else UpdateLogic.manifestUrl(base)
 
     /**
      * 安装包落在 **filesDir**（不是 cacheDir）。
@@ -171,7 +173,7 @@ object Updater {
         ctx: Context,
         m: UpdateManifest,
         fetcher: RangedFetcher = RealRangedFetcher(),
-        base: String = top.ccbase.campus.net.Api.BASE,
+        base: String = top.ccbase.campus.BuildConfig.UPDATE_BASE,
         onProgress: (Float) -> Unit = {},
         onState: (DownloadProgress) -> Unit = {},
         tuning: DownloadTuning = DownloadTuning(),

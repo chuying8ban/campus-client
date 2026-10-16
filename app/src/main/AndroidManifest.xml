@@ -22,7 +22,7 @@
         android:name=".CampusApplication"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name"
+        android:label="${campusLabel}"
         android:supportsRtl="true"
         android:theme="@style/Theme.Campus">
 

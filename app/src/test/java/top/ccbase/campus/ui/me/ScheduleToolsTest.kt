@@ -24,14 +24,14 @@ import top.ccbase.campus.ui.theme.CampusTheme
 @Config(sdk=[34])
 class ScheduleToolsTest {
  @get:Rule val rule=createComposeRule()
- @Test fun `从真实入口新增课程并写回本机`() {
+ @Test fun `从真实入口＋ 课程并写回本机`() {
   val ctx=ApplicationProvider.getApplicationContext<Context>()
   val db=Room.inMemoryDatabaseBuilder(ctx,CampusDb::class.java).allowMainThreadQueries().build()
   rule.setContent { CampusTheme { ScheduleEditor(ctx,db,{}) } }
-  rule.waitUntil(10000) { rule.onAllNodesWithText("新增课程").fetchSemanticsNodes().any { !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) } }
-  rule.onNodeWithText("新增课程").performClick()
-  rule.onNodeWithText("课程名").performTextInput("测试课程")
-  rule.onNodeWithText("保存安排").performScrollTo().performClick()
+  rule.waitUntil(10000) { rule.onAllNodesWithText("＋ 课程").fetchSemanticsNodes().any { !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) } }
+  rule.onNodeWithText("＋ 课程").performClick()
+  rule.onNodeWithText("课程名称").performTextInput("测试课程")
+  rule.onNodeWithText("保存到本机").performScrollTo().performClick()
   rule.waitForIdle()
   rule.waitUntil(10000) {runBlocking {db.dao().slots().first().size==1}}
   runBlocking {assertEquals("测试课程",db.dao().courses().first().single().name);assertNotNull(db.dao().metaGet("manual_schedule_v1"))}

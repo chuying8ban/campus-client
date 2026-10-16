@@ -642,6 +642,15 @@ class CampusApi(
      * 服务端已经做过隐私过滤（只给公开链接 + 课程归属 + 类型 + 通用说明），
      * App 这边连"个人语境"的字段都没有 —— DTO 里没有 why，就不可能在代码里漏带出来。
      */
+    suspend fun learningSearch(query: String, kind: String): ApiResult<LearningSearchResult> {
+        val body = JsonObject(mapOf("query" to JsonPrimitive(query), "kind" to JsonPrimitive(kind))).toString()
+        return when (val r = call("POST", "/api/v2/library/search", payload = body)) {
+            is ApiResult.Ok -> try { ApiResult.Ok(json.decodeFromString<LearningSearchResult>(r.value)) }
+            catch (e: Exception) { ApiResult.Err(-1, "搜索结果解析失败，请重试") }
+            is ApiResult.Err -> r
+        }
+    }
+
     suspend fun catalog(token: String): ApiResult<Catalog> =
         when (val r = call("GET", "/api/v2/catalog", token = token)) {
             is ApiResult.Ok -> try {

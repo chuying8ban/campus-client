@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import android.app.DownloadManager
+import android.os.Environment
+import android.webkit.URLUtil
 import androidx.browser.customtabs.CustomTabsIntent
 
 /**
@@ -56,6 +59,26 @@ object Links {
         }
 
         Toast.makeText(ctx, "这台设备上没有可用的浏览器", Toast.LENGTH_SHORT).show()
+    }
+
+    fun download(ctx: Context, url: String?, title: String? = null) {
+        val u = url?.trim().orEmpty()
+        val low = u.lowercase()
+        if (!low.startsWith("http://") && !low.startsWith("https://")) {
+            Toast.makeText(ctx, "这个链接不是网页，暂不支持下载", Toast.LENGTH_SHORT).show(); return
+        }
+        try {
+            val name = URLUtil.guessFileName(u, null, null).replace(Regex("""[^\w.\-一-鿿 ]"""), "_").take(100).ifBlank { "学习资料" }
+            val req = DownloadManager.Request(Uri.parse(u)).apply {
+                setTitle(title?.take(80).orEmpty().ifBlank { name })
+                setDescription("校园助手学习库")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+                setAllowedOverMetered(true); setAllowedOverRoaming(true)
+            }
+            (ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+            Toast.makeText(ctx, "已加入下载队列，可在通知或下载目录查看", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) { Toast.makeText(ctx, "下载失败，请先打开网页确认链接有效", Toast.LENGTH_SHORT).show() }
     }
 
     /**

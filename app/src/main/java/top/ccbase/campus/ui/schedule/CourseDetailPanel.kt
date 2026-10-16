@@ -152,30 +152,6 @@ fun CourseDetailPanel(db: CampusDb, course: Course, onClose: () -> Unit) {
                 }
             }
 
-            // ---------------------------------------------------------- 关联任务
-            Section("这门课的学习任务")
-            if (tasks.isEmpty()) {
-                Hint("还没有和这门课绑定的任务。")
-            } else {
-                tasks.forEach { t ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        Box(Modifier.padding(top = 5.dp).size(4.dp).background(C.cyan, RoundedCornerShape(2.dp)))
-                        Spacer(Modifier.width(9.dp))
-                        Column {
-                            Text(t.title, color = C.txt, fontSize = 12.5.sp, lineHeight = 17.sp)
-                            val sub = buildList {
-                                t.track?.takeIf { it.isNotBlank() }?.let { add(it) }
-                                t.deliverable?.takeIf { it.isNotBlank() }?.let { add("产出：$it") }
-                            }
-                            if (sub.isNotEmpty()) {
-                                Text(sub.joinToString(" · "), color = C.txt3, fontSize = 10.5.sp)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-            }
-
             // ---------------------------------------------------------- 资源外链
             if (resources.isNotEmpty()) {
                 Section("去对应平台")

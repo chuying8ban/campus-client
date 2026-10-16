@@ -34,13 +34,11 @@ import top.ccbase.campus.domain.TodayView
 import top.ccbase.campus.domain.UNIT_TIMES
 import top.ccbase.campus.domain.resourceKindLabel
 import top.ccbase.campus.domain.pickTopRes
-import top.ccbase.campus.ui.tasks.PlanLogic
 import top.ccbase.campus.domain.stepKindLabel
 import top.ccbase.campus.util.Links
 import kotlinx.coroutines.flow.first
 import top.ccbase.campus.domain.loadToday
 import top.ccbase.campus.domain.msToNextMinute
-import top.ccbase.campus.ui.common.RefreshBar
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 import java.time.LocalDateTime
@@ -78,19 +76,6 @@ fun TodayScreen(db: CampusDb) {
     // 跨天也得自己翻：`today` 原来只 remember 一次，过了零点还认昨天，
     // 于是「今天完成」会记到昨天头上。跟着节拍一起重算。
     val today = remember(tick) { LocalDateTime.now().toLocalDate().toString() }
-    // 完成要确认：状态改动是**不可逆的错觉**（撤销在下一页），"点一下就没了"
-    // 会让「其实没做」显示成做了。存 (任务 id, 标题) 两份，确认层才能说清是**哪一条**。
-    var confirmTask by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    // 点开的是哪一项任务的详情（null = 没开）
-    var detailTask by remember { mutableStateOf<TaskNow?>(null) }
-    // 任务的完成方法（步骤）+ 资料（含视频链接）。数据本来就在本机库里，走本地读。
-    var stepsAll by remember { mutableStateOf<List<StudyStep>>(emptyList()) }
-    var resAll by remember { mutableStateOf<List<Resource>>(emptyList()) }
-    LaunchedEffect(reload) {
-        stepsAll = db.dao().allSteps().first()
-        resAll = db.dao().visibleResources().first()
-    }
-
     val ctx = LocalContext.current
 
     // 整分节拍：状态的时间粒度本来就是 HH:mm，秒级刷新没有意义、纯白烧电。
@@ -163,61 +148,9 @@ fun TodayScreen(db: CampusDb) {
             items(rows) { r -> TimeRow(r, v.weekNo) }
         }
 
-        item { SectionTitle("今日任务", "${v.tasks.size} 项 · 点开看怎么做") }
-        if (v.tasks.isEmpty()) {
-            item { Empty("今天没有必须做的任务。", "空着也没关系 —— 但别让它连着空三天。") }
-        } else {
-            items(v.tasks, key = { "t${it.id}" }) { t ->
-                TaskRow(
-                    title = t.title, why = t.why, done = t.doneToday, dim = false,
-                    onClick = { detailTask = t },
-                    res = topRes(t, resAll),
-                )
-            }
-        }
-
-        if (v.standing.isNotEmpty()) {
-            item { SectionTitle("待办", "${v.standing.size} 项 · 不急但别忘了") }
-            items(v.standing, key = { "s${it.id}" }) { t ->
-                TaskRow(
-                    title = t.title, why = t.deliverable ?: "待办", done = false, dim = true,
-                    onClick = { detailTask = t },
-                    res = topRes(t, resAll),
-                )
-            }
-        }
 
     }
 
-    detailTask?.let { t ->
-        TaskDetailPanel(
-            task = t,
-            steps = stepsAll.filter { it.task_id == t.id },
-            resources = resAll.filter { it.task_id == t.id },
-            doneToday = t.doneToday,
-            onClose = { detailTask = null },
-            // 详情里点「完成」→ 仍然过确认这一关（状态改动一律要确认）
-            onComplete = { confirmTask = t.id to t.title },
-            // 「取消完成」是撤销，撤销一点就回，不再挡一道
-            onUncomplete = {
-                detailTask = null
-                scope.launch { toggle(db, t.id, true, today); reload++ }
-            },
-        )
-    }
-
-    // 画在详情**之后** → 确认层盖在详情上面（Compose 里后画的在上）
-    confirmTask?.let { pair ->
-        DoneConfirm(
-            title = pair.second,
-            onCancel = { confirmTask = null },
-            onConfirm = {
-                confirmTask = null
-                detailTask = null
-                scope.launch { toggle(db, pair.first, false, today); reload++ }
-            },
-        )
-    }
     }
 }
 
@@ -285,280 +218,6 @@ internal fun selfStudyLabel(start: String, end: String): String {
     if (a.isEmpty()) return b
     if (b.isEmpty() || b == a) return zeroPad(a)
     return "${zeroPad(a)}-${zeroPad(b)}"
-}
-
-/**
- * 任务详情层：**怎么做**（完成方法 + 视频/资料）和**完成 / 取消完成**都在这儿。
- *
- * 为什么做成整屏层而不是跳页：今日页是"现在该干什么"的看板，跳页回来会丢位置、
- * 也会把列表滚回顶部；层盖上去、点一下关闭就回到原处。
- * 同样是**普通 Composable 不是 Dialog** —— Robolectric 看不见 Dialog，
- * 而这个交互（尤其"点行只是看详情"和完成按钮）是最容易改坏的地方，必须测得到。
- *
- * 数据来源全是本机库（study_steps / resources），不联网、不碰服务端。
- * 没有分步的任务不装样子：它自己的说明就是做法，别给空壳。
- */
-@Composable
-private fun TaskDetailPanel(
-    task: TaskNow,
-    steps: List<StudyStep>,
-    resources: List<Resource>,
-    doneToday: Boolean,
-    onClose: () -> Unit,
-    onComplete: () -> Unit,
-    onUncomplete: () -> Unit,
-) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xE60B0910))
-            .clickable { onClose() },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .background(C.bgSoft, RoundedCornerShape(16.dp))
-                .border(1.dp, C.lineHi, RoundedCornerShape(16.dp))
-                // 卡片自己吃掉点击，免得点卡片空白处被当成"关闭"
-                .clickable(enabled = false) {}
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("任务详情", color = C.txt3, fontSize = 11.sp)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "关闭",
-                    color = C.txt3,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable { onClose() }
-                        .padding(horizontal = 9.dp, vertical = 4.dp),
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(task.title, color = C.txt, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, lineHeight = 24.sp)
-            val meta = listOfNotNull(
-                task.why,
-                task.deliverable?.takeIf { it.isNotBlank() }?.let { "交付：$it" },
-            ).joinToString(" · ")
-            if (meta.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Text(meta, color = C.txt3, fontSize = 11.5.sp, lineHeight = 17.sp)
-            }
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(C.line))
-
-            // 主体必须能滚：「跟课」类任务有十几步，加上资料，小屏一屏放不下
-            LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-                if (!task.detail.isNullOrBlank()) {
-                    item {
-                        Spacer(Modifier.height(12.dp))
-                        SubLabel("说明")
-                        Spacer(Modifier.height(5.dp))
-                        Text(task.detail, color = C.txt2, fontSize = 13.sp, lineHeight = 20.sp)
-                    }
-                }
-                if (steps.isNotEmpty()) {
-                    item {
-                        Spacer(Modifier.height(14.dp))
-                        SubLabel("完成方法")
-                    }
-                    items(steps.sortedBy { it.seq }) { s -> StepRow(s) }
-                }
-                if (resources.isNotEmpty()) {
-                    item {
-                        Spacer(Modifier.height(14.dp))
-                        SubLabel(if (resources.any { it.kind == "video" }) "视频 / 资料" else "资料")
-                    }
-                    // 同一任务里可能挂重复链接，按 url 去重（与任务详情页一致）
-                    items(resources.distinctBy { it.url }) { r -> ResourceRow(r) }
-                }
-                if (steps.isEmpty() && resources.isEmpty()) {
-                    item {
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            if (task.detail.isNullOrBlank())
-                                "这一项没有更细的说明 —— 按标题做就行。"
-                            else
-                                "这一项没有分步骤，也没有挂资料 —— 上面那句就是做法。",
-                            color = C.txt3, fontSize = 12.5.sp, lineHeight = 19.sp,
-                        )
-                    }
-                }
-                item { Spacer(Modifier.height(10.dp)) }
-            }
-
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(C.line))
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (doneToday) "今天已完成" else "今天还没完成",
-                    color = if (doneToday) C.violet else C.txt3,
-                    fontSize = 12.sp,
-                )
-                Spacer(Modifier.weight(1f))
-                if (doneToday) {
-                    Btn("取消完成", primary = false, onClick = onUncomplete)
-                } else {
-                    Btn("完成", primary = true, onClick = onComplete)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SubLabel(text: String) {
-    Text(text, color = C.txt3, fontSize = 10.5.sp)
-}
-
-/** 完成方法的一步：序号 + 正文（+ 「学/练」和分钟数） */
-@Composable
-private fun StepRow(s: StudyStep) {
-    Row(Modifier.fillMaxWidth().padding(top = 7.dp), verticalAlignment = Alignment.Top) {
-        Text("${s.seq}.", color = C.txt3, fontSize = 12.5.sp, style = Digits)
-        Spacer(Modifier.width(6.dp))
-        Text(
-            s.text, color = C.txt2, fontSize = 12.5.sp, lineHeight = 19.sp,
-            modifier = Modifier.weight(1f),
-        )
-        val k = stepKindLabel(s.kind)
-        val mins = s.minutes ?: 0
-        if (k.isNotEmpty() || mins > 0) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                listOfNotNull(
-                    k.takeIf { it.isNotEmpty() },
-                    mins.takeIf { it > 0 }?.let { "${it}分" },
-                ).joinToString(" "),
-                color = C.txt3, fontSize = 10.sp, style = Digits,
-            )
-        }
-    }
-}
-
-/**
- * 一条资料 / 视频。打开方式照抄任务详情页（同一套，不另造一套）：
- * kind 标签 + 标题 + 来源·域名 + 打开；视频写成「播放 ▶」。
- */
-@Composable
-private fun ResourceRow(r: Resource) {
-    val ctx = LocalContext.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { Links.open(ctx, r.url) }
-            .padding(horizontal = 10.dp, vertical = 9.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Text(resourceKindLabel(r.kind), color = C.cyan, fontSize = 10.5.sp)
-            Spacer(Modifier.width(9.dp))
-            Column(Modifier.weight(1f)) {
-                Text(r.title ?: r.url ?: "", color = C.txt, fontSize = 13.sp, lineHeight = 19.sp)
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    listOfNotNull(
-                        r.source,
-                        r.url?.substringAfter("//")?.substringBefore("/"),
-                    ).joinToString(" · "),
-                    color = C.txt3, fontSize = 10.5.sp,
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(if (r.kind == "video") "播放 ▶" else "打开 ↗", color = C.cyan, fontSize = 10.5.sp)
-        }
-        if (!r.why.isNullOrBlank()) {
-            Spacer(Modifier.height(5.dp))
-            Text(r.why, color = C.txt3, fontSize = 11.5.sp, lineHeight = 17.sp)
-        }
-    }
-}
-
-/** 详情底部的动作按钮：主按钮（完成）= 实色，次按钮（取消完成）= 描边 */
-@Composable
-private fun Btn(text: String, primary: Boolean, onClick: () -> Unit) {
-    Text(
-        text,
-        color = if (primary) C.bg else C.txt2,
-        fontSize = 13.5.sp,
-        fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Normal,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .then(
-                if (primary) Modifier.background(C.violet)
-                else Modifier.border(1.dp, C.lineHi, RoundedCornerShape(10.dp)),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 9.dp),
-    )
-}
-
-/**
- * 「确认完成？」确认层（普通 Composable，不是 Dialog）。
- *
- * 为什么不是 Dialog：Robolectric 看不见 Dialog 窗口，等于这个交互无法被测试，
- * 而它恰恰是防误触的 —— 改坏了没人会发现。普通 Composable 既能盖住整页，
- * 又能被测试抓到（和「任务」页的 StepDoneConfirm 同一个做法）。
- */
-@Composable
-private fun DoneConfirm(title: String, onCancel: () -> Unit, onConfirm: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xE60B0910))
-            .clickable { onCancel() }
-            .padding(horizontal = 24.dp, vertical = 36.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .background(C.bgSoft, RoundedCornerShape(16.dp))
-                .border(1.dp, C.lineHi, RoundedCornerShape(16.dp))
-                // 卡片自己吃掉点击，免得点卡片空白处被当成"取消"
-                .clickable(enabled = false) {}
-                .padding(18.dp),
-        ) {
-            Text("确认完成？", color = C.txt, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            if (title.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Text(title, color = C.txt2, fontSize = 13.sp, lineHeight = 19.sp)
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Text(
-                    "取消",
-                    color = C.txt2,
-                    fontSize = 14.sp,
-                    modifier = Modifier
-                        .clickable { onCancel() }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "确认完成",
-                    color = C.bg,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .background(C.violet, RoundedCornerShape(10.dp))
-                        .clickable { onConfirm() }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-    }
-}
-
-private suspend fun toggle(db: CampusDb, taskId: Int, wasDone: Boolean, day: String) {
-    if (wasDone) db.dao().unmarkDone(taskId, day)
-    else db.dao().markDone(TaskDone(task_id = taskId, day = day, at = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))))
 }
 
 private data class TRow(
@@ -664,93 +323,11 @@ private fun TimeRow(r: TRow, week: Int) {
 }
 
 /** 把资源列表折成一个「只看这个」的入口：有视频优先给视频，没有就给别的。 */
-private fun topRes(t: TaskNow, resAll: List<Resource>): Resource? =
-    pickTopRes(resAll.filter { it.task_id == t.id })
-
-/**
- * 任务行。整行热区 = 打开详情（不改变状态）。
- * 右侧留一个「›」—— 没有它，用户不知道这一行是能点开的。
- * 下面那一行资源行（`res != null` 时才画）= 直接去看那条视频/课。
- */
-@Composable
-private fun TaskRow(
-    title: String, why: String, done: Boolean, dim: Boolean, onClick: () -> Unit,
-    res: Resource? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        // 勾选圈：只用一个描边圆和一个实心圆，不加图标资源。
-        // 它现在只是**状态**（点了打勾的旧语义已取消），点它也是打开详情。
-        Box(
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(if (done) C.violet else Color.Transparent)
-                .border(1.dp, if (done) C.violet else if (dim) C.line else C.lineHi, CircleShape),
-        )
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                color = if (done) C.txt3 else if (dim) C.txt2 else C.txt,
-                fontSize = 14.5.sp,
-                lineHeight = 21.sp,
-            )
-            // 空白的「为什么」不画（服务端给空串时，画出来就是一行空白 + 多余间距，看着像坏了）
-            PlanLogic.whyLine(why)?.let {
-                Spacer(Modifier.height(3.dp))
-                Text(it, color = C.txt3, fontSize = 11.sp)
-            }
-            if (res != null) {
-                Spacer(Modifier.height(5.dp))
-                ResLine(res)
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text("›", color = C.txt3, fontSize = 15.sp)
-    }
-}
-
-/**
- * 第一屏那一行「能看的」（视频/课程）。
- *
- * 只在**有**链接可开的时候才画 —— 没有资源就不画、也不写「暂无资源」这类占位，
- * 那是廉价感的主要来源。点它 = 打开链接：内层 clickable 会把这一下吃掉，
- * 所以不会顺带把任务详情展开（外层那一下才是开详情）。
- */
-@Composable
-private fun ResLine(r: Resource) {
-    val ctx = LocalContext.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .clickable { Links.open(ctx, r.url) }
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("▶", color = C.cyan, fontSize = 8.5.sp)
-        Spacer(Modifier.width(6.dp))
-        Text(resourceKindLabel(r.kind), color = C.cyan, fontSize = 10.5.sp)
-        Spacer(Modifier.width(8.dp))
-        Text(
-            r.title ?: r.url,
-            color = C.txt2, fontSize = 12.sp, maxLines = 1,
-            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
-    }
-}
-
 @Composable
 private fun Empty(main: String, next: String) {
-    Column(Modifier.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(main, color = C.txt2, fontSize = 13.5.sp)
-        Text(next, color = C.txt3, fontSize = 12.sp, lineHeight = 18.sp)
+    Column(Modifier.padding(vertical = 6.dp)) {
+        Text(main, color = C.txt2, fontSize = 14.sp)
+        Text(next, color = C.txt3, fontSize = 12.sp)
     }
 }
+

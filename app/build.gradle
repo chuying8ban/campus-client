@@ -41,10 +41,19 @@ android {
     defaultConfig {
         buildConfigField "String", "API_BASE", "\"${apiBaseValue}\""
         applicationId "top.ccbase.campus"
+        manifestPlaceholders = [campusLabel: "@string/app_name"]
+        if (project.hasProperty("schoolTest")) {
+            applicationIdSuffix ".privacytest"
+            versionNameSuffix "-school-test21"
+            manifestPlaceholders = [campusLabel: "校园助手测试版"]
+        }
+        buildConfigField "boolean", "SCHOOL_TEST", project.hasProperty("schoolTest") ? 'true' : 'false'
+        buildConfigField "String", "UPDATE_BASE", project.hasProperty("schoolTest") ? '"https://study.ccbase.top"' : "\"${apiBaseValue}\""
+        buildConfigField "String", "UPDATE_PATH", project.hasProperty("schoolTest") ? '"/updates/school-test/manifest.json"' : '"/updates/manifest.json"' 
         minSdk 26
         targetSdk 34
-        versionCode 85
-        versionName "2.1.1"
+        versionCode project.hasProperty("schoolTest") ? 9021 : 90
+        versionName "2.1.6"
     }
 
     // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）
@@ -89,6 +98,8 @@ android {
             // Robolectric 要能读到 App 的资源/manifest
             includeAndroidResources = true
             all {
+                forkEvery = 1
+                maxHeapSize = "1024m"
                 // Robolectric 运行时要去 Maven 下 android-all jar；走阿里镜像，别从原站慢慢等。
                 //
                 // ⚠️ 本机若有离线目录（`~/.config/study-native/robolectric-deps/`，放对应的
@@ -138,6 +149,7 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
     // Custom Tabs：学习资源外链在 App 内滑出（保留 B 站登录态与完整播放器）
     implementation 'androidx.browser:browser:1.8.0'
+    implementation 'androidx.webkit:webkit:1.9.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
 

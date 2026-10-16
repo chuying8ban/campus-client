@@ -43,3 +43,13 @@ tools/with_lock.py
 tools/RELEASING-internal.md
 # —— 落工单工具（与 publish.sh 同族的内部件）——
 tools/new_release_ticket.py
+
+# —— 实验工程 / 本地证据 / 迁移日志（体积大、含本机路径与内部过程，不进公开仓）——
+# gecko-* 是内核可行性实验（各含一份完整 App 副本，1.5G/591M）；artifacts 是本机构建产物；
+# migration 与 evidence-* 是逐次发布的日志与取证文件 —— 都不该出现在 clone 的人的仓库里。
+artifacts/
+gecko-school-test/
+gecko-auth-prototype/
+migration/
+evidence-school-test*/
+RESULT_SLICE.md

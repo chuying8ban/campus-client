@@ -99,7 +99,7 @@ class CrawlScreenTest {
             "PasswordVisualTransformation",   // 密码框
             "addJavascriptInterface",          // 通用 JS bridge（会暴露原生对象）
             "getPassword",                    // 读取密码 DOM
-            "OutlinedTextField",              // 任何文本输入（这一页不需要用户输入任何东西）
+            "KeyboardType.Password",          // 学校搜索框允许，密码输入仍禁止
         )
         val bad = mutableListOf<String>()
         files.forEach { rel ->
@@ -119,7 +119,7 @@ class CrawlScreenTest {
         val f = File("src/main/java/top/ccbase/campus/school/SchoolWebLogin.kt")
         assertTrue("找不到 SchoolWebLogin.kt", f.isFile)
         val code = f.readText()
-        assertTrue("每次导航都要重新核 same-origin", code.contains("SchoolImportPolicy.isAllowedSchoolUrl"))
+        assertTrue("每次导航都要重新核 same-origin", code.contains("profile.allows"))
         assertTrue("导入结束必须清教务登录状态（含 WebStorage/缓存）", code.contains("SchoolCookie.clearAll"))
     }
 
@@ -135,7 +135,6 @@ class CrawlScreenTest {
     fun `整屏浮层都要有不透明底色_否则下层页面会透上来`() {
         val overlays = listOf(
             "ui/me/CrawlScreen.kt",
-            "ui/tasks/PlanScreen.kt",
             "ui/me/SafetyScreen.kt",
             "ui/me/DiagPanel.kt",
             "ui/settings/PermissionsScreen.kt",

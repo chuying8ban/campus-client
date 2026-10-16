@@ -198,7 +198,7 @@ class LibraryScreenTest {
         // 加完之后选中清空、底部那条动作条收起（否则用户会以为还可以再点一次）
         rule.waitUntil(5_000) { rule.onAllNodesWithTag(LIB_ADD).fetchSemanticsNodes().isEmpty() }
         rule.waitUntil(5_000) {
-            rule.onAllNodesWithText("已加 2 条到「学习」页的「学习库」").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("已加 2 条，可在学习库的「我的收藏」查看").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -355,10 +355,9 @@ class LibraryScreenTest {
         // ② 整行点按 = **打开这条资料**（预览）：跟加不加清单无关，更不该把已加入的弄走
         shadowOf(app).clearNextStartedActivities()
         tap(libItemTag("https://a/1"))
-        assertEquals(
-            "点已加入的资料行要打开它（不是移出）",
-            "https://a/1", shadowOf(app).nextStartedActivity?.data.toString(),
-        )
+        waitText("下载当前链接")
+        rule.onNodeWithText("https://a/1").assertExists()
+        rule.onNodeWithText("关闭").performClick()
         assertTrue("只是想看看这是什么，结果资料被移出了", tasks().isNotEmpty())
         assertTrue("资料也不该消失", resources().any { it.url == "https://a/1" })
 
@@ -398,10 +397,9 @@ class LibraryScreenTest {
         shadowOf(app).clearNextStartedActivities()
         tap(libItemTag("https://a/1"))
 
-        assertEquals(
-            "点资料行要打开它本身（Custom Tabs 在 App 内滑出）—— 这才是「直接学」",
-            "https://a/1", shadowOf(app).nextStartedActivity?.data.toString(),
-        )
+        waitText("下载当前链接")
+        rule.onNodeWithText("https://a/1").assertExists()
+        rule.onNodeWithText("关闭").performClick()
         // 底部那条动作条只在勾了东西之后出现：没勾就没有它
         assertEquals(
             "看一眼不该等于是加进清单",

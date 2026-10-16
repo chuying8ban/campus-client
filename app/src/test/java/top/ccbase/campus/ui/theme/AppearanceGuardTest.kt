@@ -112,7 +112,7 @@ class AppearanceGuardTest {
         val campusApp = read("java/top/ccbase/campus/ui/CampusApp.kt")
         val mounted = overlayScreens(campusApp)
         // 反向确认：正则/写法变了就当场喊，别让这条守卫变成"永远绿的空转"
-        val mustSee = listOf("SafetyScreen", "AppearanceScreen", "CrawlScreen", "PlanScreen",
+        val mustSee = listOf("SafetyScreen", "AppearanceScreen", "CrawlScreen", 
             "PermissionsScreen", "FeedbackScreen")
         assertTrue(
             "没能从 CampusApp 的 `if (showXxx)` 块里认出这些整屏浮层：${mustSee - mounted}（挂载写法变了？）",

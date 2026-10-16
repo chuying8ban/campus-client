@@ -108,6 +108,11 @@ internal fun TextLink(text: String, onClick: () -> Unit) {
 
 @Composable
 fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
+    val context=androidx.compose.ui.platform.LocalContext.current
+    val preferences=remember { context.getSharedPreferences("school_choice",Context.MODE_PRIVATE) }
+    var selected by remember { mutableStateOf(preferences.getString("id",null)) }
+    var picker by remember { mutableStateOf(selected==null) }
+    if(picker) top.ccbase.campus.school.SchoolDirectory(pick={id->selected=id;preferences.edit().putString("id",id).apply();picker=false},close={picker=false})
     Column(
         Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 40.dp),
         verticalArrangement = Arrangement.Center,
@@ -116,19 +121,20 @@ fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
              color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(10.dp))
         Text(
-            "把课表、作业、自习和该学的技能放在一个地方。\n课表从你自己的教务系统读，不共享、不公开。",
+            "管理课表与本机安排，查找和收藏学习资源。\n先选择学校；各校适配进度不同，学校登录只在官方页面完成。",
             fontSize = 14.sp, lineHeight = 22.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
         )
         Spacer(Modifier.height(44.dp))
-        PrimaryButton("去官方教务登录，导入我的课表") { onStart() }
+        PrimaryButton(when(selected){"cupk"->"克拉玛依校区 · 导入课表";"aust"->"安徽理工大学 · 测试官方登录";"ahut"->"安徽工业大学 · 测试官方登录";"neau"->"东北农业大学 · 测试官方登录";"other"->"其他学校 · 查看导入方式";else->"请选择学校"}) { if(selected==null)picker=true else onStart() }
+        TextLink("选择或更换学校") { picker=true }
         Spacer(Modifier.height(6.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            TextLink("先离线进入（课表以后在「我的」导入）") { onSkip() }
+            TextLink("先离线进入（以后在「课表 → 更新课表」导入）") { onSkip() }
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "中国石油大学（北京）克拉玛依校区学生自用工具 · 非学校官方产品",
+            "独立开发的校园助手 · 非学校官方产品\n克校支持课表导入；新增三校仅登录测试；其他学校尚未适配教务读取",
             fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
         )
     }
@@ -326,7 +332,7 @@ fun OnboardingFlow(
             onWait = {},
             onBack = { step = Step.Welcome },
         )
-        Step.Timetable -> TimetableScreen(db = db, onNext = { step = Step.Modules })
-        Step.Modules -> ModulePickerScreen(tpl = tpl, db = db, onDone = { finish() })
+        Step.Timetable -> TimetableScreen(db = db, onNext = { finish() })
+        Step.Modules -> LaunchedEffect(Unit) { finish() }
     }
 }

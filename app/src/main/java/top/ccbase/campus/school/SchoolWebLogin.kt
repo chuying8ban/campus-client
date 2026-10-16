@@ -70,7 +70,7 @@ object SchoolCookie {
     fun host(): String = EamsClient.DEFAULT_BASE.substringAfter("https://").trimEnd('/')
 
     /** 只清 Cookie（课程表读完、但页面还在时用）。 */
-    fun clear(host: String = host()) {
+    fun clear(host: String = host(), expire: ((String, String) -> Unit)? = null) {
         onMain {
             val cm = CookieManager.getInstance() ?: return@onMain
             val h = host.trimEnd('/')
@@ -82,8 +82,9 @@ object SchoolCookie {
                     .distinct()
                 for (name in names) {
                     // 两个变体都写：带 Domain 与不带 Domain，字面量要覆盖教务设置时用的那一个。
-                    for (suffix in listOf("Path=$path", "Path=$path; Domain=$h")) {
-                        cm.setCookie(probe, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; $suffix")
+                    for (suffix in listOf("Path=$path", "Path=$path; Secure", "Path=$path; Domain=$h", "Path=$path; Domain=$h; Secure")) {
+                        val removal = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; $suffix"
+                        if (expire == null) cm.setCookie(probe, removal) else expire(probe, removal)
                     }
                 }
             }
@@ -92,10 +93,10 @@ object SchoolCookie {
     }
 
     /** 清掉当前页面源（务必是教务 origin）的 localStorage/sessionStorage。 */
-    fun clearWebStorage(wv: WebView) {
+    fun clearWebStorage(wv: WebView, profile: SchoolProfile = SchoolRegistry.cupk) {
         onMain {
             val url = wv.url
-            if (url == null || !SchoolImportPolicy.isAllowedSchoolUrl(url)) return@onMain
+            if (url == null || !profile.allows(url)) return@onMain
             wv.evaluateJavascript(
                 "(function(){try{localStorage.clear();sessionStorage.clear();}catch(e){}})()",
                 null,
@@ -108,9 +109,9 @@ object SchoolCookie {
      * 不做 `WebStorage.getInstance().deleteAllData()` —— 那是**全局**清空，会误伤
      * 同进程里别的 WebView（比如反馈页的内嵌页）。
      */
-    fun clearAll(wv: WebView) {
-        clear()
-        clearWebStorage(wv)
+    fun clearAll(wv: WebView, profile: SchoolProfile = SchoolRegistry.cupk) {
+        clear(profile.host)
+        clearWebStorage(wv,profile)
         onMain {
             runCatching { wv.clearCache(true) }
             runCatching { wv.clearHistory() }
@@ -138,6 +139,7 @@ fun SchoolWebLogin(
     onTimetableJson: (String) -> Unit,
     onWebError: (String) -> Unit,
     onCancel: () -> Unit,
+    profile: SchoolProfile = SchoolRegistry.cupk,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -160,7 +162,7 @@ fun SchoolWebLogin(
     }
 
     fun fail(text: String) {
-        webView?.let { SchoolCookie.clearAll(it) }
+        webView?.let { SchoolCookie.clearAll(it,profile) }
         onWebError(text)
     }
 
@@ -169,7 +171,7 @@ fun SchoolWebLogin(
             webView?.let { wv ->
                 // 离开这一页 = 导入结束（无论成功、取消还是截断）：登录状态与页面缓存一并清掉，
                 // 再把 WebView 销毁，不留复用窗口。destroy 只在主线程做，回主线程执行。
-                SchoolCookie.clearAll(wv)
+                if (SchoolSession.remembered(wv.context,profile)) { SchoolSession.flush(); wv.clearCache(true); wv.clearHistory() } else SchoolCookie.clearAll(wv,profile)
                 runCatching { wv.destroy() }
             }
             webView = null
@@ -183,13 +185,13 @@ fun SchoolWebLogin(
         ) {
             Text("← 取消导入", fontSize = 13.sp, color = C.txt2,
                 modifier = Modifier.clickable {
-                    webView?.let { SchoolCookie.clearAll(it) }
+                    webView?.let { if (!SchoolSession.remembered(it.context,profile)) SchoolCookie.clearAll(it,profile) else SchoolSession.flush() }
                     onCancel()
                 }.padding(vertical = 8.dp))
             Spacer(Modifier.weight(1f))
             Column {
                 Text("官方教务登录", fontSize = 15.sp, color = C.txt)
-                Text("eams.cupk.edu.cn · HTTPS", fontSize = 10.sp, color = C.txt3)
+                Text("${profile.host} · HTTPS", fontSize = 12.sp, color = C.txt2)
             }
             if (top.ccbase.campus.BuildConfig.DEBUG) Text("诊断", color = C.txt3, fontSize = 12.sp,
                 modifier = Modifier.clickable { showDiagnostics = !showDiagnostics }.padding(10.dp))
@@ -210,7 +212,7 @@ fun SchoolWebLogin(
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
             Text("缩小 −", color = C.txt2, modifier = Modifier.clickable { webView?.zoomOut() }.padding(6.dp))
             Text("放大 ＋", color = C.txt2, modifier = Modifier.clickable { webView?.zoomIn() }.padding(6.dp))
-            Text("可双指缩放、横向拖动网页", color = C.txt3, fontSize = 11.sp, modifier = Modifier.padding(6.dp))
+            Text("可双指缩放、横向拖动网页", color = C.txt2, fontSize = 12.sp, modifier = Modifier.padding(6.dp))
         }
         if (showDiagnostics && top.ccbase.campus.BuildConfig.DEBUG) {
         Text(if (softwareRender) "诊断：兼容绘制已开启（点此恢复）" else "诊断：切换兼容绘制", fontSize = 12.sp, color = C.txt2, modifier = Modifier.clickable {
@@ -232,7 +234,7 @@ fun SchoolWebLogin(
                 factory = { ctx ->
                     WebView(ctx).apply {
                         webView = this
-                        configureSecureWebView(this, pageGate, onDiagnostic = {
+                        configureSecureWebView(this, pageGate, profile=profile, onDiagnostic = {
                             diagnostic = it
                             if (it.startsWith("资源") && firstScriptError.isEmpty()) firstScriptError = it
                         }) { fail(it) }
@@ -254,7 +256,7 @@ fun SchoolWebLogin(
                                 return true
                             }
                         }
-                        loadUrl(EamsClient.DEFAULT_BASE + EamsClient.STUDENT + "/login")
+                        loadUrl(profile.origin + if (SchoolSession.remembered(ctx,profile)) profile.timetablePath else profile.loginPath)
                     }
                 },
                 update = {},
@@ -284,12 +286,12 @@ fun SchoolWebLogin(
                         step = "正在从教务读取课表…"
                         scope.launch {
                             try {
-                                val result = wv.extractTimetableJson(pageGate)
-                                SchoolCookie.clearAll(wv)
+                                val result = wv.extractTimetableJson(pageGate,profile)
+                                if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clearAll(wv,profile) else SchoolSession.flush()
                                 onTimetableJson(result)
                             } catch (e: Exception) {
                                 if (e is kotlinx.coroutines.CancellationException) throw e
-                                readError = "暂未读到课表，当前页面和登录状态已保留。可刷新后重试。"
+                                readError = "暂未读到课表。若学校会话已过期，请在官方页面重新登录后重试；原课表未改变。"
                                 if (top.ccbase.campus.BuildConfig.DEBUG) diagnostic = "读取阶段：" + when {
                                     e.message.orEmpty().contains("学期") -> "学期标识未就绪"
                                     e.message.orEmpty().contains("加载超时") -> "目标课表页未完成加载"
@@ -309,8 +311,8 @@ fun SchoolWebLogin(
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "只打开 https://eams.cupk.edu.cn。密码在学校的登录页里输入，App 不读取、不保存。",
-                fontSize = 11.sp, lineHeight = 17.sp, color = C.txt2,
+                "只打开 ${profile.origin}。密码在学校的登录页里输入，App 不读取、不保存。",
+                fontSize = 13.sp, lineHeight = 19.sp, color = C.txt2,
             )
         }
     }
@@ -320,6 +322,7 @@ fun SchoolWebLogin(
 private fun configureSecureWebView(
     wv: WebView,
     gate: PageGate,
+    profile: SchoolProfile = SchoolRegistry.cupk,
     onDiagnostic: (String) -> Unit = {},
     onError: (String) -> Unit,
 ) {
@@ -342,11 +345,11 @@ private fun configureSecureWebView(
         setAcceptCookie(true)
         setAcceptThirdPartyCookies(wv, false)
     }
-    SchoolCookie.clear()
+    if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clear(profile.host)
 
     wv.webViewClient = object : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-            if (!SchoolImportPolicy.isAllowedSchoolUrl(request.url.toString())) {
+            if (!profile.allows(request.url.toString())) {
                 onError("阻止打开非官方教务地址")
                 return true
             }
@@ -354,7 +357,7 @@ private fun configureSecureWebView(
         }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-            if (!SchoolImportPolicy.isAllowedSchoolUrl(request.url.toString())) {
+            if (!profile.allows(request.url.toString())) {
                 if (request.isForMainFrame) onError("阻止加载非官方教务地址")
                 return WebResourceResponse("text/plain", "utf-8", null)
             }
@@ -362,7 +365,7 @@ private fun configureSecureWebView(
         }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
-            if (!SchoolImportPolicy.isAllowedSchoolUrl(url)) {
+            if (!profile.allows(url)) {
                 view.stopLoading()
                 onError("阻止加载非官方教务地址")
             }
@@ -372,21 +375,21 @@ private fun configureSecureWebView(
             // 让“导航到课表页并等它加载完”有据可依（见 extractTimetableJson）。
             gate.finishedTick += 1
             gate.finishedUrl = url
-            if (SchoolImportPolicy.isAllowedSchoolUrl(url)) {
+            if (profile.allows(url)) {
                 view.evaluateJavascript("""(function(){var m=document.querySelector('meta[name=viewport]');if(m){m.content=m.content.replace(/user-scalable\s*=\s*no/ig,'user-scalable=yes').replace(/maximum-scale\s*=\s*[0-9.]+/ig,'maximum-scale=5');}})()""", null)
             }
             // 已观察到登录面板高度为 0；为官方登录页明确设定视口高度。
             // 不读取输入内容、不改登录逻辑，仅修复布局。
-            if (SchoolImportPolicy.isAllowedSchoolUrl(url) && android.net.Uri.parse(url).path == "/student/login") {
+            if (profile.id==SchoolRegistry.cupk.id && profile.allows(url) && android.net.Uri.parse(url).path == "/student/login") {
                 val fix = "(function(){function apply(){if(location.protocol!=='https:'||location.hostname!=='eams.cupk.edu.cn'||location.pathname!=='/student/login')return;var h=window.innerHeight+'px';var s=document.getElementById('campus-login-layout')||document.createElement('style');s.id='campus-login-layout';s.textContent='html,body,#vue_main,.sw-login,.sw-login-wrapper{height:'+h+'!important;min-height:'+h+'!important}.sw-login-main{height:'+h+'!important;min-height:'+h+'!important;position:absolute!important;top:0!important;bottom:0!important}.sw-login-main-content{height:'+h+'!important;min-height:'+h+'!important}';if(!s.parentNode)document.head.appendChild(s);document.documentElement.style.height=h;document.body.style.height=h;var e=document.querySelector('.sw-login-main');if(e){e.style.setProperty('height',h,'important');e.style.setProperty('min-height',h,'important');e.style.setProperty('position','absolute','important');e.style.setProperty('top','0','important');e.style.setProperty('bottom','0','important');}}apply();if(!window.__campusLayoutResize){window.__campusLayoutResize=true;window.addEventListener('resize',apply);if(window.visualViewport)window.visualViewport.addEventListener('resize',apply);}})()"
                 view.evaluateJavascript(fix, null)
-                view.postDelayed({ if (SchoolImportPolicy.isAllowedSchoolUrl(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 1000)
-                view.postDelayed({ if (SchoolImportPolicy.isAllowedSchoolUrl(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 4000)
+                view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 1000)
+                view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 4000)
             }
-            if (SchoolImportPolicy.isAllowedSchoolUrl(url) && android.net.Uri.parse(url).path == "/student/login") {
+            if (profile.allows(url) && android.net.Uri.parse(url).path == "/student/login") {
                 // 只计数，不读取输入框值、页面 HTML 或 Cookie。
                 view.postDelayed({
-                    if (!SchoolImportPolicy.isAllowedSchoolUrl(view.url.orEmpty()) || android.net.Uri.parse(view.url).path != "/student/login") return@postDelayed
+                    if (!profile.allows(view.url.orEmpty()) || android.net.Uri.parse(view.url).path != "/student/login") return@postDelayed
                     view.evaluateJavascript("JSON.stringify({inputs:document.querySelectorAll('input').length,vue:typeof Vue,main:typeof requirejs!=='undefined'&&requirejs.defined('main'),viewport:[innerWidth,innerHeight],form:(function(){var e=document.querySelector('.sw-login-main');if(!e)return null;var r=e.getBoundingClientRect();return [Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height),getComputedStyle(e).visibility]})()})") { result ->
                         onDiagnostic("登录模块状态 ${result.take(240)}")
                     }
@@ -414,7 +417,7 @@ private fun configureSecureWebView(
         }
 
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-            SchoolCookie.clear()
+            SchoolCookie.clear(profile.host)
             onError("教务页面进程已退出，已清除本次登录 Cookie")
             return true
         }
@@ -446,17 +449,17 @@ private const val EAMS_ERROR = "__EAMS_ERROR__"
  *   ④ 等结果：HTTP 错 / 返回非 JSON（会话失效被重定向到登录页）都要如实报错，
  *      绝不把错误串当成课表 JSON 交出去。
  */
-private suspend fun WebView.extractTimetableJson(gate: PageGate): String = withContext(Dispatchers.Main) {
-    navigateAndAwait(gate, EamsClient.DEFAULT_BASE + EamsClient.COURSE_TABLE_PATH)
+private suspend fun WebView.extractTimetableJson(gate: PageGate, profile: SchoolProfile = SchoolRegistry.cupk): String = withContext(Dispatchers.Main) {
+    navigateAndAwait(gate, profile.origin + profile.timetablePath, profile=profile)
 
-    val semToken = decodeValue(evaluate(SEMESTER_JS))
+    val semToken = decodeValue(evaluate(SchoolRegistry.adapter(profile).semesterScript))
     if (semToken.startsWith(EAMS_ERROR)) {
         throw IllegalStateException(semToken.removePrefix(EAMS_ERROR).trim().ifBlank { "学期信息没找到" })
     }
     val sid = semToken.toIntOrNull() ?: throw IllegalStateException("学期信息没找到")
 
-    val path = EamsClient.printDataPath(sid).replace("'", "%27")
-    evaluate(fetchScript(path))
+    val path = SchoolRegistry.adapter(profile).printDataPath(sid).replace("'", "%27")
+    evaluate(SchoolRegistry.adapter(profile).fetchScript(path))
 
     var waited = 0L
     while (waited < 60_000) {
@@ -470,56 +473,11 @@ private suspend fun WebView.extractTimetableJson(gate: PageGate): String = withC
     throw IllegalStateException("读取课表超时；请确认已在教务页面完成登录，再点一次")
 }
 
-private fun fetchScript(path: String): String = """
-    (function(){
-      window.__eamsPayload=null; window.__eamsError=null;
-      try{
-        fetch('$path',{credentials:'same-origin',headers:{'Accept':'application/json'}})
-          .then(function(r){
-            return r.text().then(function(t){
-              if(!r.ok){ window.__eamsError='HTTP '+r.status; return; }
-              var ct=(r.headers&&r.headers.get)?(r.headers.get('content-type')||''):'';
-              if(ct.indexOf('json')<0 && t.charAt(0)!=='{'){ window.__eamsError='会话失效：返回的不是课表 JSON'; return; }
-              window.__eamsPayload=t;
-            });
-          })
-          .catch(function(e){ window.__eamsError=String(e); });
-      }catch(e){ window.__eamsError=String(e); }
-    })()
-""".trimIndent()
-
-/** 学期 id 提取：对齐 [EamsClient.currentSemesterId] 的口径（用 currentSemester 的 abbrEn 匹配 semesters）。 */
-private val SEMESTER_JS = """
-    (function(){
-      try{
-        function pickId(list, abbr){
-          if(typeof list==='string'){ try{ list=JSON.parse(list); }catch(e){ return null; } }
-          if(!Array.isArray(list)||list.length===0) return null;
-          var p=null;
-          if(abbr){ for(var i=0;i<list.length;i++){ var x=list[i]; if(x&&(x.abbrEn===abbr||x.abbr===abbr)){ p=x; break; } } }
-          if(!p) p=list[0];
-          return p&&(p.id!==undefined?p.id:p.semesterId);
-        }
-        var sem=window.semesters, cur=window.currentSemester;
-        if(!sem||!cur){
-          var html=document.documentElement?document.documentElement.innerHTML:'';
-          var m=html.match(/var\s+semesters\s*=\s*JSON\.parse\(\s*'([\s\S]*?)'\s*\)/);
-          if(!sem&&m){ try{ sem=JSON.parse(m[1]); }catch(e){} }
-          if(!cur){ var m2=html.match(/var\s+currentSemester\s*=\s*([\s\S]*?);/); if(m2){ try{ cur=JSON.parse(m2[1]); }catch(e){} } }
-        }
-        var abbr=(cur&&(cur.abbrEn||cur.abbr||cur.name))||null;
-        var id=pickId(sem,abbr);
-        if(id===null||id===undefined||isNaN(Number(id))) return '$EAMS_ERROR 找不到学期（先在官方页面登录）';
-        return String(id);
-      }catch(e){ return '$EAMS_ERROR '+e; }
-    })()
-""".trimIndent()
-
 /** 导航到同一个官方 origin 的页面，并等 `onPageFinished` 触发。 */
-private suspend fun WebView.navigateAndAwait(gate: PageGate, url: String, timeoutMs: Long = 30_000) {
-    if (!SchoolImportPolicy.isAllowedSchoolUrl(url)) throw IllegalStateException("拒绝导航到非官方教务地址")
+private suspend fun WebView.navigateAndAwait(gate: PageGate, url: String, timeoutMs: Long = 30_000, profile: SchoolProfile = SchoolRegistry.cupk) {
+    if (!profile.allows(url)) throw IllegalStateException("拒绝导航到非官方教务地址")
     val targetPath = android.net.Uri.parse(url).path.orEmpty()
-    if (SchoolImportPolicy.isAllowedSchoolUrl(this.url.orEmpty()) &&
+    if (profile.allows(this.url.orEmpty()) &&
         android.net.Uri.parse(this.url).path == targetPath && gate.finishedUrl == this.url) return
     val start = gate.finishedTick
     loadUrl(url)

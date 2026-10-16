@@ -94,15 +94,6 @@ import top.ccbase.campus.ui.me.MeScreen
 import top.ccbase.campus.ui.me.DiagOverlay
 import top.ccbase.campus.ui.board.BoardScreen
 import top.ccbase.campus.ui.schedule.ScheduleScreen
-import top.ccbase.campus.ui.tasks.PlanEntry
-import top.ccbase.campus.ui.tasks.TaskDeleteConfirm
-import top.ccbase.campus.ui.tasks.TaskDetailScreen
-import top.ccbase.campus.ui.tasks.rememberTaskDelete
-import top.ccbase.campus.ui.tasks.rememberTasksSections
-import top.ccbase.campus.ui.tasks.ResetConfirm
-import top.ccbase.campus.ui.tasks.rememberReset
-import top.ccbase.campus.ui.tasks.MoreSheet
-import top.ccbase.campus.ui.tasks.tasksContent
 import top.ccbase.campus.ui.today.TodayScreen
 import top.ccbase.campus.ui.theme.Digits
 import top.ccbase.campus.net.StudentError
@@ -114,13 +105,13 @@ import top.ccbase.campus.net.StudentError
  * 这样你从网页版切过来时肌肉记忆不用改。
  */
 enum class CampusTab(val label: String, val icon: ImageVector, val soon: String) {
-    TODAY("今日", Icons.Filled.Home, "今天的课 + 早晚自习 + 今日任务 + 课前提醒开关"),
-    SCHEDULE("课表", Icons.Filled.DateRange, "周视图 + 当天课程 + 本学期 11 门课"),
+    TODAY("今日", Icons.Filled.Home, "今天的课、已设置的自习和课前提醒"),
+    SCHEDULE("课表", Icons.Filled.DateRange, "周视图与已导入的课程安排"),
     // 2026-09-18 用户要求：「把任务标签改为学习」；2026-09-19 又要求把它里面那半
     // （按课程摊开的资料列表）删掉 —— 那半和「学习库」重复。所以这一格现在**只有任务**，
     // 「AI 规划学习计划」的入口仍钉在这一页顶部；资源一律去「学习库」看。
-    TASKS("学习", Icons.Filled.CheckCircle, "阶段切换 + 任务卡 + 学习步骤与进度"),
-    // 2026-09-19 用户要求「独立学习库」：不塞进「学习」页里，而是**自己的**一格，
+    // 学习任务入口已并入学习库；保留本地任务数据，不再暴露独立「学习」标签。
+    // 2026-09-19 用户要求「独立学习库」：不塞进「学习」页里，而是**自己的**一格,
     // 并且是资源的**唯一**入口（点一门课进去看课程信息 + 资料）。
     // 它是公共资源目录（所有同学探过的活链接，按课程 / 按类型摊开），挑中的会落成
     // 「学习」页里的一条任务 —— 所以图标用"目录"那种意思的 List，跟「学习」的勾区分开。
@@ -134,7 +125,6 @@ private val CampusTab.accent: androidx.compose.ui.graphics.Color
     get() = when (this) {
         CampusTab.TODAY -> C.violet
         CampusTab.SCHEDULE -> C.cyan
-        CampusTab.TASKS -> C.green
         CampusTab.LIBRARY -> C.cyan
         CampusTab.BOARD -> C.magenta
         CampusTab.ME -> C.violet
@@ -222,7 +212,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 「AI 规划学习计划」浮层：先看建议再勾选入库。
     // 入口在「学习」标签页（任务页顶部那个明处的卡片）—— 用户要求从「我的」搬过来
     var showScheduleEditor by remember { mutableStateOf(false) }
-    var showPlan by remember { mutableStateOf(false) }
     // 授权/白名单浮层：这些开关缺了对应的功能会静默失效，所以要有地方能直接去要
     var showPerms by remember { mutableStateOf(false) }
     var showFeedback by remember { mutableStateOf(false) }
@@ -290,7 +279,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         if (force) updHint = "正在检查更新…"
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
-                Updater.check(Api.BASE, dial, versionCode, UpdatePrefs.skipped(appCtx), manual = true)
+                Updater.check(top.ccbase.campus.BuildConfig.UPDATE_BASE, dial, versionCode, UpdatePrefs.skipped(appCtx), manual = true)
             }
             UpdatePrefs.markChecked(appCtx)
             when (outcome) {
@@ -390,10 +379,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 系统返回键 · 子页：退回上一页，而不是把整个 App 关掉
     androidx.activity.compose.BackHandler(enabled = extra != null) { extra = null }
 
-    // 系统返回键 · 主界面：**先提示，再按一次才退出**。
-    // 手机一点返回就掉回桌面太容易误触（尤其单手刷课表时）。
-    // 根页面交给 MainActivity 的退出确认，不再双击直接退出。
-    val exitHint = false
+    // 系统返回键 · 主界面：交给 MainActivity 那层的 ExitConfirmation 统一处理 ——
+    // 根页面第一次返回只浮一条自动消失的轻提示，2 秒内再按一次才退出。
+    // （2026-10-16 之前这里自己画过一条提示条，已删：同一个提示只留一处实现。）
 
     // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格**人人都有**。
     //
@@ -440,9 +428,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
             when (shown) {
                 CampusTab.TODAY -> TodayScreen(app.db)
-                CampusTab.SCHEDULE -> ScheduleScreen(app.db, onUpdate = { showCrawl = true }, onEdit = { showScheduleEditor = true })
-                CampusTab.TASKS -> TasksLearnScreen(app.db, onOpenPlan = { showPlan = true })
-                CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LibraryScreen(app.db)
+                CampusTab.SCHEDULE -> ScheduleScreen(
+                    app.db,
+                    onUpdate = { showScheduleEditor = false; showCrawl = true },
+                    onEdit = { showCrawl = false; showScheduleEditor = true },
+                )
+                CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LearningHub(app.db)
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
@@ -482,18 +473,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     Text("‹ 返回", color = C.txt2, fontSize = 13.sp)
                 }
             }
-            // 退出提示条：主界面按一次返回时浮出来，两秒后自己收回去
-            if (exitHint) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 92.dp)
-                        .background(C.cardHi, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Text("再按一次「返回」就退出", color = C.txt2, fontSize = 12.sp)
-                }
-            }
         }
     }
 
@@ -531,32 +510,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }
-    }
-    if (showPlan && TokenStore.token(appCtx).isNullOrBlank()) {
-        top.ccbase.campus.ui.common.CloudAccessGate(
-            onClose = { showPlan = false },
-            onImport = { showPlan = false; showCrawl = true },
-        )
-    }
-    if (showPlan && !TokenStore.token(appCtx).isNullOrBlank()) {
-        // 和上面 CrawlScreen 同一套写法：浮层拿不到 when 分支里的局部 app，用 LocalContext 取
-        val appNow = LocalContext.current.applicationContext as CampusApplication
-        top.ccbase.campus.ui.tasks.PlanScreen(
-            db = appNow.db,
-            api = remember { CampusApi() },
-            onClose = { showPlan = false },
-            // 加入成功后用户点「去「学习」清单看看」→ 关掉计划页并切到「学习」那一格，
-            // 让他一眼看到刚加进去的那几条。没这个回调，那个按钮就只是句空话。
-            onGoTasks = {
-                showPlan = false
-                // idx 是**过滤后**那条 tab 栏的下标，不是枚举序号：没有 can_grab 的人
-                // 那一格不存在，直接拿枚举序号当 idx 会跳到别的格上。
-                // 这条以前真错过 —— 作者自己因为抢课那一格在场，序号碰巧对得上，看不见。
-                // （MergeWiringTest 会扫这个文件，别把那个"枚举序号"的写法原样写回来 ——
-                //   连注释里出现都会被算成一条引用。）
-                idx = tabs.indexOf(CampusTab.TASKS).coerceAtLeast(0)
-            },
-        )
     }
     if (showPerms) {
         top.ccbase.campus.ui.settings.PermissionsScreen(
@@ -679,121 +632,6 @@ private fun ShellScreen(tab: CampusTab, version: String) {
     }
 }
 
-
-/**
- * 底栏那一格「学习」的页面（原名「任务」）。
- *
- * 2026-09-18 用户要求：这一格改叫「学习」，并把「AI 规划学习计划」的入口搬进来；
- * 同日又要求去掉页内那层「任务 | 学习」子切换，两半铺进同一条滚动页。
- *
- * 2026-09-19 用户指着下面那一半说：「学习库和这里的功能重复了，把这里的删了吧」——
- * 于是**学习内容那半整份删掉**（连 `ui/learn` 包和它的用例一起），这一页只剩任务。
- * 资源浏览统一在「学习库」那一格：点一门课进去看课程信息 + 资料（含课程详情页）。
- * 那一半不是"藏起来"了：它和「学习库」是同一件事的两种读法，留着就是两个入口、
- * 两套课程分组，用户只会更糊涂。
- *
- * 名字仍叫 TasksLearnScreen（不再改）：它是给编译器/用例用的标识，
- * 改名换来的只是一批无意义的改动（MergeWiringTest / LearningTabTest 按这个名字定位这一段）。
- *
- * [PlanEntry] 摆在**整页内容之上**（在 LazyColumn 之外，不是列表里的一项）：
- * 往下翻时它会**收起来**（2026-09-19 用户要求「往下翻时 ai 学习规划应该隐藏」——
- * 那张卡吃掉四分之一屏），翻回顶部它自己回来。因为它不在列表里，
- * 所以不是"滚出去"而是"按规则收放"：往上滚一点点就能看见它回来。
- * 全工程只有这一处渲染（见 MergeWiringTest 的"只渲染一处"）。
- *
- * `onOpenPlan` 一路透传给浮层（PlanScreen）。
- */
-@Composable
-internal fun TasksLearnScreen(
-    db: top.ccbase.campus.data.local.CampusDb,
-    onOpenPlan: () -> Unit,
-) {
-    var openTask by remember { mutableStateOf<Int?>(null) }
-    var onlyTrack by remember { mutableStateOf<String?>(null) }
-    // 库内容被改过（删 / 恢复）就 +1：任务分组与「已删除」那段都靠它重读
-    var tick by remember { mutableIntStateOf(0) }
-    val del = rememberTaskDelete(db, tick) {
-        // 删掉的若是正在看的那条，详情必须退出（它已经不在清单里了）
-        openTask = null
-        tick++
-    }
-    // 重置学习任务：确认层挂在页根（跟删除同一个位置），不能塞进列表项里
-    val reset = rememberReset(db) {
-        openTask = null
-        tick++
-    }
-    // 数据在这里取：点开任务详情（整页切走）时不重读库，返回后原位还在
-    val sections = rememberTasksSections(db, tick)
-    // 页首「整理」那一层（重置/恢复都收在里面）
-    var more by remember { mutableStateOf(false) }
-
-    // 列表的滚动状态。入口要不要收起看它 —— 用户 2026-09-19：「往下翻时 ai 学习规划应该隐藏」
-    val listState = rememberLazyListState()
-    // 往下滚过一点点就收起。阈值不取 0：最顶上轻微回弹/惯性抖动时会让卡片一闪一闪
-    val entryHidden = listState.firstVisibleItemIndex > 0 ||
-        listState.firstVisibleItemScrollOffset > HIDE_ENTRY_AFTER_PX
-
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            // 入口钉在**整页内容之上**：它不是列表里的一项，所以不会被"滚走"；
-            // 但**往下翻就收起来**（把整屏让给任务），翻回顶部它自己回来。
-            //
-            // 为什么不做成 LazyColumn 的第一项：那样它是**真的滚出去**，用户往上滚一点点
-            // 也看不见它，会以为入口没了（他明确反感"要摸索才找得到"的入口）。
-            // 收放用 AnimatedVisibility 做滑动 + 淡出，不做高度动画 —— 卡片是固定高度，
-            // 高度动画每帧都要重新测量，滚动时会掉帧。
-            AnimatedVisibility(
-                visible = !entryHidden,
-                enter = fadeIn(tween(160)) + slideInVertically(tween(160)) { -it },
-                exit = fadeOut(tween(120)) + slideOutVertically(tween(160)) { -it },
-            ) {
-                PlanEntry(
-                    onOpenPlan = onOpenPlan,
-                    modifier = Modifier.padding(start = 22.dp, end = 22.dp),
-                )
-            }
-            val id = openTask
-            if (id != null) {
-                TaskDetailScreen(db, id, onBack = { openTask = null }, onDelete = { title -> del.ask(id, title) })
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth().testTag(MERGED_LIST_TAG),
-                    contentPadding = PaddingValues(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 28.dp),
-                ) {
-                    tasksContent(sections, onlyTrack, { onlyTrack = it }, { openTask = it }, del, onOpenMore = { more = true }, onOpenPlan = onOpenPlan)
-                }
-            }
-        }
-        // 确认层盖在整页之上：列表态与详情态都要能弹出来
-        del.asking?.let { p ->
-            TaskDeleteConfirm(p.title, onCancel = { del.cancel() }, onConfirm = { del.confirm() })
-        }
-        if (more) MoreSheet(reset, onClose = { more = false })
-        if (reset.asking) {
-            ResetConfirm(onCancel = reset.cancel, onConfirm = {
-                reset.confirm()
-                more = false
-            })
-        }
-    }
-}
-
-/**
- * 这一页那条 LazyColumn 的测试标签。
- *
- * 测试要用它在**这一条**列表里滚动 / 定位（任务有 40+ 条，屏幕只放得下一屏）。
- * 名字保留 merged-*：它曾经是"任务半 + 学习半合并页"的证据，现在只是这段列表的把手。
- */
-internal const val MERGED_LIST_TAG = "learning-merged-list"
-
-/**
- * 内容往下滚多少像素之后，「AI 规划学习计划」入口就收起来（96px ≈ 32dp，约一行任务）。
- *
- * 不取 0：最顶上轻微回弹/惯性抖动会让卡片一闪一闪。取太大又等于没收起 ——
- * 用户就是嫌它"往下翻还杵在那儿"。
- */
-private const val HIDE_ENTRY_AFTER_PX = 96
 
 /**
  * 一次更新检查的结果 →「我的」页那行给人看的字。

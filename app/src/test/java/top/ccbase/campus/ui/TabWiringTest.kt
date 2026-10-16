@@ -51,14 +51,14 @@ class TabWiringTest {
         // 抢课页当年就是"页面测过了、入口没接线"，用户装上看到空壳。新 tab 一律照这条钉。
         val i = branchLine("LIBRARY")
         assertTrue("CampusTab.LIBRARY 没有分支 —— 点进去会看到'空壳'页", i >= 0)
-        assertTrue("LIBRARY 分支里必须挂 LibraryScreen", src.lines()[i].contains("LibraryScreen"))
+        assertTrue("LIBRARY 分支里必须挂 LibraryScreen", src.lines()[i].contains("LearningHub"))
     }
 
     @Test
     fun `所有真实 tab 的分支都要在 else 之前`() {
         val e = elseLine()
         assertTrue("找不到 else -> ShellScreen，这个测试需要跟着改", e >= 0)
-        listOf("TODAY", "SCHEDULE", "TASKS", "LIBRARY", "BOARD", "ME").forEach { tab ->
+        listOf("TODAY", "SCHEDULE", "LIBRARY", "BOARD", "ME").forEach { tab ->
             val i = branchLine(tab)
             assertTrue("$tab 没有分支", i >= 0)
             assertTrue("$tab 的分支落在 else 之后 → 是死代码，永远走不到（Kotlin 只给警告）", i < e)
@@ -79,7 +79,7 @@ class TabWiringTest {
         // 看板不再占底部栏，「我的」里必须留着唯一入口，否则等于删功能。
         val me = File("src/main/java/top/ccbase/campus/ui/me/MeScreen.kt").readText()
         assertTrue("「我的」里必须有看板入口", me.contains("onOpenBoard"))
-        assertTrue("看板入口要有说明文字", me.contains("打卡热力"))
+        assertTrue("看板入口要有说明文字", me.contains("历史活动记录"))
     }
 
     @Test

@@ -29,7 +29,6 @@ import top.ccbase.campus.TestSeedDb
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.ui.board.BoardScreen
 import top.ccbase.campus.ui.schedule.ScheduleScreen
-import top.ccbase.campus.ui.tasks.TasksScreen
 import top.ccbase.campus.ui.theme.CampusTheme
 import top.ccbase.campus.ui.today.TodayScreen
 
@@ -204,7 +203,7 @@ class ScreenSmokeTest {
     @Test
     fun `首次启动先出引导页而不是主界面`() {
         rule.setContent { CampusTheme { CampusApp(version = "test") } }
-        waitFor("去官方教务登录，导入我的课表")
+        waitFor("搜索学校")
         // 引导页绝不该出现底部导航 —— 直接进主界面等于把新用户丢进空白功能里
         listOf("今日", "看板").forEach { tab ->
             assertTrue(
@@ -218,7 +217,7 @@ class ScreenSmokeTest {
             rule.onAllNodesWithText("先看看演示内容，不登录").fetchSemanticsNodes().isEmpty()
         )
         // 对外自称与免责声明必须在场
-        waitFor("中国石油大学（北京）克拉玛依校区学生自用工具")
+        waitFor("独立开发的校园助手")
     }
 
     @Test
@@ -262,17 +261,9 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `任务页能渲染且读到数据`() {
-        // App 启动只灌通用数据（节次/自习），个人任务等用户自己的计划同步 —— 这里给任务页塞个自己的库
-        rule.setContent { CampusTheme { TasksScreen(TestSeedDb.seeded(app())) } }
-        // "本学期"是任务分组标题
-        waitFor("本学期")
-    }
-
-    @Test
     fun `看板页能渲染且读到数据`() {
         rule.setContent { CampusTheme { BoardScreen(app().db) } }
         // 统计没算完时整页只显示"正在统计…"，所以"里程碑"能出现即数据已到位
-        waitFor("里程碑")
+        waitFor("历史连续活跃")
     }
 }

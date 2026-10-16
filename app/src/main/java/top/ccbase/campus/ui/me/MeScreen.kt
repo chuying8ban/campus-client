@@ -216,7 +216,7 @@ fun MeScreen(
                         // 服务器真的去教务读过了 → 把新计划拉下来（课表换了，提醒也必须重排）
                         if (r.value.noCreds.isNotEmpty() || !r.value.ok) {
                             msg = "${SyncLogic.serverSyncText(r.value)} —— 已改为从服务器同步。\n" +
-                                "想让服务器能代读，在下面「密码」那一节里保存一次教务密码。"
+                                "请在「课表 → 更新课表」选择学校，使用官方页面导入；App 不保存教务密码。"
                             fallbackSync(t)
                         } else {
                             val head = SyncLogic.serverSyncText(r.value)
@@ -303,12 +303,12 @@ fun MeScreen(
         Text("我的", fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
              color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(4.dp))
-        Text("中国石油大学（北京）克拉玛依校区学生自用工具 · 非学校官方产品", fontSize = 11.sp,
+        Text("独立开发的校园助手 · 非学校官方产品", fontSize = 11.sp,
              color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f))
 
         SectionTitle("账户")
         if (token == null) {
-            Text("还没登录云端。不登录也能用：课表在本机导入，任务、打卡、专注记录都只存在这台手机上。",
+            Text("还没登录云端。不登录也能用：课表在本机导入，收藏和活动记录保存在这台手机上。",
                  fontSize = 13.sp, lineHeight = 21.sp,
                  color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
             Spacer(Modifier.height(16.dp))
@@ -377,7 +377,7 @@ fun MeScreen(
         NudgeStrip()
 
         SectionTitle("看板")
-        Action("打卡热力 / 里程碑", "连续天数、完成度、阶段进度", onClick = { onOpenBoard() })
+        Action("历史活动记录", "保留已有记录，不再生成督促清单", onClick = { onOpenBoard() })
 
         // 这里曾经有一节「选课 → 监控」。2026-09-30 用户口径：「**把我的里面的监控删了**」——
         // 监控现在只在底部菜单栏那一格，同一件事不留第二个入口（两个入口只会让人犹豫点哪个）。
@@ -466,7 +466,7 @@ fun MeScreen(
         AlertDialog(
             onDismissRequest = { askLogout = false },
             title = { Text("退出登录？", fontSize = 16.sp) },
-            text = { Text("退出后断开此设备的云端身份，本机课表、任务和打卡记录保留。课表有变化时需重新导入；随机身份退出后不支持找回。", fontSize = 13.sp) },
+            text = { Text("退出后断开此设备的云端身份，本机课表、收藏和活动记录保留。课表有变化时需重新导入；随机身份退出后不支持找回。", fontSize = 13.sp) },
             confirmButton = { TextButton({ askLogout = false; doLogout() }) { Text("退出登录") } },
             dismissButton = { TextButton({ askLogout = false }) { Text("取消") } },
         )

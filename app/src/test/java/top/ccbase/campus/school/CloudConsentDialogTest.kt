@@ -14,7 +14,17 @@ import top.ccbase.campus.ui.theme.CampusTheme
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class CloudConsentDialogTest {
-    @get:Rule val rule = createComposeRule()
+    // Register the JVM-only Compose host before ActivityScenario starts. Release
+    // intentionally has no ui-test-manifest dependency or exported test Activity.
+    @get:Rule(order = 0) val host = object : org.junit.rules.ExternalResource() {
+        override fun before() {
+            val context = org.robolectric.RuntimeEnvironment.getApplication()
+            org.robolectric.Shadows.shadowOf(context.packageManager).addActivityIfNotPresent(
+                android.content.ComponentName(context, androidx.activity.ComponentActivity::class.java)
+            )
+        }
+    }
+    @get:Rule(order = 1) val rule = createComposeRule()
     @Test fun `未点击同意不会上传_拒绝只关闭`() {
         var upload = 0
         var cancelled = 0

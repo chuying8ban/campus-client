@@ -19,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.ccbase.campus.CampusApplication
+import top.ccbase.campus.EXIT_ARMED_MS
 import top.ccbase.campus.data.local.Meta
 import top.ccbase.campus.data.remote.TokenStore
 import top.ccbase.campus.net.ApiUser
@@ -39,6 +40,11 @@ import top.ccbase.campus.ui.theme.CampusTheme
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h2400dp-xhdpi")
 class BoardBackTest {
+
+    private companion object {
+        /** 根页面按返回时浮出的那条轻提示（与 ExitConfirmation 的实现对齐）。 */
+        const val EXIT_HINT = "再按一次「返回」退出"
+    }
 
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
@@ -70,14 +76,14 @@ class BoardBackTest {
         rule.onNodeWithText("我的").performClick()
         rule.waitForIdle()
         rule.waitUntil(timeoutMillis = 8_000) {
-            rule.onAllNodesWithText("打卡热力 / 里程碑").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("历史活动记录").fetchSemanticsNodes().isNotEmpty()
         }
-        rule.onNodeWithText("打卡热力 / 里程碑").performScrollTo().performClick()
-        waitForText("里程碑")
+        rule.onNodeWithText("历史活动记录").performScrollTo().performClick()
+        waitForText("历史连续活跃")
     }
 
     private fun onBoard(): Boolean =
-        rule.onAllNodesWithText("里程碑").fetchSemanticsNodes().isNotEmpty()
+        rule.onAllNodesWithText("历史连续活跃").fetchSemanticsNodes().isNotEmpty()
 
     @Test
     fun `看板要进得去`() {
@@ -101,44 +107,70 @@ class BoardBackTest {
         assertFalse("「‹ 返回」点不动（多半被上层页面内容吃掉了点击）", onBoard())
     }
 
-    // ------------------------------------------------- 主界面按返回：先提示，再按一次才退出
+    // ------------------------------------------------- 主界面按返回：轻提示 + 再按一次才退出
+    // 2026-10-16 起根页面不再弹「退出校园助手？」对话框（华为手势导航一划就弹，同学说太烦），
+    // 改成第一次返回只浮一条自动消失的提示条。
 
     private fun launchMain() {
         rule.setContent { CampusTheme { top.ccbase.campus.ExitConfirmation(onExit = { rule.activity.finish() }) { CampusApp(version = "test") } } }
         rule.waitForIdle()
     }
 
-    @Test
-    fun `主界面按返回先给提示_不能一点就退回桌面`() {
-        launchMain()
+    private fun back() {
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
+    }
+
+    private fun exitHintShown() =
+        rule.onAllNodesWithText(EXIT_HINT, substring = true).fetchSemanticsNodes().isNotEmpty()
+
+    private fun exitDialogShown() =
+        rule.onAllNodesWithText("退出校园助手？", substring = true).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun `主界面按返回只给轻提示_不能弹对话框也不能退回桌面`() {
+        launchMain()
+        back()
         assertTrue(
             "按返回没给任何提示（用户会以为按了没用，或者直接被踢出去）",
-            rule.onAllNodesWithText("退出校园助手？", substring = true).fetchSemanticsNodes().isNotEmpty(),
+            exitHintShown(),
+        )
+        assertFalse(
+            "又弹回了那个要点一下才能继续的对话框 —— 手势导航一划一弹，同学反馈过太烦",
+            exitDialogShown(),
         )
         assertFalse("第一次按返回就把 App 关掉了", rule.activity.isFinishing)
     }
 
     @Test
-    fun `连着按两次返回才真的退出`() {
+    fun `提示期内再按一次返回才真的退出`() {
         launchMain()
-        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
-        rule.waitForIdle()
-        rule.onNodeWithText("退出").performClick()
-        rule.waitForIdle()
-        assertTrue("点击退出应结束 App", rule.activity.isFinishing)
+        back()
+        back()
+        assertTrue("提示期内连按两次返回应该退出 App", rule.activity.isFinishing)
     }
 
     @Test
-    fun `在看板里按返回只退看板_不该弹退出提示`() {
-        launchBoard()
-        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+    fun `提示条两秒后自己收回_别留着当陷阱`() {
+        launchMain()
+        back()
+        assertTrue("前提：第一次返回要出提示", exitHintShown())
+        rule.mainClock.advanceTimeBy(EXIT_ARMED_MS + 500)
         rule.waitForIdle()
+        assertFalse("提示条超时后应该自己消失", exitHintShown())
+        back()
+        assertFalse("提示早就收回了，这一下返回不该退出 App", rule.activity.isFinishing)
+        assertTrue("超时后的返回要重新给提示（不能静默）", exitHintShown())
+    }
+
+    @Test
+    fun `在看板里按返回只退看板_不该出现退出提示`() {
+        launchBoard()
+        back()
         assertFalse("在看板里按返回把看板退掉就行，别顺手把 App 也关了", rule.activity.isFinishing)
-        assertTrue(
+        assertFalse(
             "子页里按返回不该出现「要退出 App」的提示",
-            rule.onAllNodesWithText("退出校园助手？", substring = true).fetchSemanticsNodes().isEmpty(),
+            exitHintShown() || exitDialogShown(),
         )
     }
 

@@ -296,7 +296,7 @@ private fun rememberLibrary(db: CampusDb, load: suspend () -> ApiResult<Catalog>
                 status = when {
                     n < 0 -> "加入失败，再点一次试试"
                     n == 0 -> "这些都已在你的清单里了"
-                    else -> "已加 ${n} 条到「学习」页的「学习库」"
+                    else -> "已加 ${n} 条，可在学习库的「我的收藏」查看"
                 }
                 if (n > 0) picked = emptySet()
                 // ⚠️ 刷新界面状态要放在"成功/失败判断"之外单独做：这里刷新失败不该被
@@ -362,7 +362,7 @@ private fun header(h: LibraryHandle) {
         Text(
             // 一句话说清它是什么、以及"挑了会发生什么" —— 不说清用户根本不敢点
             "同学探过、能打开的链接汇总在这儿。点一门课进去看它的课程信息与资料；" +
-                "挑中的会变成你「学习」页里的一条任务。",
+                "挑中的会加入学习库的「我的收藏」。",
             color = C.txt3, fontSize = 11.5.sp, lineHeight = 17.sp,
         )
     }
@@ -609,7 +609,7 @@ private fun courseDetail(h: LibraryHandle, cat: Catalog) {
                 color = C.txt2, fontSize = 12.5.sp, style = Digits,
             )
             Spacer(Modifier.height(4.dp))
-            Text("还没加进你的课表 —— 加入后就能照它排任务、记资料。",
+            Text("尚未加入课程目录；加入后可整理相关学习资料。",
                 color = C.txt3, fontSize = 11.5.sp)
             Spacer(Modifier.height(10.dp))
             pickButton(row.name, h)
@@ -683,6 +683,8 @@ private fun itemList(h: LibraryHandle, cat: Catalog) {
 @Composable
 private fun itemRow(h: LibraryHandle, it0: CatalogItem, withKind: Boolean = true) {
     val ctx = LocalContext.current
+    var browser by remember { mutableStateOf(false) }
+    if(browser) ResourceBrowser(it0.url){browser=false}
     val inList = it0.url in h.added          // 已经在我的清单里了
     val on = it0.url in h.picked || inList   // 方框：勾上的 / 已加入的都打勾
     // 「看」和「收藏」拆成两件事（用户 2026-09-20：*学习库里还是不能预览课程…非要加进清单*）：
@@ -694,7 +696,7 @@ private fun itemRow(h: LibraryHandle, it0: CatalogItem, withKind: Boolean = true
         modifier = Modifier
             .fillMaxWidth()
             .testTag(libItemTag(it0.url))
-            .clickable { Links.open(ctx, it0.url) }
+            .clickable { browser=true }
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.Top,
     ) {

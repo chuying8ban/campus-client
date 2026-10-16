@@ -29,7 +29,6 @@ import top.ccbase.campus.domain.slotLabel
 import top.ccbase.campus.domain.timeRows
 import top.ccbase.campus.domain.weekNo
 import top.ccbase.campus.domain.weeksWithClass
-import top.ccbase.campus.ui.common.RefreshBar
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 import java.time.LocalDate

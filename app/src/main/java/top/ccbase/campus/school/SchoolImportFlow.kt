@@ -41,6 +41,7 @@ import top.ccbase.campus.data.remote.TokenStore
 import top.ccbase.campus.domain.activitiesFrom
 import top.ccbase.campus.net.ApiResult
 import top.ccbase.campus.net.CampusApi
+import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.C
 import androidx.compose.material3.MaterialTheme
 import top.ccbase.campus.net.SchoolImportPolicy
@@ -60,6 +61,33 @@ fun SchoolImportFlow(
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    var school by remember { mutableStateOf(SchoolRegistry.cupk) }
+    var entrySchool by remember { mutableStateOf(ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).getString("id",null)) }
+    var attemptMessage by remember { mutableStateOf<String?>(null) }
+    val receiveTimetable: (String)->Unit = {raw->scope.launch {
+        try {
+            val rows=kotlinx.serialization.json.Json.parseToJsonElement(raw) as kotlinx.serialization.json.JsonArray
+            require(rows.all {e->val o=e as kotlinx.serialization.json.JsonObject;listOf("startTime","endTime").all{k->(o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.matches(Regex("\\d{2}:\\d{2}"))==true}}) { "已识别课程，但缺少学校精确作息时间；尚未保存，原课表未改变" }
+            rows.forEach {e->val o=e as kotlinx.serialization.json.JsonObject;val start=java.time.LocalTime.parse((o.getValue("startTime") as kotlinx.serialization.json.JsonPrimitive).content);val end=java.time.LocalTime.parse((o.getValue("endTime") as kotlinx.serialization.json.JsonPrimitive).content);require(start<end){"学校时间不合法，原课表未改变"}}
+            val result=withContext(Dispatchers.IO){EamsLocalImport.import(db,raw,true)}
+            check(result.imported){"没有可保存课程，原课表未改变"}
+            attemptMessage="已保存 ${result.counts["courses"] ?: 0} 门课。请核对周次、时间和地点。"
+        } catch(e:Exception){attemptMessage=e.message ?: "读取失败，原课表未改变"}
+    }}
+    if(attemptMessage!=null)AlertDialog(onDismissRequest={attemptMessage=null},title={Text("课表读取结果")},text={Text(attemptMessage!!)},confirmButton={TextButton(onClick={attemptMessage=null}){Text("知道了")}})
+    var austLogin by remember { mutableStateOf(entrySchool in listOf("aust","ahut","neau")) }
+    if(austLogin) {
+        when(entrySchool) {
+            "ahut" -> AustLogin("安徽工业大学","https://smart.ahut.edu.cn/",setOf("smart.ahut.edu.cn","vpncas.ahut.edu.cn"),onTimetable=receiveTimetable){onCancel()}
+            "neau" -> AustLogin("东北农业大学",NeauImport.entry,NeauImport.hosts,onTimetable=receiveTimetable){onCancel()}
+            else -> AustLogin(onTimetable=receiveTimetable){onCancel()}
+        }
+        return
+    }
+    var fileImport by remember { mutableStateOf(false) }
+    if(fileImport) { SchoolFileImport(db){onCancel()};return }
+    var choosingSchool by remember { mutableStateOf(false) }
+    var schoolQuery by remember { mutableStateOf("") }
     var stage by remember { mutableStateOf(Stage.Intro) }
     var err by remember { mutableStateOf<String?>(null) }
     var imported by remember { mutableStateOf<EamsLocalImport.ImportResult?>(null) }
@@ -68,6 +96,9 @@ fun SchoolImportFlow(
     var cloudMessage by remember { mutableStateOf<String?>(null) }
     var cloudSynced by remember { mutableStateOf(false) }
     var showCloudTerms by remember { mutableStateOf(false) }
+    var rememberLogin by remember { mutableStateOf(SchoolSession.remembered(ctx)) }
+    var confirmRemember by remember { mutableStateOf(false) }
+    var forgetNotice by remember { mutableStateOf(false) }
     var keepManual by remember { mutableStateOf(true) }
 
     androidx.activity.compose.BackHandler { if (!busy) onCancel() }
@@ -76,9 +107,7 @@ fun SchoolImportFlow(
         scope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val acts = activitiesFrom(raw)
-                        ?: throw IllegalStateException("课表页里没有 activities")
-                    val cleaned = SchoolImportPolicy.activityAllowlist(acts.toString())
+                    val cleaned = SchoolRegistry.adapter(school).normalizedActivities(raw)
                     EamsLocalImport.import(db, cleaned, keepManual).let {
                         if (!it.imported) throw IllegalStateException("课表里没有可导入的课程")
                         it to cleaned
@@ -110,20 +139,42 @@ fun SchoolImportFlow(
         }
     }
 
+    if (choosingSchool) AlertDialog(onDismissRequest={choosingSchool=false},title={Text("选择学校")},text={Column {
+        androidx.compose.material3.OutlinedTextField(schoolQuery,{schoolQuery=it},label={Text("搜索学校")},singleLine=true)
+        SchoolRegistry.search(schoolQuery).forEach { p -> TextButton(onClick={entrySchool="cupk";ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id","cupk").apply();school=p;rememberLogin=SchoolSession.remembered(ctx,p);choosingSchool=false}){Text("${p.name} · ${p.level}")} }
+        if(SchoolRegistry.search(schoolQuery).isEmpty())Text("该学校暂未适配。请使用手动课表；不要输入教务密码或Cookie申请适配。",color=C.txt2)
+        TextButton(onClick={entrySchool="aust";ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id","aust").apply();choosingSchool=false;austLogin=true}){Text("安徽理工大学 · 官方登录测试，未接入课表")}
+        listOf("ahut" to "安徽工业大学", "neau" to "东北农业大学").forEach{(id,name)->TextButton(onClick={entrySchool=id;ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id",id).apply();choosingSchool=false;austLogin=true}){Text("$name · 官方登录测试，未接入课表")}}
+        Text("仅克拉玛依校区支持自动课表导入；其他学校不能仅换网址读取。",color=C.txt2)
+    }},confirmButton={TextButton(onClick={choosingSchool=false}){Text("关闭")}})
+    if(entrySchool=="other" && !fileImport && !austLogin) {
+        Column(Modifier.fillMaxSize().overlaySurface.padding(24.dp)) {
+            Text("其他学校",fontSize=22.sp,color=C.txt)
+            Text("该校尚未接入教务直接读取，不会默认打开克校教务。可先手动编辑课表或使用按模板整理的文件。",color=C.txt2)
+            TextButton(onClick={fileImport=true}){Text("通用文件导入")}
+            TextButton(onClick=onCancel){Text("返回")}
+        }
+        return
+    }
+    if (confirmRemember) AlertDialog(onDismissRequest={confirmRemember=false},title={Text("在本机记住学校登录？")},text={Text("只保留这台手机的学校登录会话，不保存密码，不上传 Cookie。共用手机不建议开启。学校可随时让会话过期；卸载或清除数据后无法恢复。不会后台频繁访问学校。")},confirmButton={TextButton(onClick={SchoolSession.setRemembered(ctx,true,school);rememberLogin=true;confirmRemember=false}){Text("同意并开启")}},dismissButton={TextButton(onClick={confirmRemember=false}){Text("取消")}})
+    if (forgetNotice) AlertDialog(onDismissRequest={forgetNotice=false},title={Text("已忘记学校登录")},text={Text("本机学校会话已清除，原课表和云端账号未改变。")},confirmButton={TextButton(onClick={forgetNotice=false}){Text("知道了")}})
     when (stage) {
         Stage.Intro -> Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 30.dp),
+            Modifier.fillMaxSize().background(C.bg).clickable(enabled = true, onClick = {}).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 30.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("← 返回", fontSize = 13.sp, color = C.txt3,
                     modifier = Modifier.clickable { onCancel() }.padding(vertical = 6.dp))
             }
             Spacer(Modifier.height(18.dp))
-            Text("导入官方教务课表", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            TextButton(onClick={austLogin=true}) { Text("安徽理工大学 · 官方登录测试（未接入课表）") }
+            TextButton(onClick={fileImport=true}) { Text("其他学校：通用课表文件导入") }
+            TextButton(onClick={choosingSchool=true}) { Text("${school.name} · ${school.level}  ▾") }
+            Text("导入官方教务课表", color = C.txt, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             Text(
                 "课表默认只导入到你自己的手机里，不会发给任何服务器。\n"
-                    + "登录发生在学校官方页面 https://eams.cupk.edu.cn；App 不读取、不保存你的教务密码。",
+                    + "登录发生在学校官方页面 ${school.origin}；App 不读取、不保存你的教务密码。",
                 fontSize = 13.sp, lineHeight = 21.sp, color = C.txt2,
             )
             err?.let {
@@ -134,7 +185,15 @@ fun SchoolImportFlow(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Checkbox(checked = keepManual, onCheckedChange = { keepManual = it })
-                Text("保留手动课表修改（取消勾选将用官方课表替换课程时段，自习保留）", fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("保留本机手动课表\n取消勾选：使用官方课程时段替换；早晚自习保留", color = C.txt2, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Checkbox(checked=rememberLogin,onCheckedChange={if(it)confirmRemember=true else {SchoolSession.setRemembered(ctx,false,school);rememberLogin=false;forgetNotice=true}})
+                Text("在本机记住学校登录（不保存密码）",color=C.txt2,fontSize=13.sp)
+            }
+            if(rememberLogin) {
+                Text("有效会话会复用，过期需重新登录；不保证永久在线。",color=C.txt2,fontSize=12.sp)
+                TextButton(onClick={SchoolSession.forget(ctx,school);rememberLogin=false;forgetNotice=true}){Text("忘记登录")}
             }
             Spacer(Modifier.height(24.dp))
             Box(
@@ -145,13 +204,14 @@ fun SchoolImportFlow(
             ) { Text("打开官方教务登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
             Spacer(Modifier.height(16.dp))
             Text(
-                "没有校园网也能先离线进入；之后可以随时在「我的」里导入。",
+                "联网后可从「课表 → 更新课表」重新导入；本机内容可离线查看。",
                 fontSize = 12.sp, lineHeight = 19.sp, color = C.txt3,
             )
             Spacer(Modifier.height(30.dp))
         }
 
         Stage.Web -> SchoolWebLogin(
+            profile = school,
             onTimetableJson = ::handleRaw,
             onWebError = {
                 err = it
@@ -161,14 +221,14 @@ fun SchoolImportFlow(
         )
 
         Stage.Summary -> Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 30.dp),
+            Modifier.fillMaxSize().background(C.bg).clickable(enabled = true, onClick = {}).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 30.dp),
         ) {
-            Text(if (cloudSynced) "已同步到云端" else "已导入本机", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (cloudSynced) "已同步到云端" else "已导入本机", color = C.txt, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             val i = imported
             Text(
                 "读到 ${i?.counts?.get("courses") ?: 0} 门课 · ${i?.counts?.get("slots") ?: 0} 个上课时段。" +
-                    "你的任务、打卡和专注记录没有被改动。",
+                    "已有收藏和活动记录没有被改动。",
                 fontSize = 13.sp, lineHeight = 21.sp, color = C.txt2,
             )
             Spacer(Modifier.height(20.dp))
@@ -265,7 +325,7 @@ object SchoolCloudSync {
         return when (refreshed) {
             is ApiResult.Ok -> ApiResult.Ok(
                 "已同步到云端：本机现在是 ${refreshed.value.counts["courses"] ?: 0} 门课 · " +
-                    "${refreshed.value.counts["tasks"] ?: 0} 项任务$guestNote$suffix",
+                    "${refreshed.value.counts["slots"] ?: 0} 个上课时段$guestNote$suffix",
             )
             is ApiResult.Err -> ApiResult.Err(refreshed.code, refreshed.message)
         }
