@@ -216,7 +216,7 @@ fun MeScreen(
                         // 服务器真的去教务读过了 → 把新计划拉下来（课表换了，提醒也必须重排）
                         if (r.value.noCreds.isNotEmpty() || !r.value.ok) {
                             msg = "${SyncLogic.serverSyncText(r.value)} —— 已改为从服务器同步。\n" +
-                                "请在「课表 → 更新课表」选择学校，使用官方页面导入；App 不保存教务密码。"
+                                "请在「课表 → 更新课表」用官方页面重新导入；App 不保存教务密码。"
                             fallbackSync(t)
                         } else {
                             val head = SyncLogic.serverSyncText(r.value)

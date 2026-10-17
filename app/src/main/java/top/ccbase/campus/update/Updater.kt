@@ -78,9 +78,7 @@ object Updater {
 
     const val DIR = "update"
 
-    fun manifestUrl(base: String): String = if (base == top.ccbase.campus.BuildConfig.UPDATE_BASE && top.ccbase.campus.BuildConfig.APPLICATION_ID.endsWith(".privacytest"))
-        base + top.ccbase.campus.BuildConfig.UPDATE_PATH
-        else UpdateLogic.manifestUrl(base)
+    fun manifestUrl(base: String): String = UpdateLogic.manifestUrl(base)
 
     /**
      * 安装包落在 **filesDir**（不是 cacheDir）。

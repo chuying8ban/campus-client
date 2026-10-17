@@ -61,8 +61,10 @@ fun SchoolImportFlow(
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var school by remember { mutableStateOf(SchoolRegistry.cupk) }
-    var entrySchool by remember { mutableStateOf(ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).getString("id",null)) }
+    // 正式版只支持中国石油大学（北京）克拉玛依校区：固定克校，不再有学校选择/外校登录测试。
+    val school = SchoolRegistry.cupk
+    // 旧版本写进过 school_choice 的外校标识（aust/ahut/neau/other）一律作废，避免带着它走进正式流程。
+    remember { runCatching { ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().remove("id").apply() } }
     var attemptMessage by remember { mutableStateOf<String?>(null) }
     val receiveTimetable: (String)->Unit = {raw->scope.launch {
         try {
@@ -75,19 +77,6 @@ fun SchoolImportFlow(
         } catch(e:Exception){attemptMessage=e.message ?: "读取失败，原课表未改变"}
     }}
     if(attemptMessage!=null)AlertDialog(onDismissRequest={attemptMessage=null},title={Text("课表读取结果")},text={Text(attemptMessage!!)},confirmButton={TextButton(onClick={attemptMessage=null}){Text("知道了")}})
-    var austLogin by remember { mutableStateOf(entrySchool in listOf("aust","ahut","neau")) }
-    if(austLogin) {
-        when(entrySchool) {
-            "ahut" -> AustLogin("安徽工业大学","https://smart.ahut.edu.cn/",setOf("smart.ahut.edu.cn","vpncas.ahut.edu.cn"),onTimetable=receiveTimetable){onCancel()}
-            "neau" -> AustLogin("东北农业大学",NeauImport.entry,NeauImport.hosts,onTimetable=receiveTimetable){onCancel()}
-            else -> AustLogin(onTimetable=receiveTimetable){onCancel()}
-        }
-        return
-    }
-    var fileImport by remember { mutableStateOf(false) }
-    if(fileImport) { SchoolFileImport(db){onCancel()};return }
-    var choosingSchool by remember { mutableStateOf(false) }
-    var schoolQuery by remember { mutableStateOf("") }
     var stage by remember { mutableStateOf(Stage.Intro) }
     var err by remember { mutableStateOf<String?>(null) }
     var imported by remember { mutableStateOf<EamsLocalImport.ImportResult?>(null) }
@@ -139,23 +128,6 @@ fun SchoolImportFlow(
         }
     }
 
-    if (choosingSchool) AlertDialog(onDismissRequest={choosingSchool=false},title={Text("选择学校")},text={Column {
-        androidx.compose.material3.OutlinedTextField(schoolQuery,{schoolQuery=it},label={Text("搜索学校")},singleLine=true)
-        SchoolRegistry.search(schoolQuery).forEach { p -> TextButton(onClick={entrySchool="cupk";ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id","cupk").apply();school=p;rememberLogin=SchoolSession.remembered(ctx,p);choosingSchool=false}){Text("${p.name} · ${p.level}")} }
-        if(SchoolRegistry.search(schoolQuery).isEmpty())Text("该学校暂未适配。请使用手动课表；不要输入教务密码或Cookie申请适配。",color=C.txt2)
-        TextButton(onClick={entrySchool="aust";ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id","aust").apply();choosingSchool=false;austLogin=true}){Text("安徽理工大学 · 官方登录测试，未接入课表")}
-        listOf("ahut" to "安徽工业大学", "neau" to "东北农业大学").forEach{(id,name)->TextButton(onClick={entrySchool=id;ctx.getSharedPreferences("school_choice",Context.MODE_PRIVATE).edit().putString("id",id).apply();choosingSchool=false;austLogin=true}){Text("$name · 官方登录测试，未接入课表")}}
-        Text("仅克拉玛依校区支持自动课表导入；其他学校不能仅换网址读取。",color=C.txt2)
-    }},confirmButton={TextButton(onClick={choosingSchool=false}){Text("关闭")}})
-    if(entrySchool=="other" && !fileImport && !austLogin) {
-        Column(Modifier.fillMaxSize().overlaySurface.padding(24.dp)) {
-            Text("其他学校",fontSize=22.sp,color=C.txt)
-            Text("该校尚未接入教务直接读取，不会默认打开克校教务。可先手动编辑课表或使用按模板整理的文件。",color=C.txt2)
-            TextButton(onClick={fileImport=true}){Text("通用文件导入")}
-            TextButton(onClick=onCancel){Text("返回")}
-        }
-        return
-    }
     if (confirmRemember) AlertDialog(onDismissRequest={confirmRemember=false},title={Text("在本机记住学校登录？")},text={Text("只保留这台手机的学校登录会话，不保存密码，不上传 Cookie。共用手机不建议开启。学校可随时让会话过期；卸载或清除数据后无法恢复。不会后台频繁访问学校。")},confirmButton={TextButton(onClick={SchoolSession.setRemembered(ctx,true,school);rememberLogin=true;confirmRemember=false}){Text("同意并开启")}},dismissButton={TextButton(onClick={confirmRemember=false}){Text("取消")}})
     if (forgetNotice) AlertDialog(onDismissRequest={forgetNotice=false},title={Text("已忘记学校登录")},text={Text("本机学校会话已清除，原课表和云端账号未改变。")},confirmButton={TextButton(onClick={forgetNotice=false}){Text("知道了")}})
     when (stage) {
@@ -167,9 +139,6 @@ fun SchoolImportFlow(
                     modifier = Modifier.clickable { onCancel() }.padding(vertical = 6.dp))
             }
             Spacer(Modifier.height(18.dp))
-            TextButton(onClick={austLogin=true}) { Text("安徽理工大学 · 官方登录测试（未接入课表）") }
-            TextButton(onClick={fileImport=true}) { Text("其他学校：通用课表文件导入") }
-            TextButton(onClick={choosingSchool=true}) { Text("${school.name} · ${school.level}  ▾") }
             Text("导入官方教务课表", color = C.txt, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             Text(

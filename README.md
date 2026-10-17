@@ -18,7 +18,7 @@
 本项目不是学校官方 App。教务网页仍有排版兼容问题；提醒送达受系统权限及省电设置影响。AI 建议不保证学习效果，外部学习资源由对应网站提供。
 
 ## 下载与更新
-Android 8.0 及以上：[正式版本](https://github.com/chuying8ban/campus-client/releases)。旧正式版请直接覆盖安装，不要先卸载。独立测试包与正式包数据不互通。
+Android 8.0 及以上：[正式版本](https://github.com/chuying8ban/campus-client/releases)。旧正式版请直接覆盖安装，不要先卸载。本版只支持中国石油大学（北京）克拉玛依校区；不再提供独立测试包。
 
 ## 构建
 JDK 21、Android SDK。本机 local.properties 配置 sdk.dir；后端地址可通过 -PapiBase 覆盖。发布签名需要自己的 keystore，口令不得入仓。

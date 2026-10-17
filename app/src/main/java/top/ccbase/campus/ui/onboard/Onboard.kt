@@ -108,11 +108,6 @@ internal fun TextLink(text: String, onClick: () -> Unit) {
 
 @Composable
 fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
-    val context=androidx.compose.ui.platform.LocalContext.current
-    val preferences=remember { context.getSharedPreferences("school_choice",Context.MODE_PRIVATE) }
-    var selected by remember { mutableStateOf(preferences.getString("id",null)) }
-    var picker by remember { mutableStateOf(selected==null) }
-    if(picker) top.ccbase.campus.school.SchoolDirectory(pick={id->selected=id;preferences.edit().putString("id",id).apply();picker=false},close={picker=false})
     Column(
         Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 40.dp),
         verticalArrangement = Arrangement.Center,
@@ -121,20 +116,19 @@ fun WelcomeScreen(onStart: () -> Unit, onSkip: () -> Unit) {
              color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(10.dp))
         Text(
-            "管理课表与本机安排，查找和收藏学习资源。\n先选择学校；各校适配进度不同，学校登录只在官方页面完成。",
+            "管理课表与本机安排，查找和收藏学习资源。\n本版只服务中国石油大学（北京）克拉玛依校区；登录只在官方教务页面完成。",
             fontSize = 14.sp, lineHeight = 22.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
         )
         Spacer(Modifier.height(44.dp))
-        PrimaryButton(when(selected){"cupk"->"克拉玛依校区 · 导入课表";"aust"->"安徽理工大学 · 测试官方登录";"ahut"->"安徽工业大学 · 测试官方登录";"neau"->"东北农业大学 · 测试官方登录";"other"->"其他学校 · 查看导入方式";else->"请选择学校"}) { if(selected==null)picker=true else onStart() }
-        TextLink("选择或更换学校") { picker=true }
+        PrimaryButton("导入课表（克拉玛依校区教务）") { onStart() }
         Spacer(Modifier.height(6.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             TextLink("先离线进入（以后在「课表 → 更新课表」导入）") { onSkip() }
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "独立开发的校园助手 · 非学校官方产品\n克校支持课表导入；新增三校仅登录测试；其他学校尚未适配教务读取",
+            "独立开发的校园助手 · 非学校官方产品\n仅支持中石大克校区本科教务课表导入",
             fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
         )
     }

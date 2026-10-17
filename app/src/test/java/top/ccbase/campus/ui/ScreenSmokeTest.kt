@@ -203,7 +203,12 @@ class ScreenSmokeTest {
     @Test
     fun `首次启动先出引导页而不是主界面`() {
         rule.setContent { CampusTheme { CampusApp(version = "test") } }
-        waitFor("搜索学校")
+        // 正式版只有克校：引导页第一屏就是克校课表导入入口，不该再有学校搜索/选校对话框
+        waitFor("导入课表（克拉玛依校区教务）")
+        assertTrue(
+            "引导页不该再出现选校搜索框（多学校已下线）",
+            rule.onAllNodesWithText("搜索学校", substring = true).fetchSemanticsNodes().isEmpty()
+        )
         // 引导页绝不该出现底部导航 —— 直接进主界面等于把新用户丢进空白功能里
         listOf("今日", "看板").forEach { tab ->
             assertTrue(

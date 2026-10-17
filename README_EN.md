@@ -15,7 +15,7 @@ Cloud synchronization uploads a snapshot, not ongoing access to the school syste
 This is not an official school app. The embedded school page has known layout compatibility issues. Reminder delivery depends on system permissions and battery settings. AI suggestions do not guarantee results. External resources are provided by their respective websites.
 
 ## Download
-Android 8.0 or newer: [Releases](https://github.com/chuying8ban/campus-client/releases). Upgrade an existing official installation without uninstalling it. Separate test builds do not share data with official builds.
+Android 8.0 or newer: [Releases](https://github.com/chuying8ban/campus-client/releases). Upgrade an existing official installation without uninstalling it. This build supports the Karamay campus of China University of Petroleum (Beijing) only; no separate test builds are published any more.
 
 ## Build
 JDK 21 and Android SDK. Set sdk.dir in local.properties; override the backend with -PapiBase if necessary. Publishing requires your own signing keystore. Never commit signing passwords.

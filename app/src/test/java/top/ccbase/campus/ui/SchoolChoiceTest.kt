@@ -4,11 +4,20 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.*
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.ccbase.campus.ui.onboard.WelcomeScreen
 import top.ccbase.campus.ui.theme.CampusTheme
+
+/**
+ * 正式版只有一所学校：克校。
+ *
+ * 这里钉死的是「上一版把多学校测试面放进正式包」那件事不再复现：
+ * 欢迎页不许出现学校搜索框、学校选择链、外校测试登录入口；
+ * 主按钮必须是克校课表导入，一点就进流程（不需要先选校）。
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk=[34])
 class SchoolChoiceTest {
@@ -16,16 +25,16 @@ class SchoolChoiceTest {
  private val ctx:Context=ApplicationProvider.getApplicationContext()
  @Before fun clear(){ctx.getSharedPreferences("school_choice",0).edit().clear().commit()}
  @After fun clean(){clear()}
- @Test fun `首次选校保存且入口名称跟随学校`() {
-  rule.setContent{CampusTheme{WelcomeScreen({}, {})}}
-  rule.onNodeWithText("搜索学校").assertExists()
-  rule.onNodeWithText("学校名称／省份／学校代码").performTextInput("东北农业大学")
-  rule.onNodeWithText("东北农业大学 · 黑龙江省 · 本科").performClick()
-  rule.onNodeWithText("东北农业大学 · 测试官方登录").assertExists()
-  Assert.assertEquals("neau",ctx.getSharedPreferences("school_choice",0).getString("id",null))
-  rule.onNodeWithText("选择或更换学校").performClick()
-  rule.onNodeWithText("学校名称／省份／学校代码").performTextInput("安徽工业大学")
-  rule.onNodeWithText("安徽工业大学 · 安徽省 · 本科").performClick()
-  rule.onNodeWithText("安徽工业大学 · 测试官方登录").assertExists()
+
+ @Test fun `欢迎页不再要求选学校且只提供克校导入`() {
+  var started=false
+  rule.setContent{CampusTheme{WelcomeScreen({started=true}, {})}}
+  rule.onNodeWithText("导入课表（克拉玛依校区教务）").assertExists().performClick()
+  Assert.assertTrue("点主按钮就该进导入流程，不需要先选学校", started)
+  assertTrue(rule.onAllNodesWithText("搜索学校").fetchSemanticsNodes().isEmpty())
+  assertTrue(rule.onAllNodesWithText("选择或更换学校").fetchSemanticsNodes().isEmpty())
+  assertTrue(rule.onAllNodesWithText("安徽").fetchSemanticsNodes().isEmpty())
+  assertTrue(rule.onAllNodesWithText("东北农业").fetchSemanticsNodes().isEmpty())
+  Assert.assertNull(ctx.getSharedPreferences("school_choice",0).getString("id",null))
  }
 }

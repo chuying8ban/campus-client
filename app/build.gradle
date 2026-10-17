@@ -42,18 +42,14 @@ android {
         buildConfigField "String", "API_BASE", "\"${apiBaseValue}\""
         applicationId "top.ccbase.campus"
         manifestPlaceholders = [campusLabel: "@string/app_name"]
-        if (project.hasProperty("schoolTest")) {
-            applicationIdSuffix ".privacytest"
-            versionNameSuffix "-school-test21"
-            manifestPlaceholders = [campusLabel: "校园助手测试版"]
-        }
-        buildConfigField "boolean", "SCHOOL_TEST", project.hasProperty("schoolTest") ? 'true' : 'false'
-        buildConfigField "String", "UPDATE_BASE", project.hasProperty("schoolTest") ? '"https://study.ccbase.top"' : "\"${apiBaseValue}\""
-        buildConfigField "String", "UPDATE_PATH", project.hasProperty("schoolTest") ? '"/updates/school-test/manifest.json"' : '"/updates/manifest.json"' 
+        // 测试通道（school-test 通道 / .privacytest 包名 / 9021 版本号）已随「只支持克校」下线：
+        // 一个包、一条更新通道，构建参数里没有第二个开关。
+        buildConfigField "String", "UPDATE_BASE", "\"${apiBaseValue}\""
+        buildConfigField "String", "UPDATE_PATH", '"/updates/manifest.json"'
         minSdk 26
         targetSdk 34
-        versionCode project.hasProperty("schoolTest") ? 9021 : 90
-        versionName "2.1.6"
+        versionCode 91
+        versionName "2.1.7"
     }
 
     // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）
