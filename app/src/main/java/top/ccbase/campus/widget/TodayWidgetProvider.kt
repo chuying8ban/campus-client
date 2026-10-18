@@ -244,7 +244,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
         /** 位图预算：RemoteViews 走 binder，位图一大 MIUI 会静默丢掉整张图（卡片只剩文字）。
          *  20 万像素 ≈ 800×250，ARGB 约 800KB，桌面 4×2 也够看。
          */
-        private const val BG_MAX_PX = 200_000
+        // 120_000 像素（≈490KB ARGB）—— 比 binder 1MB 上限再留一半余量：
+        // MIUI 到底按哪个数丢图没有文档，宁可糊一点也要它显示出来。
+        private const val BG_MAX_PX = 120_000
 
         /** 缩放铺满 + 圆角蒙版，一步成型。失败返回 null，由调用方退回纯色底。 */
         private fun bgBitmap(

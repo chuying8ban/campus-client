@@ -147,7 +147,7 @@ object WidgetFrames {
         // fitXY 只拉伸不裁切，这正是 3.2.1 那次修法的关键。
         // 每帧像素预算：4 帧 × 5 万像素 ≈ 800KB（ARGB_8888）。
         // RemoteViews 把像素一起塞进 binder 事务，总量超过 ~1MB 桌面就会整块丢掉。
-        val perFrame = 50_000f
+        val perFrame = 40_000f
         val px = wPx.toLong() * hPx
         // 下限 0.24：1200×600 的极端格子也要压进预算（0.32 时 4 帧仍会到 1.1MB）
         val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.24f)

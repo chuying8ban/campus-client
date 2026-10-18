@@ -1,6 +1,8 @@
 package top.ccbase.campus.ui.me
 
 import android.net.Uri
+import top.ccbase.campus.widget.TodayWidgetProvider
+import top.ccbase.campus.widget.WidgetThemes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -461,8 +463,83 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () ->
         Text("›", color = C.txt3, fontSize = 16.sp)
     }
 
+    Spacer(Modifier.height(10.dp))
+    WidgetSelfCheck()
+
     Spacer(Modifier.height(16.dp))
     WidgetSection(onOpenGallery = { onOpenGallery("landscape", "widget") })
+}
+
+/**
+ * 小组件自检（2026-10-19 用户："桌面小控件依旧不能正常显示主题，你好好修一修"）。
+ *
+ * 桌面那张卡是 launcher 画的，我们在 App 里看不到它**实际收到的画面**；光看桌面截图
+ * 分不清是"我们没画出来"还是"launcher 把它丢了"。这里把**同一份 RemoteViews** 在 App 里
+ * apply 一遍给你看：图在这儿有、桌面没有 ⇒ launcher 丢的；这儿也没有 ⇒ 我的锅。
+ * 顺便把规格和底图尺寸写出来，一眼能对。
+ */
+@Composable
+private fun WidgetSelfCheck() {
+    val ctx = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    val spec = WidgetThemes.spec(ctx)
+    val bmp = remember(spec) {
+        runCatching { TodayWidgetProvider.backgroundBitmapFor(ctx, spec, 900, 400) }.getOrNull()
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .clickable { open = !open }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("小组件自检", color = C.txt2, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (bmp != null) "$spec · 底图 ${bmp.width}×${bmp.height}" else "$spec · 底图生成失败",
+            color = if (bmp != null) C.txt3 else C.amber,
+            fontSize = 10.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(if (open) "⌃" else "⌄", color = C.txt3, fontSize = 13.sp)
+    }
+
+    if (open) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "下面这张和桌面拿到的是同一份 RemoteViews。如果这里有图、桌面没有，" +
+                "就是桌面（launcher）把它丢了，删掉小组件重加一次；这里也没图就是我的锅。",
+            color = C.txt3, fontSize = 10.sp, lineHeight = 15.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { c ->
+                android.widget.FrameLayout(c).apply {
+                    runCatching {
+                        val view = TodayWidgetProvider.themeViews(c, 900, 400).apply(c, this)
+                        addView(
+                            view,
+                            android.widget.FrameLayout.LayoutParams(
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                            ),
+                        )
+                    }.onFailure { err ->
+                        addView(android.widget.TextView(c).apply {
+                            text = "RemoteViews 渲染失败：${err.message}"
+                            setTextColor(0xFFFF8888.toInt())
+                            textSize = 11f
+                            setPadding(16, 16, 16, 16)
+                        })
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(150.dp),
+        )
+    }
 }
 
 // ────────────────────────────── 公用小件 ──────────────────────────────
