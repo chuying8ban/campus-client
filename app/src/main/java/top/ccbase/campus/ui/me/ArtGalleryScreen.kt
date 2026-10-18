@@ -419,6 +419,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                             } else {
                                 null
                             }
+                            var bad = false
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) {
                                     // 动态：整段视频存下来当"动态壁纸"（解码成 Bitmap 就只剩一帧）
@@ -432,6 +433,14 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                         }
                                         val kind = UserMedia.saveBytes(ctx, bytes, slot)
                                             ?: return@withContext false
+                                        // 落盘之后立刻验能不能播：截断的 mp4 有大小、放不出来，
+                                        // 用它当背景 = 整屏黑（用户 2026-10-19 截图）
+                                        val saved = UserMedia.current(ctx, slot)
+                                        if (saved == null || !UserMedia.playable(saved.file)) {
+                                            UserMedia.clear(ctx, slot)
+                                            bad = true
+                                            return@withContext false
+                                        }
                                         if (target == "background") {
                                             BackgroundPhoto.clear(ctx)
                                             AppearanceStore.setBackground(ctx, UserMedia.spec(kind))
@@ -462,7 +471,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                     }
                                 }
                                 busyId = null
-                                if (ok) onClose() else msg = "这张图没下下来，换一张试试"
+                                if (ok) onClose() else msg =
+                                    if (bad) "这段动图没下完整，再点一次试试" else "这张图没下下来，换一张试试"
                             }
                         },
                     )

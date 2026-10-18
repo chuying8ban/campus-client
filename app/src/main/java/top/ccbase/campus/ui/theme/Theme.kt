@@ -358,20 +358,20 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
             val media = remember(bg) { UserMedia.current(ctx) }
             Box(Modifier.fillMaxSize().background(p.bg))
             if (media != null) {
-                Box(Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value)) {
+                // 50% 浓淡时只给 0.5 的图层 alpha，暗色片段等于再砍一半亮度 → 抬到 0.55~1.0
+                val layer = (0.55f + 0.45f * AppearanceStore.bgAlpha.value).coerceIn(0f, 1f)
+                Box(Modifier.fillMaxSize().alpha(layer)) {
                     UserMediaBackground(media, Modifier.fillMaxSize())
                 }
-                // 同上：视频/gif 也是"深色画面 + 深色底色"，单靠 alpha 调不出差别
-                Box(
-                    Modifier.fillMaxSize().background(
-                        p.bg.copy(alpha = (1f - AppearanceStore.bgAlpha.value) * 0.75f),
-                    ),
-                )
+                // 同上：视频/gif 也是"深色画面 + 深色底色"，单靠 alpha 调不出差别。
+                // 2026-10-19：这里原来 0.75、压暗带到 0.72 —— 暗色片段直接被压成纯黑
+                // （用户截图："主题选了一个动图后就这样了"，整屏黑）。和动效那边统一降下来。
+                val k = AppearanceStore.bgAlpha.value
+                Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.45f)))
                 // 视频/gif 拿不到"明暗极值"，遮罩跟着"浓淡"走：调淡了画面本来就暗，
                 // 再压一层厚遮罩会变成一块灰板。浓 → 遮罩厚，淡 → 遮罩薄。
-                val k = AppearanceStore.bgAlpha.value
-                val mid = (0.05f + 0.20f * k).coerceIn(0.05f, 0.22f)
-                val edge = (mid + 0.24f + 0.12f * k).coerceAtMost(0.72f)
+                val mid = (0.03f + 0.10f * k).coerceAtMost(0.16f)
+                val edge = (mid + 0.16f).coerceAtMost(0.42f)
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(

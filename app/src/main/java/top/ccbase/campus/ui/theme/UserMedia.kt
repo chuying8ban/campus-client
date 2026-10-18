@@ -101,6 +101,46 @@ object UserMedia {
         return Media(kind, f)
     }
 
+    /**
+     * 文件能不能真的播/解。
+     *
+     * 2026-10-19 用户截图："主题选了一个动图后就这样了"（整屏黑）。图库那段视频是**流式下载**的，
+     * 断了/被截断也会落盘成一个"看着有大小、其实放不了"的 mp4 —— 于是 VideoView 不出画面、
+     * 抽封面也失败，整层就剩底色。落盘之后必须验一遍，验不过就删掉重下，别把它当主题用。
+     */
+    fun playable(f: File): Boolean = runCatching {
+        if (!f.isFile || f.length() == 0L) return false
+        when (f.extension.lowercase()) {
+            "gif" -> {
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(f.absolutePath, o)
+                o.outWidth > 0 && o.outHeight > 0
+            }
+            else -> {
+                android.media.MediaMetadataRetriever().use { r ->
+                    r.setDataSource(f.path)
+                    val ms = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toLongOrNull() ?: 0L
+                    val w = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                        ?.toIntOrNull() ?: 0
+                    ms > 0 && w > 0
+                }
+            }
+        }
+    }.getOrDefault(false)
+
+    /** 视频宽高（判断横竖版用）；读不到返回 null。 */
+    fun videoSize(f: File): Pair<Int, Int>? = runCatching {
+        android.media.MediaMetadataRetriever().use { r ->
+            r.setDataSource(f.path)
+            val w = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull() ?: 0
+            val h = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull() ?: 0
+            if (w > 0 && h > 0) w to h else null
+        }
+    }.getOrNull()
+
     fun clear(ctx: Context, slot: Slot? = null) {
         dir(ctx).listFiles()
             ?.filter { f ->

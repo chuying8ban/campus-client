@@ -596,6 +596,22 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 进 App 就在后台查 + 下，全程不弹界面；下好了这里浮一条"点一下安装"。
     var readyApk by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)) }
     LaunchedEffect(Unit) {
+        // 背景自愈：设的是视频/gif 主题、但文件被清掉或下载被截断（放不出来）时，
+        // 别让用户对着整屏黑 —— 直接退回预设配色，并把坏文件删掉。
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val bgv = top.ccbase.campus.ui.theme.AppearanceStore.background.value
+            if (bgv.startsWith(top.ccbase.campus.ui.theme.UserMedia.PREFIX)) {
+                val m = top.ccbase.campus.ui.theme.UserMedia.current(appCtx)
+                if (m == null || !top.ccbase.campus.ui.theme.UserMedia.playable(m.file)) {
+                    top.ccbase.campus.ui.theme.UserMedia.clear(appCtx)
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        top.ccbase.campus.ui.theme.AppearanceStore.setBackground(
+                            appCtx, top.ccbase.campus.ui.theme.BG_PRESET_PREFIX + "dusk",
+                        )
+                    }
+                }
+            }
+        }
         top.ccbase.campus.update.SilentUpdate.kick(appCtx, versionCode, version)
         // 后台下完是异步的：前台每 8 秒看一次就绪状态，够了，不做推送
         while (true) {
