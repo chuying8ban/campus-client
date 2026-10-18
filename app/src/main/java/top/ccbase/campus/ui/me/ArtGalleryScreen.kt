@@ -92,6 +92,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var tick by remember { mutableIntStateOf(0) }
     // 搜索过程的一句话（"正在搜…" / "没搜到，再点一次"），别让用户对着空白干等
     var stage by remember { mutableStateOf<String?>(null) }
+    // 「动图」板块（用户 2026-10-18："图库里专门放一个动图板块专门放动图，app 主题和小控件主题都要有"）：
+    // 打开后只问服务端要会动的那批，不再和静态混排。
+    var animOnly by remember { mutableStateOf(false) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     val grid = rememberLazyGridState()
@@ -112,7 +115,13 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 2026-10-18 用户反馈：搜不到的时候界面上只有一句"搜索失败，检查下网络"，也不知道在干嘛。
     // 实际原因通常不是他的网，而是**上游第一次查要现算**（冷缓存 7 秒左右，几乎贴着客户端超时）。
     // 所以现在：① 自动重试一次；② 每一步都写进 [stage] 给用户看；③ 失败时明说"再点一次搜索"。
-    LaunchedEffect(query, tick) {
+    // 动图板块没有"精选"这批，空着进来就是空白 —— 给一个种子词，用户随手改。
+    val animSeed = if (portrait) "少女" else "风景"
+    LaunchedEffect(animOnly) {
+        if (animOnly && query.isBlank()) query = animSeed
+    }
+
+    LaunchedEffect(query, tick, animOnly) {
         val q = query.trim()
         if (q.isEmpty()) {
             live = emptyList(); page = 1; hasMore = false; error = null; hint = null; stage = null
@@ -124,12 +133,17 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         for (attempt in 1..2) {
             stage = if (attempt == 1) "正在搜「$q」…（整库查询，第一次要几秒）"
             else "第一次没返回，正在再试一次…"
-            val r = runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
+            val r = runCatching {
+                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey, animOnly = animOnly) }
+            }
             if (r.isSuccess) {
                 val pg = r.getOrThrow()
                 live = pg.items; page = 1; hasMore = pg.hasMore; hint = pg.hint
                 stage = if (pg.items.isEmpty()) {
-                    "「$q」这次没搜到 —— 再点一下「搜索」多试一次"
+                    if (animOnly) "「$q」这个关键词没有动图 —— 换个词试试（风景 / 少女 / 猫）"
+                    else "「$q」这次没搜到 —— 再点一下「搜索」多试一次"
+                } else if (animOnly) {
+                    "「$q」找到 ${pg.items.size} 张动图"
                 } else {
                     "「$q」找到 ${pg.items.size} 张"
                 }
@@ -150,7 +164,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         loadingMore = true
         scope.launch {
             val q = query.trim()
-            runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey) } }
+            runCatching {
+                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey, animOnly = animOnly) }
+            }
                 .onSuccess { pg ->
                     // 同 id 只留一份：翻页衔接处偶有重复，重复的 key 会让网格直接抛异常
                     val have = live.mapTo(HashSet()) { i -> i.id }
@@ -172,7 +188,11 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     }
     LaunchedEffect(nearEnd) { if (nearEnd) loadMore() }
 
-    val shown = if (query.isBlank()) (curated ?: emptyList()) else live
+    val shown = when {
+        animOnly -> live
+        query.isBlank() -> curated ?: emptyList()
+        else -> live
+    }
 
     Column(Modifier.fillMaxSize().overlaySurface) {
         Row(
@@ -244,6 +264,32 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             color = C.txt3, fontSize = 10.5.sp,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
         )
+
+        // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
+        // 所以 App 背景和桌面小组件都自动有这个板块。
+        Row(
+            Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf(false to "全部", true to "▶ 动图").forEach { (isAnim, label) ->
+                val on = animOnly == isAnim
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (on) C.violet.copy(alpha = 0.20f) else C.card)
+                        .border(1.dp, if (on) C.violet else C.line, RoundedCornerShape(50))
+                        .clickable { animOnly = isAnim }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        label,
+                        color = if (on) C.violet else C.txt2,
+                        fontSize = 12.sp,
+                        fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
+                    )
+                }
+            }
+        }
 
         // 热门词：新用户不知道能搜什么，空着进来只看到"精选 N 张"很容易以为没内容。
         // 直接给一排能点的词，点一下就等于搜一次。

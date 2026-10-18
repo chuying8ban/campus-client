@@ -148,9 +148,13 @@ object ArtRepo {
      * 官方口径几百万张），把缩略图/大图以 `/api/art/img?u=...` 转发回来 ——
      * 这样手机只需要能连我们的域名（校园网、移动网都行），不必直连境外图床。
      */
-    fun searchLive(q: String, page: Int, orient: String, limit: Int = 100): LivePage {
+    /**
+     * @param animOnly 图库里的「动图」板块：只要会动的（服务端 `anim=1`，不再混静态）
+     */
+    fun searchLive(q: String, page: Int, orient: String, limit: Int = 100, animOnly: Boolean = false): LivePage {
         val enc = java.net.URLEncoder.encode(q, "UTF-8")
-        val url = "$BASE/api/art/search?q=$enc&page=$page&orient=$orient&limit=$limit"
+        val extra = if (animOnly) "&anim=1" else ""
+        val url = "$BASE/api/art/search?q=$enc&page=$page&orient=$orient&limit=$limit$extra"
         val reply = Net.dial.call("GET", url, mapOf("Accept" to "application/json"), null)
         if (reply.code != 200) throw IllegalStateException("搜索 HTTP ${reply.code}")
         val root = JSONObject(reply.text)

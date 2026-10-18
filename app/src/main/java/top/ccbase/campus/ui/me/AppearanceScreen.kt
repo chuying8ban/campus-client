@@ -216,6 +216,8 @@ private fun AppThemePane(
     var msg by remember { mutableStateOf<String?>(null) }
     val photoSet = bgChoice.startsWith(AppearanceStore.BG_PHOTO)
     val mediaSet = bgChoice.startsWith(UserMedia.PREFIX)
+    // 预设里的"动态"（粒子那批）也要能调浓淡（用户 2026-10-18："动态主题也要支持调整浓淡"）
+    val animSet = bgChoice.startsWith(ANIM_PREFIX)
 
     // 系统照片选择器：**不申请存储权限**（这也是它存在的意义）
     val pickImage = rememberLauncherForActivityResult(
@@ -306,11 +308,14 @@ private fun AppThemePane(
         }
     }
 
-    // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
-    if (photoSet) {
+    // 浓淡：自选照片 / 自带动图视频 / 预设动态都吃这一档（内置渐变仍不动，它自己有可读性预算）
+    if (photoSet || mediaSet || animSet) {
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("图片浓淡", color = C.txt3, fontSize = 11.sp)
+            Text(
+                if (photoSet) "图片浓淡" else "画面浓淡",
+                color = C.txt3, fontSize = 11.sp,
+            )
             Spacer(Modifier.width(10.dp))
             Slider(
                 value = AppearanceStore.bgAlpha.value,

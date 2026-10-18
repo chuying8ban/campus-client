@@ -10,12 +10,25 @@ import android.os.Build
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.VideoView
+import android.view.View.MeasureSpec
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -200,6 +213,12 @@ object UserMedia {
 
 /**
  * 铺满整屏的 gif/视频背景。静音、循环、不可点（不能挡住上面的按钮）。
+ *
+ * 2026-10-18 用户："动态主题很不稳定，有时候无法填充完整个 app 或是切换的速度很慢"：
+ * - **填不满**：`VideoView.onMeasure` 是按视频自身宽高比量尺寸的，放进全屏 Box 就成了上下黑边
+ *   （截图里下半截是黑的）。改用 [FillVideoView] 强制按容器尺寸量。
+ * - **切换慢/黑一下**：视频 prepare 之前是黑的。先异步解一帧当封面铺上，等真正开始播再淡出。
+ * - **不稳**：解不出来/编解码不支持时停在封面，而不是留一块黑。
  */
 @Composable
 fun UserMediaBackground(media: UserMedia.Media, modifier: Modifier = Modifier) {
@@ -210,6 +229,11 @@ fun UserMediaBackground(media: UserMedia.Media, modifier: Modifier = Modifier) {
                 ImageView(ctx).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setOnTouchListener { _, _ -> false }
+                    // 必须自己给 MATCH_PARENT：AndroidView 默认按 wrap 量，ImageView 会缩到图片大小
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
                 }
             },
             update = { iv ->
@@ -219,30 +243,75 @@ fun UserMediaBackground(media: UserMedia.Media, modifier: Modifier = Modifier) {
                 }
             },
         )
-        UserMedia.Kind.VIDEO -> AndroidView(
-            modifier = modifier.fillMaxSize(),
-            factory = { ctx ->
-                VideoView(ctx).apply {
-                    setOnTouchListener { _, _ -> false }
-                    setOnPreparedListener { mp ->
-                        mp.isLooping = true
-                        mp.setVolume(0f, 0f)   // 背景不该出声
-                        start()
-                    }
+        UserMedia.Kind.VIDEO -> {
+            val ctx = LocalContext.current
+            var playing by remember(media.file.path) { mutableStateOf(false) }
+            // 封面帧：跟着素材走，换素材自动重解
+            val poster by produceState<Bitmap?>(null, media.file.path) {
+                value = withContext(Dispatchers.IO) { runCatching { frameOf(media.file) }.getOrNull() }
+            }
+            Box(modifier.fillMaxSize()) {
+                poster?.let {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
                 }
-            },
-            update = { vv ->
-                if (vv.tag != media.file.path) {
-                    vv.tag = media.file.path
-                    runCatching {
-                        vv.setVideoPath(media.file.path)
-                        vv.start()
-                    }
-                }
-            },
+                AndroidView(
+                    modifier = Modifier.fillMaxSize().alpha(if (playing) 1f else 0f),
+                    factory = { c ->
+                        FillVideoView(c).apply {
+                            setOnTouchListener { _, _ -> false }
+                            setOnPreparedListener { mp ->
+                                mp.isLooping = true
+                                mp.setVolume(0f, 0f)   // 背景不该出声
+                                playing = true
+                                start()
+                            }
+                            setOnErrorListener { _, _, _ ->
+                                playing = false   // 停在封面，别留黑
+                                true
+                            }
+                            setOnInfoListener { _, what, _ ->
+                                if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) playing = true
+                                false
+                            }
+                        }
+                    },
+                    update = { vv ->
+                        if (vv.tag != media.file.path) {
+                            vv.tag = media.file.path
+                            playing = false
+                            runCatching { vv.setVideoPath(media.file.path) }
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** 视频背景必须按容器尺寸量，否则 VideoView 会按片源自带比例缩成一条（上下/左右留黑）。 */
+private class FillVideoView(ctx: Context) : VideoView(ctx) {
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        setMeasuredDimension(
+            if (w > 0) w else suggestedMinimumWidth,
+            if (h > 0) h else suggestedMinimumHeight,
         )
     }
 }
+
+/** 取视频的第一帧（给封面用；失败返回 null，调用方继续走黑底而不是崩） */
+private fun frameOf(f: File): Bitmap? = runCatching {
+    android.media.MediaMetadataRetriever().use { r ->
+        r.setDataSource(f.path)
+        r.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+    }
+}.getOrNull()
 
 private fun loadAnimated(f: File, ctx: Context): Drawable? = runCatching {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

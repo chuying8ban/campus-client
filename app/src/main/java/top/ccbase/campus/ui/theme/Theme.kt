@@ -314,7 +314,27 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
     if (bg.startsWith(ANIM_PREFIX)) {
         // spec 里带着色：同一动效可以配不同色系，光看 kind 不够
         val (kind, argb) = parseAnim(bg) ?: (DynKind.AURORA to p.violet.toArgb())
-        DynamicBackground(kind, Color(argb), Modifier.fillMaxSize())
+        val k = AppearanceStore.bgAlpha.value
+        // 先用底色垫一层，动效按"浓淡"半透明盖上去 —— 动态主题也要能调浓淡
+        Box(Modifier.fillMaxSize().background(p.bg))
+        Box(Modifier.fillMaxSize().alpha(k)) {
+            DynamicBackground(kind, Color(argb), Modifier.fillMaxSize())
+        }
+        // 淡了以后字更容易读，但顶栏/底部导航还是要一条压暗带（和照片同一套形状）
+        val mid = (0.06f + 0.16f * k).coerceAtMost(0.24f)
+        val edge = (mid + 0.26f).coerceAtMost(0.60f)
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0.00f to p.bg.copy(alpha = edge),
+                    0.18f to p.bg.copy(alpha = edge * 0.70f),
+                    0.45f to p.bg.copy(alpha = mid),
+                    0.75f to p.bg.copy(alpha = mid),
+                    0.92f to p.bg.copy(alpha = edge * 0.78f),
+                    1.00f to p.bg.copy(alpha = edge),
+                ),
+            ),
+        )
         return
     }
     when {
@@ -335,10 +355,11 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 Box(Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value)) {
                     UserMediaBackground(media, Modifier.fillMaxSize())
                 }
-                // 视频/gif 拿不到"明暗极值"，遮罩按固定档走：还是上下厚中间薄，
-                // 但保证顶部标题、底部导航的字能看清。
-                val edge = 0.62f
-                val mid = 0.18f
+                // 视频/gif 拿不到"明暗极值"，遮罩跟着"浓淡"走：调淡了画面本来就暗，
+                // 再压一层厚遮罩会变成一块灰板。浓 → 遮罩厚，淡 → 遮罩薄。
+                val k = AppearanceStore.bgAlpha.value
+                val mid = (0.05f + 0.20f * k).coerceIn(0.05f, 0.22f)
+                val edge = (mid + 0.24f + 0.12f * k).coerceAtMost(0.72f)
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
