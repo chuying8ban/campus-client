@@ -719,9 +719,12 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                         )
                     }
                     val next = top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)
-                    wSpec = next
-                    WidgetThemes.set(ctx, next)
-                    TodayWidgetProvider.refresh(ctx)
+                    val err = WidgetThemes.apply(ctx, next)
+                    if (err == null) {
+                        wSpec = next
+                        TodayWidgetProvider.refresh(ctx)
+                        toast(ctx, "已应用到桌面")
+                    } else toast(ctx, err)
                 }
                 .padding(horizontal = 11.dp, vertical = 8.dp),
         )
@@ -736,9 +739,11 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         MotionChips(currentEffectId = WidgetDyn.parseImage(wSpec)?.id) { id ->
             val effect = WidgetFrames.ImgEffect.of(id)
             val next = if (effect == null) curTheme.id else WidgetDyn.imageSpec(effect)
-            wSpec = next
-            WidgetThemes.set(ctx, next)
-            TodayWidgetProvider.refresh(ctx)
+            val err = WidgetThemes.apply(ctx, next)
+            if (err == null) {
+                wSpec = next
+                TodayWidgetProvider.refresh(ctx)
+            } else toast(ctx, err)
         }
         Spacer(Modifier.height(6.dp))
         Text(
@@ -767,9 +772,11 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 RoundedCornerShape(12.dp),
             )
             .clickable {
-                wSpec = WidgetThemes.DYNAMIC_SPEC
-                WidgetThemes.set(ctx, WidgetThemes.DYNAMIC_SPEC)
-                TodayWidgetProvider.refresh(ctx)
+                if (WidgetThemes.apply(ctx, WidgetThemes.DYNAMIC_SPEC) == null) {
+                    wSpec = WidgetThemes.DYNAMIC_SPEC
+                    TodayWidgetProvider.refresh(ctx)
+                    toast(ctx, "已应用到桌面")
+                }
             }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -796,8 +803,8 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 row.forEach { t ->
                     val c = if (t.id == "light") Color(0xFFF7F6FB) else Color(t.accentColor)
                     Swatch(c, wSpec == t.id, t.name) {
-                        wSpec = t.id
-                        WidgetThemes.set(ctx, t.id)
+                        val err = WidgetThemes.apply(ctx, t.id)
+                        if (err == null) { wSpec = t.id; toast(ctx, "已应用：${t.name}") } else toast(ctx, err)
                         TodayWidgetProvider.refresh(ctx)
                     }
                 }
@@ -820,7 +827,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             }.getOrNull()
             if (bmp != null && WidgetThemes.saveUserImage(ctx, bmp)) {
                 wSpec = WidgetThemes.USER_IMAGE_SPEC
-                WidgetThemes.set(ctx, wSpec)
+                runCatching { WidgetThemes.apply(ctx, wSpec) }.getOrNull()?.let { toast(ctx, it) }
                 TodayWidgetProvider.refresh(ctx)
             }
         }
@@ -888,5 +895,13 @@ private fun Swatch(color: Color, selected: Boolean, label: String, onClick: () -
             color = if (selected) C.txt else C.txt3,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
         )
+    }
+}
+
+
+/** 一句轻提示：任何"应用到桌面"的动作都要有回音，否则用户以为按钮没响应。 */
+private fun toast(ctx: android.content.Context, msg: String) {
+    runCatching {
+        android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 }

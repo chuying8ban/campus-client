@@ -53,7 +53,10 @@ object DynPainter {
      */
     fun frame(c: Canvas, kind: Kind, t: Float, w: Float, h: Float, accent: Int, dark: Boolean = true) {
         if (w <= 0f || h <= 0f) return
-        val base = if (dark) DEEP else 0xFFF4F1EC.toInt()
+        // 底色掺一点强调色（2026-10-19 用户："很多动态主题根本用不了，用了之后主题就变成纯黑色"）：
+        // 原来的 #07060C 在手机上就是纯黑，动效那几团光又都很淡，整屏看着像"没生效"。
+        // 掺 18% 的强调色之后，同一个动效立刻有"颜色"可认，和纯黑背景一眼区分开。
+        val base = if (dark) mix(DEEP, accent, 0.18f) else 0xFFF4F1EC.toInt()
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
         fun fillVertical(vararg stops: Pair<Float, Int>) {
@@ -64,19 +67,22 @@ object DynPainter {
             paint.shader = null
         }
 
+        // 性能：以前每团光都拿渐变 shader **涂满整屏**（星云 18 团、光斑 26 团 = 每帧二十多次全屏渐变填充，
+        // 中端机上就是"动态主题卡"。改成只画那个圆本身，观感几乎一样，填充面积降两个数量级。
         fun glow(cx: Float, cy: Float, r: Float, color: Int, alpha: Float) {
+            val rr = r.coerceAtLeast(1f)
             paint.shader = RadialGradient(
-                cx, cy, r.coerceAtLeast(1f),
+                cx, cy, rr,
                 intArrayOf(withAlpha(color, alpha), Color.TRANSPARENT),
                 floatArrayOf(0f, 1f), Shader.TileMode.CLAMP,
             )
-            c.drawRect(0f, 0f, w, h, paint)
+            c.drawCircle(cx, cy, rr, paint)
             paint.shader = null
         }
 
         when (kind) {
             Kind.AURORA -> {
-                fillVertical(0f to base, 0.5f to mix(base, 0xFF0C0A18.toInt(), 0.6f), 1f to base)
+                fillVertical(0f to base, 0.5f to mix(base, 0xFF0C0A18.toInt(), 0.33f), 1f to base)
                 val bands = listOf(
                     Triple(accent, 21f, 0.0f),
                     Triple(mix(accent, 0xFF39D3C0.toInt(), 0.55f), 27f, 2.1f),
@@ -94,7 +100,7 @@ object DynPainter {
             }
 
             Kind.STARS -> {
-                fillVertical(0f to mix(base, 0xFF0A0A1A.toInt(), 0.8f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF0A0A1A.toInt(), 0.44f), 1f to base)
                 val rnd = Random(20261018)
                 repeat(140) {
                     val x = rnd.nextFloat() * w
@@ -117,36 +123,36 @@ object DynPainter {
             }
 
             Kind.BREATHE -> {
-                fillVertical(0f to base, 1f to mix(base, 0xFF0B0913.toInt(), 0.8f))
+                fillVertical(0f to base, 1f to mix(base, 0xFF0B0913.toInt(), 0.44f))
                 val k = 0.5f + 0.5f * sin((t / 9f) * 2f * PI.toFloat())
                 glow(w * 0.5f, h * 0.34f, w * (0.55f + 0.18f * k), accent, 0.22f + 0.16f * k)
                 glow(w * 0.5f, h, w * 0.8f, accent, 0.10f - 0.05f * k)
             }
 
             Kind.PETALS -> {
-                fillVertical(0f to mix(base, 0xFF120B14.toInt(), 0.7f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF120B14.toInt(), 0.39f), 1f to base)
                 val rnd = Random(8)
                 repeat(80) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.10f + rnd.nextFloat() * 0.22f
                     val sway = 18f + rnd.nextFloat() * 40f
                     val phase = rnd.nextFloat() * 6.28f
-                    val sz = 2.5f + rnd.nextFloat() * 4f
+                    val sz = 4f + rnd.nextFloat() * 6f
                     val y = ((t * speed + rnd.nextFloat()) % 1.15f) * h - h * 0.08f
                     val x = x0 + sway * sin(t * 0.9f + phase)
-                    paint.color = withAlpha(0xFFFFC0D8.toInt(), 0.20f + rnd.nextFloat() * 0.45f)
+                    paint.color = withAlpha(0xFFFFB7D5.toInt(), 0.42f + rnd.nextFloat() * 0.45f)
                     c.drawOval(RectF(x, y, x + sz * 1.6f, y + sz), paint)
                 }
             }
 
             Kind.SNOW -> {
-                fillVertical(0f to mix(base, 0xFF0B1220.toInt(), 0.8f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF0B1220.toInt(), 0.44f), 1f to base)
                 val rnd = Random(31)
                 repeat(90) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.06f + rnd.nextFloat() * 0.14f
                     val phase = rnd.nextFloat() * 6.28f
-                    val sz = 1.2f + rnd.nextFloat() * 2.6f
+                    val sz = 1.8f + rnd.nextFloat() * 3.2f
                     val y = ((t * speed + rnd.nextFloat()) % 1.1f) * h - h * 0.05f
                     val x = x0 + (10f + rnd.nextFloat() * 20f) * sin(t * 0.5f + phase)
                     paint.color = withAlpha(Color.WHITE, 0.35f + rnd.nextFloat() * 0.5f)
@@ -155,7 +161,7 @@ object DynPainter {
             }
 
             Kind.RAIN -> {
-                fillVertical(0f to mix(base, 0xFF0A0F14.toInt(), 0.7f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF0A0F14.toInt(), 0.39f), 1f to base)
                 paint.strokeWidth = Math.max(1f, w * 0.0016f)
                 val rnd = Random(77)
                 repeat(110) {
@@ -169,7 +175,7 @@ object DynPainter {
             }
 
             Kind.FIREFLIES -> {
-                fillVertical(0f to mix(base, 0xFF0A120C.toInt(), 0.75f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF0A120C.toInt(), 0.41f), 1f to base)
                 val rnd = Random(2026)
                 repeat(40) {
                     val bx = rnd.nextFloat() * w
@@ -187,7 +193,7 @@ object DynPainter {
             }
 
             Kind.WAVES -> {
-                fillVertical(0f to mix(base, 0xFF07121C.toInt(), 0.8f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF07121C.toInt(), 0.44f), 1f to base)
                 val rows = 6
                 paint.style = Paint.Style.STROKE
                 for (i in 0 until rows) {
@@ -211,7 +217,7 @@ object DynPainter {
             }
 
             Kind.BOKEH -> {
-                fillVertical(0f to mix(base, 0xFF140F0A.toInt(), 0.75f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF140F0A.toInt(), 0.41f), 1f to base)
                 val rnd = Random(404)
                 repeat(26) {
                     val x = rnd.nextFloat() * w
@@ -225,7 +231,7 @@ object DynPainter {
             }
 
             Kind.NEBULA -> {
-                fillVertical(0f to mix(base, 0xFF0B0716.toInt(), 0.9f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF0B0716.toInt(), 0.5f), 1f to base)
                 val rnd = Random(99)
                 repeat(18) {
                     val ph = rnd.nextFloat() * 6.28f
@@ -242,7 +248,7 @@ object DynPainter {
             }
 
             Kind.BUBBLES -> {
-                fillVertical(0f to mix(base, 0xFF08131C.toInt(), 0.8f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF08131C.toInt(), 0.44f), 1f to base)
                 val rnd = Random(11)
                 paint.style = Paint.Style.STROKE
                 repeat(26) {
@@ -260,7 +266,7 @@ object DynPainter {
             }
 
             Kind.MATRIX -> {
-                fillVertical(0f to mix(base, 0xFF04120A.toInt(), 0.9f), 1f to base)
+                fillVertical(0f to mix(base, 0xFF04120A.toInt(), 0.5f), 1f to base)
                 paint.strokeWidth = Math.max(1.5f, w * 0.002f)
                 val cols = Math.max(8, (w / Math.max(18f, w / 30f)).toInt())
                 val colW = w / cols

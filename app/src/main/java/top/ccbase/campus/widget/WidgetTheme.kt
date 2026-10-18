@@ -77,13 +77,13 @@ object WidgetThemes {
 
     /** 随包的图片主题（图在 res/drawable-nodpi/）。 */
     val imageThemes: List<WidgetTheme> = listOf(
-        WidgetTheme("img_aurora", "极光", imageRes = R.drawable.widget_art_aurora,
+        WidgetTheme("img_aurora", "海边", imageRes = R.drawable.widget_art_aurora,
             headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM, accentColor = 0xFF8AE9D6.toInt()),
-        WidgetTheme("img_dune", "沙丘", imageRes = R.drawable.widget_art_dune,
+        WidgetTheme("img_dune", "红叶", imageRes = R.drawable.widget_art_dune,
             headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM, accentColor = 0xFFFFC98A.toInt()),
-        WidgetTheme("img_night", "夜街", imageRes = R.drawable.widget_art_night,
+        WidgetTheme("img_night", "夕照", imageRes = R.drawable.widget_art_night,
             headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM, accentColor = 0xFF9BB8FF.toInt()),
-        WidgetTheme("img_mint", "青雾", imageRes = R.drawable.widget_art_mint,
+        WidgetTheme("img_mint", "神社", imageRes = R.drawable.widget_art_mint,
             headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM, accentColor = 0xFF9BE7C4.toInt()),
     )
 
@@ -95,6 +95,21 @@ object WidgetThemes {
     }
 
     fun hasUserImage(ctx: Context): Boolean = userImageFile(ctx).exists()
+
+    /**
+     * 应用小组件主题，**先把关再落地**：图片类规格必须在当前机器上真的能解码，
+     * 否则不写设置（否则桌面会变成一张没有任何图的黑卡，用户以为"换了没反应"）。
+     *
+     * @return null = 已应用；非 null = 不能应用，内容是给用户看的一句话
+     */
+    fun apply(ctx: Context, spec: String): String? {
+        val theme = of(spec)
+        if (theme.hasImage && imageBitmap(ctx, theme) == null) {
+            return "这张图读不出来，换一张再试"
+        }
+        set(ctx, spec)
+        return null
+    }
 
     /** 给「小组件自检」用的一句话诊断：文件在不在、多大、能不能解码。 */
     fun userImageInfo(ctx: Context): String {
@@ -113,15 +128,28 @@ object WidgetThemes {
      * 保存用户选的图：**先等比缩到 1200px 内再存**。
      * 理由有两个：原图动辄 8~12MB 会拖慢每次刷新；RemoteViews 传 bitmap 还有 1MB 的 binder 上限。
      */
-    fun saveUserImage(ctx: Context, bmp: Bitmap): Boolean = runCatching {
-        val maxW = 1200f
-        val scale = (maxW / bmp.width).coerceAtMost(1f)
-        val out = if (scale < 1f) {
-            Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
-        } else bmp
-        userImageFile(ctx).outputStream().use { out.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-        true
-    }.getOrDefault(false)
+    fun saveUserImage(ctx: Context, bmp: Bitmap): Boolean {
+        // 落了盘还要**回读验一遍**：compress 失败时文件是 0 字节，但 write 本身不报错。
+        // 2026-10-19 的坑正是这个 —— 文件"存在"、规格也设成 `user`，解码却是 null，
+        // 卡片就退成深色渐变，用户看到的是"换了主题没反应 / 一片黑"。
+        // 验不过就降一档再存；还不行就老实返回 false，让界面提示，而不是留个半成品。
+        for ((maxW, quality) in listOf(1200f to 88, 800f to 80, 600f to 75)) {
+            val ok = runCatching {
+                val scale = (maxW / bmp.width).coerceAtMost(1f)
+                val out = if (scale < 1f) {
+                    Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
+                } else bmp
+                val f = userImageFile(ctx)
+                f.outputStream().use { out.compress(Bitmap.CompressFormat.JPEG, quality, it) }
+                val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(f.absolutePath, opts)
+                f.length() > 1024 && opts.outWidth > 0
+            }.getOrDefault(false)
+            if (ok) return true
+        }
+        runCatching { userImageFile(ctx).delete() }
+        return false
+    }
 
     /** 「随时间」：同一个 id，每次刷新按当前钟点算一套颜色（桌面上看起来一整天在变） */
     const val DYNAMIC_SPEC = "dyn"

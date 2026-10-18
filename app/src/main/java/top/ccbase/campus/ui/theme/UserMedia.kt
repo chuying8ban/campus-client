@@ -223,26 +223,38 @@ object UserMedia {
 @Composable
 fun UserMediaBackground(media: UserMedia.Media, modifier: Modifier = Modifier) {
     when (media.kind) {
-        UserMedia.Kind.GIF -> AndroidView(
-            modifier = modifier.fillMaxSize(),
-            factory = { ctx ->
-                ImageView(ctx).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    setOnTouchListener { _, _ -> false }
-                    // 必须自己给 MATCH_PARENT：AndroidView 默认按 wrap 量，ImageView 会缩到图片大小
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    )
+        UserMedia.Kind.GIF -> {
+            // GIF 解码放到 IO 线程：以前在 `update` 里同步解，换主题那一下会明显卡一下
+            // （用户 2026-10-19："app 主题的切换要快速"）。解好之前先不铺图，铺底色，不闪。
+            val gifCtx = LocalContext.current
+            val drawable by produceState<android.graphics.drawable.Drawable?>(null, media.file.path) {
+                value = withContext(Dispatchers.IO) {
+                    runCatching { loadAnimated(media.file, gifCtx) }.getOrNull()
                 }
-            },
-            update = { iv ->
-                if (iv.tag != media.file.path) {
-                    iv.tag = media.file.path
-                    iv.setImageDrawable(loadAnimated(media.file, iv.context))
-                }
-            },
-        )
+            }
+            AndroidView(
+                modifier = modifier.fillMaxSize(),
+                factory = { ctx ->
+                    ImageView(ctx).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        setOnTouchListener { _, _ -> false }
+                        // 必须自己给 MATCH_PARENT：AndroidView 默认按 wrap 量，ImageView 会缩到图片大小
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        )
+                    }
+                },
+                update = { iv ->
+                    if (iv.tag != media.file.path) {
+                        iv.tag = media.file.path
+                        iv.setImageDrawable(null)
+                    }
+                    val d = drawable
+                    if (d != null && iv.drawable !== d) iv.setImageDrawable(d)
+                },
+            )
+        }
         UserMedia.Kind.VIDEO -> {
             val ctx = LocalContext.current
             var playing by remember(media.file.path) { mutableStateOf(false) }

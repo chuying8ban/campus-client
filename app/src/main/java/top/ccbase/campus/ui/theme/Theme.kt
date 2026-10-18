@@ -323,10 +323,12 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
         // 浓淡做**双层**（用户 2026-10-18："动图的画面浓淡调整不太明显"）：
         // 只改图层 alpha 时，动效本来就偏暗、底色也暗，50% 和 100% 几乎看不出来。
         // 再叠一层 (1-k) 的底色，两条一起变 —— 同样一档差距肉眼立刻能分辨。
-        Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.75f)))
+        // 底色覆盖别太狠：0.75 会让本来就不亮的动效彻底变黑（用户："用了之后主题就变成纯黑色"）。
+        // 0.45 仍然能明显区分浓淡，但画面留着颜色。
+        Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.45f)))
         // 淡了以后字更容易读，但顶栏/底部导航还是要一条压暗带（和照片同一套形状）
-        val mid = (0.06f + 0.16f * k).coerceAtMost(0.24f)
-        val edge = (mid + 0.26f).coerceAtMost(0.60f)
+        val mid = (0.03f + 0.10f * k).coerceAtMost(0.16f)
+        val edge = (mid + 0.18f).coerceAtMost(0.46f)
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(

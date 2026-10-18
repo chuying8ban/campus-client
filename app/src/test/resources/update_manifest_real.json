@@ -1,12 +1,12 @@
 {
-  "version_code": 127,
-  "version_name": "3.4.8",
-  "url": "/updates/campus-3.4.8.apk",
-  "sha256": "48f208ad79fcedd41c895e520dc0bc78d708a69537a5cfbf0f6a28e485bc8b3b",
-  "size": 7895491,
+  "version_code": 128,
+  "version_name": "3.4.9",
+  "url": "/updates/campus-3.4.9.apk",
+  "sha256": "6e2e6411cf2c8cbc2874eaa69daffa4774558a46e17eec12fb91eaca947095f9",
+  "size": 8310419,
   "notes": [
-    "图库搜索框文字不再叠在一起",
-    "下滑时标签栏跟搜索栏一起收起",
-    "小组件自检可以一键试三种规格，换主题没反应时用它定位"
+    "动态主题不再一片纯黑，颜色更明显、切换更跟手",
+    "小组件四张图片主题换成真实照片：海边 / 红叶 / 夕照 / 神社",
+    "换小组件主题会弹一句提示；图片读不出来时不会变成黑卡"
   ]
 }
