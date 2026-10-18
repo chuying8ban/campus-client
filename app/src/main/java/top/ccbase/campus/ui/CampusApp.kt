@@ -581,6 +581,18 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }
     }
+    // 更新说明：装完新版第一次进 App 直接弹（用户 2026-10-19："新版本内容通知要在 app 内出现"）
+    var updateNotes by remember { mutableStateOf(top.ccbase.campus.update.UpdateNotice.pendingInApp(appCtx)) }
+    updateNotes?.let { (v, body) ->
+        top.ccbase.campus.ui.update.UpdateNotesDialog(
+            version = v,
+            body = body,
+            onDismiss = {
+                top.ccbase.campus.update.UpdateNotice.markInAppSeen(appCtx)
+                updateNotes = null
+            },
+        )
+    }
     if (showPerms) {
         top.ccbase.campus.ui.settings.PermissionsScreen(
             readSnapshot = { top.ccbase.campus.alarm.DiagLog.snapshot(appCtx) },

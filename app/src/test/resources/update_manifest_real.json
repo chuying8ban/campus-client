@@ -1,12 +1,11 @@
 {
-  "version_code": 121,
-  "version_name": "3.4.2",
-  "url": "/updates/campus-3.4.2.apk",
-  "sha256": "9621a74a7201c84ac4915395f3eb90eaa14df3a0ac205a95ff5d2a50a0f8109b",
-  "size": 7878567,
+  "version_code": 123,
+  "version_name": "3.4.4",
+  "url": "/updates/campus-3.4.4.apk",
+  "sha256": "4681a9792631c4e75e19b812b00f8c71886cd209fe8d2d29772647bf028d913d",
+  "size": 7895107,
   "notes": [
-    "桌面小组件「主题显示不上」修好了（卡片只剩文字、没有背景）",
-    "原因是位图总量超 1MB，MIUI 会静默丢弃",
-    "现在底图和轮播帧都压在 1MB 内，底色也不再透明"
+    "换新版本后 App 里直接弹一次「这一版改了什么」",
+    "桌面小组件页的「在线图库」挪到最上面，和动态主题库并排"
   ]
 }

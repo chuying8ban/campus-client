@@ -40,6 +40,27 @@ object UpdateNotice {
         }
     }.getOrNull()
 
+    // ── App 内的更新说明（用户 2026-10-19："新版本内容通知要在 app 内出现"）──────────
+    // 系统通知会被划掉/被勿扰吞掉，用户根本不知道改了什么。所以 App 内单独弹一次：
+    // 和系统通知分开记（`seen_in_app`），谁先谁后都不影响另一边。
+    private const val K_SEEN_IN_APP = "seen_in_app"
+
+    /** 有没弹过的更新说明就返回 (版本, 正文)；弹过/没写说明返回 null */
+    fun pendingInApp(ctx: Context): Pair<String, String>? {
+        val version = BuildConfig.VERSION_NAME
+        val sp = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        if (sp.getString(K_SEEN_IN_APP, null) == version) return null
+        val body = notesFor(ctx, version) ?: return null
+        if (body.isBlank()) return null
+        return version to body
+    }
+
+    /** 用户点了「知道了」：这一版不再弹 */
+    fun markInAppSeen(ctx: Context) {
+        ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+            .edit().putString(K_SEEN_IN_APP, BuildConfig.VERSION_NAME).apply()
+    }
+
     /** App 启动时调一次：这一版没提示过就发一条通知 */
     fun maybeNotify(ctx: Context) {
         val version = BuildConfig.VERSION_NAME

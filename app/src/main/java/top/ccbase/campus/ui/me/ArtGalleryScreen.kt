@@ -124,37 +124,41 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 2026-10-18 用户反馈：搜不到的时候界面上只有一句"搜索失败，检查下网络"，也不知道在干嘛。
     // 实际原因通常不是他的网，而是**上游第一次查要现算**（冷缓存 7 秒左右，几乎贴着客户端超时）。
     // 所以现在：① 自动重试一次；② 每一步都写进 [stage] 给用户看；③ 失败时明说"再点一次搜索"。
-    // 动图板块没有"精选"这批，空着进来就是空白 —— 给一个种子词，用户随手改。
-    val animSeed = if (portrait) "少女" else "风景"
-    LaunchedEffect(animOnly) {
-        if (animOnly && query.isBlank()) query = animSeed
-    }
-
     LaunchedEffect(query, tick, animOnly) {
         val q = query.trim()
-        if (q.isEmpty()) {
+        // 动图板块空着进来 = 看全部动图（服务端按 score 给精选），**不要**拿种子词替他填搜索框
+        // ——用户 2026-10-19："搜索点到动图为什么会自动切到少女标签"。标签应该是他点的，不是我们点的。
+        if (q.isEmpty() && !animOnly) {
             live = emptyList(); page = 1; hasMore = false; error = null; hint = null; stage = null
             return@LaunchedEffect
         }
+        if (q.isEmpty() && animOnly) stage = "正在读全部动图…"
         if (tick == 0) delay(400)
         loading = true; error = null
         var last: String? = null
         for (attempt in 1..2) {
-            stage = if (attempt == 1) "正在搜「$q」…（整库查询，第一次要几秒）"
-            else "第一次没返回，正在再试一次…"
+            stage = when {
+                attempt != 1 -> "第一次没返回，正在再试一次…"
+                q.isEmpty() -> "正在读全部动图…"
+                else -> "正在搜「$q」…（整库查询，第一次要几秒）"
+            }
             val r = runCatching {
                 withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey, animOnly = animOnly) }
             }
             if (r.isSuccess) {
                 val pg = r.getOrThrow()
-                live = pg.items; page = 1; hasMore = pg.hasMore; hint = pg.hint
-                stage = if (pg.items.isEmpty()) {
-                    if (animOnly) "「$q」这个关键词没有动图 —— 换个词试试（风景 / 少女 / 猫）"
+                // 竖版只放竖图、横版只放横图（用户 2026-10-19："做好文件隔离"）。
+                // 服务端已经按 orient 过滤，这里是第二道闸：上游偶发把方形图判成两边都算，
+                // 在竖版里看到横图会让人以为点错了库。
+                val kept = pg.items.filter { it.ofOrient(orientKey) }
+                live = kept; page = 1; hasMore = pg.hasMore; hint = pg.hint
+                stage = if (kept.isEmpty()) {
+                    if (animOnly) "没有动图了 —— 换个词试试（风景 / 少女 / 猫），或点「全部」看静态"
                     else "「$q」这次没搜到 —— 再点一下「搜索」多试一次"
                 } else if (animOnly) {
-                    "「$q」找到 ${pg.items.size} 张动图"
+                    if (q.isEmpty()) "精选动图 ${kept.size} 张（点标签可筛）" else "「$q」找到 ${kept.size} 张动图"
                 } else {
-                    "「$q」找到 ${pg.items.size} 张"
+                    "「$q」找到 ${kept.size} 张"
                 }
                 loading = false
                 return@LaunchedEffect
@@ -169,7 +173,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     }
 
     fun loadMore() {
-        if (loading || loadingMore || !hasMore || query.isBlank()) return
+        if (loading || loadingMore || !hasMore) return
+        if (query.isBlank() && !animOnly) return
         loadingMore = true
         scope.launch {
             val q = query.trim()
@@ -179,7 +184,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 .onSuccess { pg ->
                     // 同 id 只留一份：翻页衔接处偶有重复，重复的 key 会让网格直接抛异常
                     val have = live.mapTo(HashSet()) { i -> i.id }
-                    live = live + pg.items.filter { it.id !in have }
+                    live = live + pg.items.filter { it.id !in have && it.ofOrient(orientKey) }
                     page += 1
                     hasMore = pg.hasMore
                 }
@@ -332,7 +337,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                             if (query.trim() == w) C.violet.copy(alpha = 0.6f) else C.line,
                             RoundedCornerShape(20.dp),
                         )
-                        .clickable { query = w }
+                        // 再点一次同一个标签 = 取消（用户 2026-10-19："我希望可以再次点击标签取消标签"）
+                        .clickable {
+                            if (query.trim() == w) { query = ""; tick += 1 } else { query = w; tick += 1 }
+                        }
                         .padding(horizontal = 13.dp, vertical = 7.dp),
                 ) {
                     Text(w, color = if (query.trim() == w) C.violet else C.txt2, fontSize = 12.sp)
@@ -340,7 +348,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
 
-        if (query.isBlank()) {
+        if (query.isBlank() && !animOnly) {
             // 常态提示：搜索是打服务器现查，偶尔会慢/空一次，先告诉他该怎么办，别让他以为是坏了
             Text(
                 "搜不到就再点一次「搜索」—— 查的是整库，偶尔要等上游几秒",
@@ -352,6 +360,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             when {
                 stage != null -> stage!!
                 loading -> "读取中…"
+                animOnly && query.isBlank() -> "精选动图 ${shown.size} 张 · 点标签可筛 · 往下滑看更多"
                 query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
                 else -> "「${query.trim()}」${shown.size} 张" + if (hasMore) " · 继续往下滑" else ""
             },

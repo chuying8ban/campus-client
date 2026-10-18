@@ -427,8 +427,25 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () ->
         "这里改的只是桌面上那张卡的配色。App 里看到什么颜色跟它无关 —— 两边各存各的。",
         color = C.txt2, fontSize = 12.sp, lineHeight = 18.sp,
     )
-    // 小组件的动态主题：真·会动（帧轮播，见 WidgetFrameService），和 App 那边同一套画面
+    // 两个库都放在最上面（用户 2026-10-19："把桌面小控件的在线图库放到动态主题库那里去，往前放点方便用户看到"）。
+    // 原来在线图库是下面一行小字按钮，翻半天才看到；现在并排两张卡，点一下就是整库。
     Spacer(Modifier.height(12.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .clickable { onOpenGallery("landscape", "widget") }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("在线图库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(8.dp))
+        Text("上千张横版画，含 ▶ 动图", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+        Text("›", color = C.txt3, fontSize = 16.sp)
+    }
+
+    Spacer(Modifier.height(8.dp))
     Row(
         Modifier
             .fillMaxWidth()
