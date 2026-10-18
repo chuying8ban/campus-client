@@ -44,7 +44,11 @@ class DynPainterLookTest {
                 n++
             }
             val avg = (sum / n).toInt()
-            println("${kind.id}: 平均亮度 $avg/255")
+            // 每帧耗时（Robolectric 走真实 Skia，量级和真机接近）：>25ms 就会掉到 30fps 以下
+            val t0 = System.nanoTime()
+            repeat(10) { DynPainter.frame(Canvas(bmp), kind, 1.5f + it * 0.2f, 360f, 720f, accent) }
+            val ms = (System.nanoTime() - t0) / 10 / 1_000_000
+            println("${kind.id}: 平均亮度 $avg/255 · 单帧 ${ms}ms")
             if (avg < 12) bad += "${kind.id}($avg)"
         }
         assertTrue("这些动效黑得像没生效：${bad.joinToString()}", bad.isEmpty())
