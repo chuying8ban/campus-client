@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,26 +84,36 @@ fun AppearanceScreen(
     initialTab: Int = 0,
     // (kind, target)：kind = photo/illustration，target = background/widget
     onOpenGallery: (String, String) -> Unit = { _, _ -> },
+    /** 作为底部导航的一格时传 true：不画标题和「关闭」（那两样只在整屏浮层里有意义） */
+    embedded: Boolean = false,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
 
     // 空白处的触摸由 `overlaySurface` 统一吃掉（见 Theme.kt），这里不用再挂
-    Column(Modifier.fillMaxSize().overlaySurface) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("外观", color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.weight(1f))
-            // 命中区补到 44dp：13sp 的几个字手指一偏就点空（点空又不会穿透到下面了，
-            // 但用户只会觉得"点了没反应"）
+    Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.overlaySurface)) {
+        if (!embedded) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("外观", color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                // 命中区补到 44dp：13sp 的几个字手指一偏就点空（点空又不会穿透到下面了，
+                // 但用户只会觉得"点了没反应"）
+                Text(
+                    "关闭",
+                    color = C.txt3,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable { onClose() }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                )
+            }
+        } else {
             Text(
-                "关闭",
-                color = C.txt3,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .clickable { onClose() }
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                if (tab == 0) "App 主题" else "桌面小组件",
+                color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
             )
         }
 
@@ -222,6 +234,32 @@ private fun AppThemePane(onOpenGallery: (String, String) -> Unit) {
             }
         }
         Spacer(Modifier.height(10.dp))
+    }
+
+    // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
+    if (photoSet) {
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("图片浓淡", color = C.txt3, fontSize = 11.sp)
+            Spacer(Modifier.width(10.dp))
+            Slider(
+                value = AppearanceStore.bgAlpha.value,
+                onValueChange = { AppearanceStore.setBgAlpha(ctx, it) },
+                valueRange = 0.15f..1f,
+                modifier = Modifier.weight(1f),
+                colors = SliderDefaults.colors(
+                    thumbColor = C.violet,
+                    activeTrackColor = C.violet,
+                    inactiveTrackColor = C.line,
+                ),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "${(AppearanceStore.bgAlpha.value * 100).toInt()}%",
+                color = C.txt2, fontSize = 11.sp,
+                modifier = Modifier.width(34.dp),
+            )
+        }
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

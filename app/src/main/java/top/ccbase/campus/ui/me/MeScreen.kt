@@ -408,11 +408,7 @@ fun MeScreen(
             hint = "想加什么功能、哪里不好用、哪里看不懂 —— 直接写给我",
             onClick = onOpenFeedback,
         )
-        Action(
-            text = "外观",
-            hint = "深色 / 浅色 / 跟随系统 · 背景图（内置渐变或自己上传，只存本机）",
-            onClick = onOpenAppearance,
-        )
+        // 「外观」已升级成底部导航的独立标签（2026-10-18），这里不再留第二个入口。
 
         SectionTitle("提醒")
         SelfStudyRepair(ctx, db)

@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -327,7 +328,7 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 Image(
                     bitmap = bmp,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value),
                     contentScale = ContentScale.Crop,
                 )
             }
@@ -416,10 +417,17 @@ object AppearanceStore {
     private const val K_THEME = "theme"
     private const val K_BG = "background"
     private const val K_ACCENT = "accent"
+    private const val K_BG_ALPHA = "bg_alpha"
 
     /** 组合侧读这个（`mutableStateOf`）→ 改档位当场重组合 */
     val theme = mutableStateOf(DARK)
     val background = mutableStateOf(BG_SOLID)
+
+    /**
+     * 背景图的不透明度（0.15~1.0）。用户会想把图调淡一点、字更好读 —— 这是"自由调"。
+     * 只作用于背景图那一层，不影响渐变预设。
+     */
+    val bgAlpha = mutableStateOf(1f)
 
     /** 主题/强调色规格（`default` / `preset:<id>` / `diy:<hue>:<tint>` / `wallpaper`） */
     val accent = mutableStateOf(AccentSpec.DEFAULT)
@@ -433,6 +441,15 @@ object AppearanceStore {
         theme.value = read(ctx)
         background.value = backgroundOf(ctx)
         accent.value = accentOf(ctx)
+        bgAlpha.value = bgAlphaOf(ctx)
+    }
+
+    fun bgAlphaOf(ctx: Context): Float = prefs(ctx).getFloat(K_BG_ALPHA, 1f).coerceIn(0.15f, 1f)
+
+    fun setBgAlpha(ctx: Context, v: Float) {
+        val a = v.coerceIn(0.15f, 1f)
+        prefs(ctx).edit().putFloat(K_BG_ALPHA, a).apply()
+        bgAlpha.value = a
     }
 
     fun accentOf(ctx: Context): String = prefs(ctx).getString(K_ACCENT, AccentSpec.DEFAULT) ?: AccentSpec.DEFAULT

@@ -49,6 +49,9 @@ data class ArtItem(
     }
 }
 
+/** 一次整库搜索的结果（还翻不翻得动看 hasMore） */
+data class LivePage(val items: List<ArtItem>, val hasMore: Boolean)
+
 object ArtRepo {
 
     /** 图和清单都挂在这个站上（和更新清单同一个域名、同一条无 SNI 链路） */
@@ -115,6 +118,41 @@ object ArtRepo {
             if (cache.isFile) runCatching { return parseCatalog(cache.readText()) }
             throw e
         }
+    }
+
+    /**
+     * 整库搜索（不只看服务端预先同步的那 976 张）。
+     *
+     * 走的是自己服务器上的 `/api/art/search`：它在服务端查 safebooru（Danbooru 的 SFW 镜像，
+     * 官方口径几百万张），把缩略图/大图以 `/api/art/img?u=...` 转发回来 ——
+     * 这样手机只需要能连我们的域名（校园网、移动网都行），不必直连境外图床。
+     */
+    fun searchLive(q: String, page: Int, orient: String, limit: Int = 100): LivePage {
+        val enc = java.net.URLEncoder.encode(q, "UTF-8")
+        val url = "$BASE/api/art/search?q=$enc&page=$page&orient=$orient&limit=$limit"
+        val reply = Net.dial.call("GET", url, mapOf("Accept" to "application/json"), null)
+        if (reply.code != 200) throw IllegalStateException("搜索 HTTP ${reply.code}")
+        val root = JSONObject(reply.text)
+        val arr = root.optJSONArray("items") ?: return LivePage(emptyList(), false)
+        val out = ArrayList<ArtItem>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            if (id.isBlank()) continue
+            val tagsJson = o.optJSONArray("tags")
+            out += ArtItem(
+                id = id,
+                title = o.optString("title").ifBlank { "插画" },
+                tags = buildList { if (tagsJson != null) for (j in 0 until tagsJson.length()) add(tagsJson.optString(j)) },
+                url = BASE + "/api/art" + o.optString("full"),
+                thumbUrl = BASE + "/api/art" + o.optString("thumb"),
+                author = o.optString("author").ifBlank { "未知画师" },
+                license = o.optString("license").ifBlank { "同人作品" },
+                kind = "illustration",
+                orient = o.optString("orient").ifBlank { orient },
+            )
+        }
+        return LivePage(out, root.optBoolean("has_more", out.isNotEmpty()))
     }
 
     /** 缩略图（内存缓存，12 张一屏够用）。 */

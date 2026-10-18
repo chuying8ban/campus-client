@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -117,6 +118,9 @@ enum class CampusTab(val label: String, val icon: ImageVector, val soon: String)
     // 它是公共资源目录（所有同学探过的活链接，按课程 / 按类型摊开），挑中的会落成
     // 「学习」页里的一条任务 —— 所以图标用"目录"那种意思的 List，跟「学习」的勾区分开。
     LIBRARY("学习库", Icons.Filled.List, "公共资源目录：按课程 / 按类型挑链接，加到自己的清单"),
+    // 2026-10-18 用户要求：「外观单独放在一个标签里，和其他四个标签并列」。
+    // 之前是「我的」里的一个入口 + 一个整屏浮层，等于同一件事两个入口；现在只留这一格。
+    APPEARANCE("外观", Icons.Filled.Create, "App 主题、背景图、桌面小组件配色"),
     BOARD("看板", Icons.Filled.List, "4 张统计卡 + 近 14 天图 + 里程碑 + 自检"),
     // 考试 / 成绩：从「我的」点进去的次页，不占底部导航（跟 BOARD 一样只在 extra 里出现）
     EXAM("考试", Icons.Filled.DateRange, "考试时间、考场、倒计时"),
@@ -133,6 +137,7 @@ private val CampusTab.accent: androidx.compose.ui.graphics.Color
         CampusTab.BOARD -> C.magenta
         CampusTab.EXAM -> C.amber
         CampusTab.GRADE -> C.green
+        CampusTab.APPEARANCE -> C.magenta
         CampusTab.ME -> C.violet
     }
 
@@ -212,7 +217,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 网络自检浮层：连不上服务器时用户自己跑一次，把「断在哪一层」摆出来
     var showDiag by remember { mutableStateOf(false) }
     var showSafety by remember { mutableStateOf(false) }
-    var showAppearance by remember { mutableStateOf(false) }
     var showArtGallery by remember { mutableStateOf(false) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
     var artKind by remember { mutableStateOf("landscape") }
@@ -446,7 +450,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.TODAY -> TodayScreen(
                     app.db,
                     onOpenExam = { extra = CampusTab.EXAM },
-                    onOpenWidgetTheme = { appearanceTab = 1; showAppearance = true },
+                    onOpenWidgetTheme = {
+                        appearanceTab = 1
+                        idx = tabs.indexOf(CampusTab.APPEARANCE).coerceAtLeast(0)
+                    },
                 )
                 CampusTab.SCHEDULE -> ScheduleScreen(
                     app.db,
@@ -454,6 +461,17 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onEdit = { showCrawl = false; showScheduleEditor = true },
                 )
                 CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LearningHub(app.db)
+                // 外观现在是**标签页**而不是浮层：底部栏切过去就是它，不用再「关掉」。
+                CampusTab.APPEARANCE -> top.ccbase.campus.ui.me.AppearanceScreen(
+                    onClose = {},
+                    initialTab = appearanceTab,
+                    embedded = true,
+                    onOpenGallery = { kind, target ->
+                        artKind = kind
+                        artTarget = target
+                        showArtGallery = true
+                    },
+                )
                 CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.EXAM -> top.ccbase.campus.ui.records.ExamScreen(app.db)
                 CampusTab.GRADE -> top.ccbase.campus.ui.records.GradeScreen(app.db)
@@ -474,7 +492,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onCheckUpdate = { checkUpdate(force = true) },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
-                    onOpenAppearance = { showAppearance = true },
+                    onOpenAppearance = {
+                        appearanceTab = 0
+                        idx = tabs.indexOf(CampusTab.APPEARANCE).coerceAtLeast(0)
+                    },
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
                     onOpenFeedback = { showFeedback = true },
@@ -515,17 +536,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     if (showSafety) {
         top.ccbase.campus.ui.me.SafetyScreen(onClose = { showSafety = false })
-    }
-    if (showAppearance) {
-        top.ccbase.campus.ui.me.AppearanceScreen(
-            onClose = { showAppearance = false },
-            initialTab = appearanceTab,
-            onOpenGallery = { kind, target ->
-                artKind = kind
-                artTarget = target
-                showArtGallery = true
-            },
-        )
     }
     if (showArtGallery) {
         top.ccbase.campus.ui.me.ArtGalleryScreen(

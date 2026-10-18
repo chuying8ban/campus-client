@@ -15,16 +15,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -43,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.ccbase.campus.ui.theme.AppearanceStore
@@ -55,43 +60,92 @@ import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.widget.WidgetThemes
 
 /**
- * 在线图库：给桌面小组件挑一张插画当底图。
+ * 在线图库：给 App 页面背景（竖图）或桌面小组件（横图）挑一张插画。
  *
- * 为什么单独一屏而不是塞进外观页：挑图要一屏能看十几张，塞在设置页里必然又变成一长条。
- * 这里顶上搜索、下面两列网格，选一张就下载存本机并立刻刷到桌面上。
+ * 两条数据路：
+ *  · **没输入**：先看服务器上预先挑好的那批（首屏快，不依赖搜索接口）；
+ *  · **输入关键词**：打自己服务器的 `/api/art/search`，查的是 safebooru 整个库（几百万张），
+ *    往下滑自动翻页 —— 所以"图库有多大"不再受 App 里那 976 张限制。
  *
- * 图是真从服务器拉的（`/updates/art/`），**只在选中那一张时下载**，不会一次拉满。
+ * 一屏 6 张（3 列 × 2 行）：手机上既能看清缩略图，又不用一直滚。
  */
 @Composable
 fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val portrait = kind == "portrait"
+    val orientKey = if (portrait) "portrait" else "landscape"
+
     var query by remember { mutableStateOf("") }
-    var state by remember { mutableStateOf<GalleryState>(GalleryState.Loading) }
+    var curated by remember { mutableStateOf<List<ArtItem>?>(null) }
+    var live by remember { mutableStateOf<List<ArtItem>>(emptyList()) }
+    var page by remember { mutableIntStateOf(1) }
+    var hasMore by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
+    val grid = rememberLazyGridState()
 
-    // orient=portrait 是 App 页面背景（手机竖屏铺满），landscape 是桌面小组件
-    val portrait = kind == "portrait"
-
+    // 首屏：服务器上预先挑好的那批（10 分钟本机缓存，断网退回旧缓存）
     LaunchedEffect(Unit) {
-        state = runCatching { withContext(Dispatchers.IO) { ArtRepo.fetchCatalog(ctx) } }
-            .fold(
-                onSuccess = {
-                    val mine = if (portrait) {
-                        it.filter { i -> i.ofOrient("portrait") }
-                    } else {
-                        it.filter { i -> i.ofOrient("landscape") && i.ofKind("illustration") }
-                    }
-                    if (mine.isEmpty()) GalleryState.Empty else GalleryState.Ready(mine)
-                },
-                onFailure = { GalleryState.Failed(it.message ?: "网络不给力") },
-            )
+        runCatching { withContext(Dispatchers.IO) { ArtRepo.fetchCatalog(ctx) } }
+            .onSuccess { all ->
+                curated = if (portrait) all.filter { it.ofOrient("portrait") }
+                else all.filter { it.ofOrient("landscape") && it.ofKind("illustration") }
+            }
+            .onFailure { error = "图库清单读不出来" }
+        loading = false
     }
+
+    // 搜索：停手 400ms 再发，别每敲一个字打一次网络
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.isEmpty()) {
+            live = emptyList(); page = 1; hasMore = false; error = null
+            return@LaunchedEffect
+        }
+        delay(400)
+        loading = true; error = null
+        runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
+            .onSuccess { live = it.items; page = 1; hasMore = it.hasMore }
+            .onFailure { error = "搜索失败，检查下网络" }
+        loading = false
+    }
+
+    fun loadMore() {
+        if (loading || loadingMore || !hasMore || query.isBlank()) return
+        loadingMore = true
+        scope.launch {
+            val q = query.trim()
+            runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey) } }
+                .onSuccess { pg ->
+                    // 同 id 只留一份：翻页衔接处偶有重复，重复的 key 会让网格直接抛异常
+                    val have = live.mapTo(HashSet()) { i -> i.id }
+                    live = live + pg.items.filter { it.id !in have }
+                    page += 1
+                    hasMore = pg.hasMore
+                }
+            loadingMore = false
+        }
+    }
+
+    // 滑到倒数第 3 张就去要下一页
+    val nearEnd by remember {
+        derivedStateOf {
+            val total = grid.layoutInfo.totalItemsCount
+            val last = grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && last >= total - 3
+        }
+    }
+    LaunchedEffect(nearEnd) { if (nearEnd) loadMore() }
+
+    val shown = if (query.isBlank()) (curated ?: emptyList()) else live
 
     Column(Modifier.fillMaxSize().overlaySurface) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -107,18 +161,17 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             )
         }
 
-        // 搜索框：输入即筛（清单在内存里），不用等网络
         Box(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .background(C.card, RoundedCornerShape(10.dp))
                 .border(1.dp, C.line, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 11.dp),
         ) {
             if (query.isEmpty()) {
                 Text(
-                    if (portrait) "搜：少女 / 樱花 / 夜空 / 校服 …" else "搜：风景 / 城市 / 赛博 / 星空 …",
+                    if (portrait) "搜整库：少女 / 樱花 / 夜空 / 校服 …" else "搜整库：风景 / 城市 / 赛博 / 星空 …",
                     color = C.txt3, fontSize = 12.5.sp,
                 )
             }
@@ -132,70 +185,78 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             )
         }
 
+        Text(
+            when {
+                error != null -> ""
+                loading -> "读取中…"
+                query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
+                else -> "「${query.trim()}」${shown.size} 张" + if (hasMore) " · 继续往下滑" else ""
+            },
+            color = C.txt3, fontSize = 10.5.sp,
+            modifier = Modifier.padding(start = 16.dp, top = 7.dp, bottom = 2.dp),
+        )
+
         msg?.let {
-            Text(
-                it,
-                color = C.amber,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
+            Text(it, color = C.amber, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        }
+        error?.let {
+            Text(it, color = C.amber, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
         }
 
-        when (val s = state) {
-            GalleryState.Loading -> CenterHint("正在读图库…", spinner = true)
-            is GalleryState.Failed -> CenterHint("图库暂时读不出来：${s.why}")
-            GalleryState.Empty -> CenterHint("图库里还没有图")
-            is GalleryState.Ready -> {
-                val shown = s.items.filter { it.matches(query) }
-                if (shown.isEmpty()) {
-                    CenterHint("没有匹配「$query」的图")
-                } else {
-                    Text(
-                        "共 ${shown.size} 张" + if (query.isBlank()) "" else "（已筛选）",
-                        color = C.txt3, fontSize = 10.5.sp,
-                        modifier = Modifier.padding(start = 16.dp, top = 2.dp),
-                    )
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        items(shown, key = { it.id }) { item ->
-                            ArtCard(
-                                item = item,
-                                busy = busyId == item.id,
-                                onClick = {
-                                    if (busyId != null) return@ArtCard
-                                    busyId = item.id
-                                    msg = null
-                                    scope.launch {
-                                        val ok = withContext(Dispatchers.IO) {
-                                            val bmp = ArtRepo.full(item) ?: return@withContext false
-                                            if (target == "background") {
-                                                // App 页面背景：和系统相册选图走同一条落盘逻辑（会量明暗极值算遮罩）
-                                                val stamp = BackgroundPhoto.saveBitmap(ctx, bmp)
-                                                if (stamp == null) false else {
-                                                    AppearanceStore.setBackground(
-                                                        ctx,
-                                                        "${AppearanceStore.BG_PHOTO}:$stamp",
-                                                    )
-                                                    true
-                                                }
-                                            } else {
-                                                val saved = WidgetThemes.saveUserImage(ctx, bmp)
-                                                if (saved) {
-                                                    WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
-                                                    TodayWidgetProvider.refresh(ctx)
-                                                }
-                                                saved
-                                            }
+        when {
+            loading -> CenterHint("正在读图库…", spinner = true)
+            shown.isEmpty() -> CenterHint(
+                if (query.isBlank()) "这批里还没有图" else "没搜到「${query.trim()}」，换个词试试",
+            )
+            else -> LazyVerticalGrid(
+                state = grid,
+                columns = GridCells.Fixed(3),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                items(shown, key = { it.id }) { item ->
+                    ArtCard(
+                        item = item,
+                        busy = busyId == item.id,
+                        onClick = {
+                            if (busyId != null) return@ArtCard
+                            busyId = item.id
+                            msg = null
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    val bmp = ArtRepo.full(item) ?: return@withContext false
+                                    if (target == "background") {
+                                        // App 页面背景：和系统相册选图走同一条落盘逻辑（会量明暗极值算遮罩）
+                                        val stamp = BackgroundPhoto.saveBitmap(ctx, bmp)
+                                        if (stamp == null) false else {
+                                            AppearanceStore.setBackground(
+                                                ctx,
+                                                "${AppearanceStore.BG_PHOTO}:$stamp",
+                                            )
+                                            true
                                         }
-                                        busyId = null
-                                        if (ok) onClose() else msg = "这张图没下下来，换一张试试"
+                                    } else {
+                                        val saved = WidgetThemes.saveUserImage(ctx, bmp)
+                                        if (saved) {
+                                            WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
+                                            TodayWidgetProvider.refresh(ctx)
+                                        }
+                                        saved
                                     }
-                                },
+                                }
+                                busyId = null
+                                if (ok) onClose() else msg = "这张图没下下来，换一张试试"
+                            }
+                        },
+                    )
+                }
+                if (loadingMore) {
+                    item {
+                        Box(Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                color = C.violet, strokeWidth = 2.dp, modifier = Modifier.size(18.dp),
                             )
                         }
                     }
@@ -203,13 +264,6 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
     }
-}
-
-private sealed interface GalleryState {
-    data object Loading : GalleryState
-    data object Empty : GalleryState
-    data class Failed(val why: String) : GalleryState
-    data class Ready(val items: List<ArtItem>) : GalleryState
 }
 
 @Composable
@@ -233,42 +287,29 @@ private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
         value = withContext(Dispatchers.IO) { ArtRepo.thumb(item) }
     }
 
-    Column(Modifier.clickable { onClick() }) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(if (item.orient == "portrait") 3f / 4f else 16f / 9f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF1B1824))
-                .border(1.dp, C.line, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            bmp?.let {
-                Image(
-                    bitmap = it.asImageBitmap(),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            if (busy) {
-                Box(
-                    Modifier.fillMaxSize().background(Color(0x88000000)),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator(color = C.violet, strokeWidth = 2.dp, modifier = Modifier.height(20.dp)) }
-            }
-        }
-        Spacer(Modifier.height(5.dp))
-        Text(item.title, color = C.txt2, fontSize = 11.5.sp, maxLines = 1)
-        // 网图的作者/协议要跟着图一起露出来（CC 协议要求署名；这也是"图从哪来"的交代）
-        if (item.kind == "photo") {
-            Text(
-                "${item.author} · ${item.license}",
-                color = C.txt3,
-                fontSize = 9.sp,
-                maxLines = 1,
-                modifier = Modifier.padding(top = 1.dp),
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(if (item.orient == "portrait") 3f / 4f else 16f / 9f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF1B1824))
+            .border(1.dp, C.line, RoundedCornerShape(10.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        bmp?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+        }
+        if (busy) {
+            Box(
+                Modifier.fillMaxSize().background(Color(0x88000000)),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator(color = C.violet, strokeWidth = 2.dp, modifier = Modifier.size(18.dp)) }
         }
     }
 }
