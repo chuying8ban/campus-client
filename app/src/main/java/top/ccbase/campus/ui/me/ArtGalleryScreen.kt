@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,6 +86,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var hint by remember { mutableStateOf<String?>(null) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     val grid = rememberLazyGridState()
@@ -109,7 +112,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         delay(400)
         loading = true; error = null
         runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
-            .onSuccess { live = it.items; page = 1; hasMore = it.hasMore }
+            .onSuccess { pg ->
+                live = pg.items; page = 1; hasMore = pg.hasMore; hint = pg.hint
+            }
             .onFailure { error = "搜索失败，检查下网络" }
         loading = false
     }
@@ -185,6 +190,38 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             )
         }
 
+        // 热门词：新用户不知道能搜什么，空着进来只看到"精选 N 张"很容易以为没内容。
+        // 直接给一排能点的词，点一下就等于搜一次。
+        val hotWords = if (portrait) {
+            listOf("原神", "少女", "樱花", "校服", "星空", "赛博", "和服", "猫")
+        } else {
+            listOf("原神", "风景", "城市", "夜景", "海", "赛博", "天空", "机甲")
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 14.dp, end = 14.dp, top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            hotWords.forEach { w ->
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (query.trim() == w) C.violet.copy(alpha = 0.22f) else C.card)
+                        .border(
+                            1.dp,
+                            if (query.trim() == w) C.violet.copy(alpha = 0.6f) else C.line,
+                            RoundedCornerShape(20.dp),
+                        )
+                        .clickable { query = w }
+                        .padding(horizontal = 13.dp, vertical = 7.dp),
+                ) {
+                    Text(w, color = if (query.trim() == w) C.violet else C.txt2, fontSize = 12.sp)
+                }
+            }
+        }
+
         Text(
             when {
                 error != null -> ""
@@ -206,7 +243,11 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         when {
             loading -> CenterHint("正在读图库…", spinner = true)
             shown.isEmpty() -> CenterHint(
-                if (query.isBlank()) "这批里还没有图" else "没搜到「${query.trim()}」，换个词试试",
+                when {
+                    hint != null -> hint!!
+                    query.isBlank() -> "这批里还没有图"
+                    else -> "没搜到「${query.trim()}」，换个词试试"
+                },
             )
             else -> LazyVerticalGrid(
                 state = grid,

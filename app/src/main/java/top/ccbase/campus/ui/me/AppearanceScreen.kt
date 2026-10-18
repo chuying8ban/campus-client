@@ -35,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +57,7 @@ import top.ccbase.campus.ui.theme.BgStyle
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
+import top.ccbase.campus.ui.theme.presetById
 
 /**
  * 「外观」—— 两页，互不干扰：
@@ -88,6 +91,7 @@ fun AppearanceScreen(
     embedded: Boolean = false,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    var showPresetBoard by rememberSaveable { mutableStateOf(false) }
 
     // 空白处的触摸由 `overlaySurface` 统一吃掉（见 Theme.kt），这里不用再挂
     Column(Modifier.fillMaxSize().then(if (embedded) Modifier else Modifier.overlaySurface)) {
@@ -134,9 +138,16 @@ fun AppearanceScreen(
                 .padding(horizontal = 16.dp)
                 .padding(top = 18.dp, bottom = 28.dp),
         ) {
-            if (tab == 0) AppThemePane(onOpenGallery) else WidgetPane(onOpenGallery)
+            if (tab == 0) {
+                AppThemePane(onOpenGallery, onOpenPresets = { showPresetBoard = true })
+            } else {
+                WidgetPane(onOpenGallery)
+            }
         }
     }
+
+    // 预设主题板是二级页：盖在外观页上（不是塞进滚动区，否则会被页面滚动带着走）
+    if (showPresetBoard) BgPresetBoard { showPresetBoard = false }
 }
 
 @Composable
@@ -167,7 +178,10 @@ private fun PaneTab(label: String, selected: Boolean, onClick: () -> Unit) {
 // ────────────────────────────── App 主题 ──────────────────────────────
 
 @Composable
-private fun AppThemePane(onOpenGallery: (String, String) -> Unit) {
+private fun AppThemePane(
+    onOpenGallery: (String, String) -> Unit,
+    onOpenPresets: () -> Unit = {},
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val themeChoice = AppearanceStore.theme.value      // 读快照：改完当场反映
@@ -196,9 +210,8 @@ private fun AppThemePane(onOpenGallery: (String, String) -> Unit) {
         }
     }
 
-    SectionLabel("预览")
-    PreviewTile(bgChoice)
-    Spacer(Modifier.height(20.dp))
+    // 「预览」板块已删（2026-10-18 用户要求）：改主题当场就落到这一页上，
+    // 再摆一个假预览框只会让人以为那才是真的。
 
     // 明暗：三档并排，不再一人一行
     SectionLabel("明暗")
@@ -217,24 +230,9 @@ private fun AppThemePane(onOpenGallery: (String, String) -> Unit) {
     Spacer(Modifier.height(20.dp))
 
     SectionLabel("页面背景")
-    BgStyle.entries.forEach { style ->
-        Text(style.label, color = C.txt3, fontSize = 11.sp)
-        Spacer(Modifier.height(6.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            BgPresets.filter { it.style == style }.chunked(3).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    rowItems.forEach { preset ->
-                        BgSwatch(
-                            preset = preset,
-                            dark = dark,
-                            selected = bgChoice == BG_PRESET_PREFIX + preset.id,
-                        ) { AppearanceStore.setBackground(ctx, BG_PRESET_PREFIX + preset.id) }
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-    }
+    // 预设主题收进二级页：这一页只留一块"当前长什么样"的预览 + 一个入口。
+    // 12 个色板平铺在这里，等于把「选背景」和「选主题色」挤在同一屏，谁都不显眼。
+    BgEntryCard(bgChoice, dark = dark) { onOpenPresets() }
 
     // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
     if (photoSet) {
@@ -359,6 +357,100 @@ private fun PreviewTile(bg: String) {
                     Text("教三楼 305 · 10:40 下课", color = C.txt2, fontSize = 12.sp)
                 }
             }
+        }
+    }
+}
+
+/**
+ * 「页面背景」的唯一入口：左边一块当前背景的缩影，右边写名字 + 一个 ›。
+ * 点进去是完整的预设主题板（浓郁 + 淡雅合在一起挑）。
+ */
+@Composable
+private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
+    val preset = if (bg.startsWith(BG_PRESET_PREFIX)) presetById(bg.removePrefix(BG_PRESET_PREFIX)) else null
+    val name = when {
+        preset != null -> preset.name
+        bg.startsWith(AppearanceStore.BG_PHOTO) -> "自选图片"
+        else -> "纯色"
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(14.dp))
+            .border(1.dp, C.line, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .width(96.dp)
+                .height(60.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .border(1.dp, C.lineHi, RoundedCornerShape(9.dp)),
+        ) {
+            if (preset != null) {
+                BgPresetSurface(preset, dark, Modifier.fillMaxSize())
+            } else {
+                Box(Modifier.fillMaxSize().background(if (dark) Color(0xFF221F2B) else Color(0xFFEFEDF5)))
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("预设主题", color = C.txt, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(2.dp))
+            Text("当前：$name · 12 款可选", color = C.txt3, fontSize = 11.sp)
+        }
+        Text("›", color = C.txt3, fontSize = 20.sp)
+        Spacer(Modifier.width(6.dp))
+    }
+}
+
+/**
+ * 预设主题板：把原来的「浓郁 / 淡雅」两节合成一块板（用户原话：整合到一块，就叫预设主题）。
+ * 点一下立刻换，不关页 —— 换配色最需要的是来回比。
+ */
+@Composable
+private fun BgPresetBoard(onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val bgChoice = AppearanceStore.background.value
+    val dark = C.bg.luminance() <= 0.5f
+    Column(Modifier.fillMaxSize().overlaySurface) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("预设主题", color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "关闭", color = C.txt3, fontSize = 13.sp,
+                modifier = Modifier.clickable { onClose() }.padding(horizontal = 12.dp, vertical = 12.dp),
+            )
+        }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            BgPresets.chunked(3).forEach { rowItems ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rowItems.forEach { preset ->
+                        BgSwatch(
+                            preset = preset,
+                            dark = dark,
+                            selected = bgChoice == BG_PRESET_PREFIX + preset.id,
+                        ) { AppearanceStore.setBackground(ctx, BG_PRESET_PREFIX + preset.id) }
+                    }
+                }
+            }
+            Text(
+                "换完直接生效，不用再点保存。",
+                color = C.txt3, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+            )
         }
     }
 }

@@ -54,6 +54,36 @@ ZH2TAG = {
     "室内": "indoors", "户外": "outdoors", "窗": "window", "书": "book", "图书馆": "library",
     "食物": "food", "咖啡": "cafe", "电车": "train", "车站": "station", "教室": "classroom",
     "泳装": "swimsuit", "浴巾": "towel", "睡觉": "sleeping", "跳舞": "dancing", "唱歌": "singing",
+    # ── 游戏 / 动画 IP（用户点名："原神这种很火的 ip 都没有"）──
+    "原神": "genshin_impact", "提瓦特": "genshin_impact", "甘雨": "ganyu_(genshin_impact)",
+    "雷电将军": "raiden_shogun", "芙宁娜": "furina_(genshin_impact)", "胡桃": "hu_tao_(genshin_impact)",
+    "纳西妲": "nahida_(genshin_impact)", "可莉": "klee_(genshin_impact)",
+    "崩铁": "honkai:_star_rail", "星穹铁道": "honkai:_star_rail", "崩坏星穹铁道": "honkai:_star_rail",
+    "崩坏3": "honkai_impact_3rd", "崩坏": "honkai_(series)",
+    "绝区零": "zenless_zone_zero", "鸣潮": "wuthering_waves",
+    "明日方舟": "arknights", "蔚蓝档案": "blue_archive", "碧蓝档案": "blue_archive",
+    "碧蓝航线": "azur_lane", "少女前线": "girls'_frontline", "战双": "punishing:_gray_raven",
+    "妮姬": "nikke", "胜利女神": "nikke", "第五人格": "identity_v",
+    "英雄联盟": "league_of_legends", "永劫无间": "naraka:_bladepoint",
+    "初音": "hatsune_miku", "初音未来": "hatsune_miku", "镜音": "kagamine_rin",
+    "fgo": "fate/grand_order", "fate": "fate_(series)", "型月": "fate_(series)",
+    "lovelive": "love_live!", "偶像大师": "idolmaster",
+    "鬼灭之刃": "kimetsu_no_yaiba", "鬼灭": "kimetsu_no_yaiba",
+    "咒术回战": "jujutsu_kaisen", "间谍过家家": "spy_x_family",
+    "芙莉莲": "sousou_no_frieren", "孤独摇滚": "bocchi_the_rock!",
+    "莉可丽丝": "lycoris_recoil", "紫罗兰永恒花园": "violet_evergarden",
+    "新世纪福音战士": "neon_genesis_evangelion", "eva": "neon_genesis_evangelion",
+    "刀剑神域": "sword_art_online", "进击的巨人": "shingeki_no_kyojin",
+    "魔法少女": "mahou_shoujo", "偶像": "idol", "女仆": "maid", "猫娘": "catgirl",
+}
+
+# 英文/拼音别名：用户可能直接打英文，或者打了拼音缩写
+ALIAS = {
+    "genshin": "genshin_impact", "原": "genshin_impact", "yuanshen": "genshin_impact",
+    "starrail": "honkai:_star_rail", "hsr": "honkai:_star_rail", "bengtie": "honkai:_star_rail",
+    "arknights": "arknights", "bluearchive": "blue_archive", "blue": "blue_archive",
+    "miku": "hatsune_miku", "zzz": "zenless_zone_zero", "wuwa": "wuthering_waves",
+    "nikke": "nikke", "azurlane": "azur_lane", "fgo": "fate/grand_order",
 }
 
 # 反查表：tag → 中文（给搜索结果的标题/标签用）
@@ -76,7 +106,10 @@ def translate(q):
     hits = [k for k in ZH2TAG if k in q]
     if hits:
         return ZH2TAG[max(hits, key=len)]
-    return q.replace(" ", "_").lower()
+    low = q.replace(" ", "_").lower()
+    if low in ALIAS:
+        return ALIAS[low]
+    return low
 
 
 # 当"手机背景/小组件底图"很难看的一类：白底/透明底/纯线稿/带字。这些在 metadata 里
@@ -144,6 +177,12 @@ class Handler(BaseHTTPRequestHandler):
         limit = min(200, max(20, int((qs.get("limit") or ["60"])[0])))
 
         tag = translate(q) if q.strip() else None
+        # 没收录的中文词：上游是英文 tag 库，硬查只会静默 0 条。明确告诉 App 换个说法。
+        if tag and any("\u4e00" <= ch <= "\u9fff" for ch in tag):
+            return self._send(200, json.dumps({
+                "items": [], "page": page, "has_more": False, "tag": tag,
+                "hint": f"「{q.strip()}」还没收录，试试 IP 名（原神/明日方舟/初音）或题材（樱花/星空/校服）",
+            }, ensure_ascii=False).encode())
         ck = f"{tag}|{page}|{orient}|{limit}"
         with _lock:
             hit = _cache.get(ck)
@@ -158,7 +197,11 @@ class Handler(BaseHTTPRequestHandler):
         # 一个词查不到就退一步：`night_sky` 在 safebooru 里是**零结果**（镜像库比
         # danbooru 小），但 `night` 有几十万条。所以 tag 用下划线拼的时候，失败再拿
         # 第一段试一次。
-        cands = [tag or "1girl"]
+        base = tag or "1girl"
+        # 让上游先替我们筛一遍背景：safebooru 支持 `-tag` 取反，一个 tag + 一个否定正好
+        # 卡在"最多 2 个 tag"的限制里。`-simple_background` 顺带把白底/纯色底都排掉，
+        # 本地 BAD_TAGS 只当第二道闸 —— 否则 600 条里能用的常常不到 20 条。
+        cands = [f"{base} -simple_background", base]
         if tag and "_" in tag:
             head = tag.split("_")[0]
             if head != tag:
@@ -172,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
         # 客户端第 page 页 = 上游第 (page-1)*3+1 .. (page-1)*3+3 页。
         # 为什么"一段一段占"而不是 page+extra：tag/orient/白底过滤会砍掉 60% 以上，
         # 若两页都从 page 和 page+1 开始，翻页会大量重复（还撞 Compose 的 key）。
-        span = 3
+        span = 6
         first = (page - 1) * span + 1
         for cand in cands:
             posts = []
@@ -194,7 +237,6 @@ class Handler(BaseHTTPRequestHandler):
                 if usable >= wanted:
                     break
             if posts:
-                tag = cand
                 break
         if not posts and upstream_err:
             return self._send(200, json.dumps({"items": [], "page": page, "has_more": False,

@@ -49,8 +49,12 @@ data class ArtItem(
     }
 }
 
-/** 一次整库搜索的结果（还翻不翻得动看 hasMore） */
-data class LivePage(val items: List<ArtItem>, val hasMore: Boolean)
+/** 一次整库搜索的结果（还翻不翻得动看 hasMore；hint = 这个词没收录时服务端给的提醒） */
+data class LivePage(
+    val items: List<ArtItem>,
+    val hasMore: Boolean,
+    val hint: String? = null,
+)
 
 object ArtRepo {
 
@@ -152,7 +156,11 @@ object ArtRepo {
                 orient = o.optString("orient").ifBlank { orient },
             )
         }
-        return LivePage(out, root.optBoolean("has_more", out.isNotEmpty()))
+        return LivePage(
+            items = out,
+            hasMore = root.optBoolean("has_more", out.isNotEmpty()),
+            hint = root.optString("hint").takeIf { it.isNotBlank() },
+        )
     }
 
     /** 缩略图（内存缓存，12 张一屏够用）。 */
