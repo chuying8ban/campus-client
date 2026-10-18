@@ -118,6 +118,9 @@ enum class CampusTab(val label: String, val icon: ImageVector, val soon: String)
     // 「学习」页里的一条任务 —— 所以图标用"目录"那种意思的 List，跟「学习」的勾区分开。
     LIBRARY("学习库", Icons.Filled.List, "公共资源目录：按课程 / 按类型挑链接，加到自己的清单"),
     BOARD("看板", Icons.Filled.List, "4 张统计卡 + 近 14 天图 + 里程碑 + 自检"),
+    // 考试 / 成绩：从「我的」点进去的次页，不占底部导航（跟 BOARD 一样只在 extra 里出现）
+    EXAM("考试", Icons.Filled.DateRange, "考试时间、考场、倒计时"),
+    GRADE("成绩", Icons.Filled.List, "成绩单、平均绩点、已修学分"),
     ME("我的", Icons.Filled.Person, "账户 / 密码管理 / 关于"),
 }
 
@@ -128,6 +131,8 @@ private val CampusTab.accent: androidx.compose.ui.graphics.Color
         CampusTab.SCHEDULE -> C.cyan
         CampusTab.LIBRARY -> C.cyan
         CampusTab.BOARD -> C.magenta
+        CampusTab.EXAM -> C.amber
+        CampusTab.GRADE -> C.green
         CampusTab.ME -> C.violet
     }
 
@@ -390,7 +395,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 所以这里**不再拿 TokenStore.canGrab 当判据**：那是登录那一刻写进本地的值，老用户装上
     // 这个版本也不会重新登录，于是永远看不到那一格。服务端同时把监控那几个接口从 can_grab
     // 放开成"登录即可"（`grab/config` 那个总开关仍只给作者），界面和服务端的判据这才对得上。
-    val tabs = CampusTab.entries.filter { it != CampusTab.BOARD }
+    val tabs = CampusTab.entries.filter { it != CampusTab.BOARD && it != CampusTab.EXAM && it != CampusTab.GRADE }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -432,7 +437,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             // （rememberSaveable：转屏/进程重建后还留着）—— 越界就是崩，所以先夹回合法范围。
             val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
             when (shown) {
-                CampusTab.TODAY -> TodayScreen(app.db)
+                CampusTab.TODAY -> TodayScreen(app.db, onOpenExam = { extra = CampusTab.EXAM })
                 CampusTab.SCHEDULE -> ScheduleScreen(
                     app.db,
                     onUpdate = { showScheduleEditor = false; showCrawl = true },
@@ -440,6 +445,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 )
                 CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LearningHub(app.db)
                 CampusTab.BOARD -> BoardScreen(app.db)
+                CampusTab.EXAM -> top.ccbase.campus.ui.records.ExamScreen(app.db) { extra = null }
+                CampusTab.GRADE -> top.ccbase.campus.ui.records.GradeScreen(app.db) { extra = null }
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
                     // 监控**不再从「我的」进**（用户口径 2026-09-30：「把我的里面的监控删了」）——
@@ -461,6 +468,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onOpenCrawl = { showCrawl = true },
                     onOpenPermissions = { showPerms = true },
                     onOpenFeedback = { showFeedback = true },
+                    onOpenExam = { extra = CampusTab.EXAM },
+                    onOpenGrade = { extra = CampusTab.GRADE },
                 )
                 else -> ShellScreen(shown, version)
             }

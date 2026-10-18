@@ -54,6 +54,25 @@ class TodayWidgetProvider : AppWidgetProvider() {
         const val ACTION_REFRESH = "top.ccbase.campus.WIDGET_REFRESH"
         private const val MAX_ROWS = 3
 
+        /**
+         * 上色。**每次刷新都重新读一次主题**（而不是缓存）：
+         * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
+         */
+        private fun applyTheme(ctx: Context, rv: RemoteViews) {
+            val theme = WidgetThemes.of(WidgetThemes.spec(ctx))
+            if (theme.bgRes != 0) {
+                rv.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
+            } else {
+                rv.setInt(R.id.widget_root, "setBackgroundColor", theme.bgColor)
+            }
+            rv.setTextColor(R.id.widget_head, theme.headColor)
+            rv.setTextColor(R.id.widget_date, theme.dimColor)
+            rv.setTextColor(R.id.widget_row1, theme.bodyColor)
+            rv.setTextColor(R.id.widget_row2, theme.bodyColor)
+            rv.setTextColor(R.id.widget_row3, theme.bodyColor)
+            rv.setTextColor(R.id.widget_foot, theme.dimColor)
+        }
+
         /** 课表导入成功后调一次：小组件立刻跟着变，不用等 30 分钟。 */
         fun refresh(ctx: Context) {
             val intent = Intent(ctx, TodayWidgetProvider::class.java).setAction(ACTION_REFRESH)
@@ -109,6 +128,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 }
             }
             rv.setTextViewText(R.id.widget_foot, model.footer)
+
+            // 主题：预置用圆角底图，DIY 用运行时上色 + 逐个改字色（见 WidgetTheme 的注释）
+            applyTheme(ctx, rv)
 
             val open = PendingIntent.getActivity(
                 ctx, 0,

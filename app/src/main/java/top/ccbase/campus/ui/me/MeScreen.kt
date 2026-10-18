@@ -126,6 +126,10 @@ fun MeScreen(
     onOpenPermissions: () -> Unit = {},
     /** 给 App 提建议 —— 每个用户都有这个入口 */
     onOpenFeedback: () -> Unit = {},
+    /** 考试安排（导入课表时从教务顺带读回的快照） */
+    onOpenExam: () -> Unit = {},
+    /** 成绩单（同上） */
+    onOpenGrade: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf(TokenStore.token(ctx)) }
@@ -142,6 +146,9 @@ fun MeScreen(
     var updCheckAt by remember { mutableStateOf(0L) }
     // 服务端支不支持「重读教务课表」：yes/no/还不知道 —— 决定按钮副标题怎么说实话
     var resync by remember { mutableStateOf<String?>(null) }
+    // 学籍卡片（学院/专业/班级/辅导员）—— 导入课表时顺手从教务学籍页读回来的那份，只存本机
+    var eamsProfile by remember { mutableStateOf<top.ccbase.campus.school.EamsProfile?>(null) }
+    var eamsProfileAt by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     // 这一条消息要不要给「重新登录」按钮
@@ -162,6 +169,8 @@ fun MeScreen(
         updCheck = UpdatePrefs.lastResult(ctx)
         updCheckAt = UpdatePrefs.lastResultAt(ctx)
         resync = db.dao().metaGet(PlanApplier.K_RESYNC)
+        eamsProfile = top.ccbase.campus.school.SchoolProfileCache.load(db)
+        eamsProfileAt = top.ccbase.campus.school.SchoolProfileCache.updatedAt(db)
         token = TokenStore.token(ctx)
         name = TokenStore.name(ctx) ?: ""
         sid = TokenStore.studentId(ctx) ?: ""
@@ -357,6 +366,39 @@ fun MeScreen(
                 Action("重新登录", "登录已过期 —— 重新登录后课表才会继续更新", onClick = { relogin() })
             }
         }
+
+        // 学籍：班级、辅导员这些"请假找谁"的信息，比一堆设置项更常用，所以放在账户下面。
+        // 它在**没有云端登录**时也显示 —— 这些是学校的事实，不依赖你在 App 里登没登录。
+        SectionTitle("学籍")
+        val prof = eamsProfile
+        if (prof == null) {
+            Text(
+                "更新一次课表后，这里会显示你的学院、班级和辅导员。\n" +
+                    "读自教务「学籍 - 详情」，只保存在这台手机上。",
+                fontSize = 13.sp, lineHeight = 21.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            )
+        } else {
+            prof.rows().forEach { (k, v) -> KV(k, v) }
+            eamsProfileAt?.let { KV("更新时间", it) }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "来自教务学籍页，只存本机；点「更新教务课表」会顺带刷新一次。",
+                fontSize = 11.sp, lineHeight = 17.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
+            )
+        }
+        // 考试 / 成绩：都是那次导入顺带读回来的快照，所以入口摆在学籍下面同一组里
+        Action(
+            "考试安排",
+            "考试时间、考场、还有几天；更新课表时一起刷新",
+            onClick = onOpenExam,
+        )
+        Action(
+            "成绩",
+            "成绩单、平均绩点、已修学分；更新课表时一起刷新",
+            onClick = onOpenGrade,
+        )
 
         // 「建议与外观」提到「提醒」前面（用户口径 2026-09-30：「把提建议和外观放到提醒前面」）：
         // 这两样是他自己会去点的东西，原来埋在「关于」那一堆条目中间，得一路翻到底才找得到。

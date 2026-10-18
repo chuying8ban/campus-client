@@ -389,6 +389,16 @@ fun SchoolWebLogin(
                             scope.launch {
                                 try {
                                     val result = wv.extractTimetableJson(pageGate,profile)
+                                    // 学籍卡片：趁 WebView 还停在教务、会话还有效，顺手读一次。
+                                    // 失败一律不影响导课表 —— 导课表是主任务，学籍只是"顺便更好"。
+                                    runCatching {
+                                        val app = wv.context.applicationContext as? top.ccbase.campus.CampusApplication
+                                        val db = app?.db
+                                        if (db != null) {
+                                            wv.extractEamsProfile()?.let { SchoolProfileCache.save(db, it) }
+                                            wv.extractEamsRecords()?.let { SchoolRecordsCache.save(db, it) }
+                                        }
+                                    }
                                     if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clearAll(wv,profile) else SchoolSession.flush()
                                     onTimetableJson(result)
                                 } catch (e: Exception) {
@@ -592,6 +602,36 @@ private suspend fun WebView.extractTimetableJson(gate: PageGate, profile: School
         if (text.isNotEmpty()) return@withContext text
     }
     throw IllegalStateException("读取课表超时；请确认已在教务页面完成登录，再点一次")
+}
+
+/**
+ * 学籍卡片：在**已登录的教务页**上发一次同源 GET，解析逻辑全在
+ * [ShuweiExtraction.profileScript] 里（页面是 HTML，没有 JSON 接口）。
+ *
+ * 超时 20 秒、失败返回 null —— 绝不能因为读不到学籍而让导课表报错。
+ */
+private suspend fun WebView.extractEamsProfile(): String? = withContext(Dispatchers.Main) {
+    evaluate(ShuweiExtraction.profileScript)
+    waitForGlobal("__eamsProfile", "__eamsProfileError", 20_000)
+}
+
+/** 考试安排 + 成绩单：同一个 WebView、同一次会话里顺手读，失败不影响导课表。 */
+private suspend fun WebView.extractEamsRecords(): String? = withContext(Dispatchers.Main) {
+    evaluate(ShuweiExtraction.recordsScript)
+    waitForGlobal("__eamsRecords", "__eamsRecordsError", 30_000)
+}
+
+/** 等注入脚本把结果写进 `window.<name>`；出错或被 _error 标记就返回 null。 */
+private suspend fun WebView.waitForGlobal(name: String, errorName: String, timeoutMs: Long): String? {
+    var waited = 0L
+    while (waited < timeoutMs) {
+        delay(400)
+        waited += 400
+        val payload = decodeValue(evaluate("(window.$name||'')"))
+        if (payload.isNotEmpty()) return payload
+        if (decodeValue(evaluate("(window.$errorName||'')")).isNotEmpty()) return null
+    }
+    return null
 }
 
 /** 导航到同一个官方 origin 的页面，并等 `onPageFinished` 触发。 */

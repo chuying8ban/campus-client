@@ -25,6 +25,7 @@ import top.ccbase.campus.data.local.CampusDb
 import top.ccbase.campus.data.local.Course
 import top.ccbase.campus.data.local.Slot
 import top.ccbase.campus.domain.inWeek
+import top.ccbase.campus.domain.semesterSummary
 import top.ccbase.campus.domain.slotLabel
 import top.ccbase.campus.domain.timeRows
 import top.ccbase.campus.domain.weekNo
@@ -99,7 +100,12 @@ private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!land) Text("课表", color = C.cyan, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Text("${courses.size} 门 · 第 ${rng.first}~${rng.last} 周", color = C.txt3, fontSize = 11.sp)
+                // 学期概览：门数 + 学分 + 周次。学分来自教务课表 JSON 的 credits，
+                // 以前只显示门数，等于把已经在手的数据白扔了（用户要的"学期概览"就是这行）。
+                Text(
+                    semesterSummary(courses).headline("第 ${rng.first}~${rng.last} 周"),
+                    color = C.txt3, fontSize = 11.sp,
+                )
             }
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

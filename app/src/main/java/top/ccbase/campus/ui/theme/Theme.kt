@@ -266,11 +266,13 @@ private val CampusShapes = Shapes(
 fun resolvePalette(): CampusPalette {
     // 外观档位在进程启动时已经读过一次（`CampusApplication.onCreate` → `AppearanceStore.bind`），
     // 这里只读内存快照：改档位靠 `AppearanceStore.theme` 这个状态触发重组合，不再每次组合都碰磁盘。
-    return when (AppearanceStore.theme.value) {
+    val base = when (AppearanceStore.theme.value) {
         AppearanceStore.LIGHT -> LightPalette
         AppearanceStore.SYSTEM -> if (isSystemInDarkTheme()) DarkPalette else LightPalette
         else -> DarkPalette
     }
+    // 主题（强调色）叠在底板上：只转色相 / 微调底色，不改那两套验过对比度的底板
+    return paletteWithAccent(base, AppearanceStore.accent.value, AppearanceStore.wallpaperHue)
 }
 
 @Composable
@@ -411,10 +413,18 @@ object AppearanceStore {
     private const val FILE = "campus_appearance"
     private const val K_THEME = "theme"
     private const val K_BG = "background"
+    private const val K_ACCENT = "accent"
 
     /** 组合侧读这个（`mutableStateOf`）→ 改档位当场重组合 */
     val theme = mutableStateOf(DARK)
     val background = mutableStateOf(BG_SOLID)
+
+    /** 主题/强调色规格（`default` / `preset:<id>` / `diy:<hue>:<tint>` / `wallpaper`） */
+    val accent = mutableStateOf(AccentSpec.DEFAULT)
+
+    /** 壁纸色相（只在 accent=wallpaper 时用；启动时算一次，换壁纸后重进 App 生效） */
+    var wallpaperHue: Float? = null
+        private set
 
     private var bound = false
 
@@ -423,6 +433,23 @@ object AppearanceStore {
         bound = true
         theme.value = read(ctx)
         background.value = backgroundOf(ctx)
+        accent.value = accentOf(ctx)
+        wallpaperHue = WallpaperAccent.hueOf(ctx)
+    }
+
+    fun accentOf(ctx: Context): String = prefs(ctx).getString(K_ACCENT, AccentSpec.DEFAULT) ?: AccentSpec.DEFAULT
+
+    /** 只改内存快照（拖动 DIY 色相时用，松手再落盘，免得每动一格写一次磁盘） */
+    fun previewAccent(value: String) {
+        accent.value = value
+    }
+
+    fun setAccent(ctx: Context, value: String) {
+        prefs(ctx).edit().putString(K_ACCENT, value).apply()
+        bound = true
+        accent.value = value
+        // 选「跟随壁纸」时当场重取一次色相：用户可能就是刚换了壁纸才来点这个
+        if (value == AccentSpec.WALLPAPER) wallpaperHue = WallpaperAccent.hueOf(ctx)
     }
 
     fun read(ctx: Context): String = prefs(ctx).getString(K_THEME, DARK) ?: DARK

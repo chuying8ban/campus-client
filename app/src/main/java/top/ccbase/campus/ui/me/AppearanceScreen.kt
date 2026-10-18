@@ -139,6 +139,11 @@ fun AppearanceScreen(onClose: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         // ── 背景 ──────────────────────────────────────────────────────────
+        // 主题色 / 桌面小组件配色（2026-10-18 用户要求：「大量主题 + 支持 DIY」）
+        Spacer(Modifier.height(14.dp))
+        ThemeSection()
+
+        Spacer(Modifier.height(20.dp))
         SectionTitle2("背景")
         ChoiceRow(
             "默认（纯色）",
