@@ -98,20 +98,29 @@ object WidgetArt {
      * 蒙版不能交给布局里那层 `widget_scrim`：那是一整块矩形 View，盖上去正好把四个圆角
      * 重新填成直角（2026-10-18 用户："没有做到完全圆角"）。所以画进位图、跟着圆角一起裁。
      */
+    /**
+     * 圆角 + 蒙版一次画成一张新位图。
+     *
+     * **不要**复用 [rounded] 的缓存：那是共享位图，每次再往上叠一层渐变会越刷越黑，
+     * 而且同尺寸的不同帧会命中同一个 key → 轮播六帧长得一模一样。
+     */
     fun roundedWithScrim(src: Bitmap, radiusPx: Float, topAlpha: Int, bottomAlpha: Int): Bitmap {
-        val out = rounded(src, radiusPx)
+        val w = src.width
+        val h = src.height
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(out)
         val path = android.graphics.Path().apply {
-            addRoundRect(RectF(0f, 0f, out.width.toFloat(), out.height.toFloat()), radiusPx, radiusPx, android.graphics.Path.Direction.CW)
+            addRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radiusPx, radiusPx, android.graphics.Path.Direction.CW)
         }
         c.save()
         c.clipPath(path)
+        c.drawBitmap(src, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
         val paint = Paint()
         paint.shader = LinearGradient(
-            0f, 0f, 0f, out.height.toFloat(),
+            0f, 0f, 0f, h.toFloat(),
             intArrayOf(topAlpha, bottomAlpha), null, Shader.TileMode.CLAMP,
         )
-        c.drawRect(0f, 0f, out.width.toFloat(), out.height.toFloat(), paint)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), paint)
         c.restore()
         return out
     }

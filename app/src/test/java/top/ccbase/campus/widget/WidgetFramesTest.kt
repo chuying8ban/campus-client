@@ -30,15 +30,17 @@ class WidgetFramesTest {
     private val ctx get() = ApplicationProvider.getApplicationContext<android.content.Context>()
 
     /**
-     * 真机上「载入窗口小部件时出现问题」的元凶：一次性塞给桌面的位图太多。
-     * 钉一条硬预算：所有帧加起来 ≤ 8MB（ARGB_8888），超了桌面就会丢帧/崩。
+     * 真机上「载入窗口小部件时出现问题」和「主题显示不上」的共同元凶：一次性塞给桌面的位图太多。
+     *
+     * RemoteViews 的位图是连像素一起走 binder 的，一次事务超过 ~1MB 就会被 launcher 丢弃。
+     * 这条预算从 8MB 收到 **1MB**（2026-10-19），因为 8MB 那版实测在 MIUI 上表现就是"桌面只剩文字"。
      */
     @Test
-    fun `所有帧加起来不超过 8MB`() {
+    fun `所有帧加起来不超过 1MB`() {
         val spec = WidgetDyn.spec(DynPainter.Kind.PETALS, 0xFFFF7BC0.toInt())
         val frames = requireNotNull(WidgetFrames.forSpec(ctx, spec, 1200, 600))
         val bytes = frames.sumOf { it.width.toLong() * it.height * 4 }
-        assertTrue("帧太大：${bytes / 1024 / 1024}MB", bytes <= 8L * 1024 * 1024)
+        assertTrue("帧太大：${bytes / 1024}KB", bytes <= 1024L * 1024)
     }
 
     /** 帧要落盘：provider 被系统杀掉重建后不该重画一遍（换主题那几秒就是花在重画上） */
@@ -148,5 +150,22 @@ class WidgetFramesTest {
         assertEquals(WidgetFrames.FRAMES, frames.size)
         // 推近 + 粒子 ⇒ 首尾帧不应该一模一样
         assertNotEquals(true, frames[0].sameAs(frames.last()))
+    }
+
+    /**
+     * 圆角蒙版必须画在**新位图**上（2026-10-19 "主题显示不上"那次排查发现的真 bug）：
+     * 旧实现拿 rounded() 的共享缓存位图当输出，每刷新一次再叠一层渐变 —— 越刷越黑；
+     * 同尺寸的不同帧还会命中同一个缓存 key，轮播出来六帧一模一样。
+     */
+    @Test
+    fun `蒙版不会污染源图_两次结果一致`() {
+        val src = Bitmap.createBitmap(200, 100, Bitmap.Config.ARGB_8888)
+        Canvas(src).drawColor(Color.WHITE)
+        val before = src.getPixel(100, 50)
+        val a = WidgetArt.roundedWithScrim(src, 20f, 0x66000000.toInt(), 0x99000000.toInt())
+        val b = WidgetArt.roundedWithScrim(src, 20f, 0x66000000.toInt(), 0x99000000.toInt())
+        assertEquals("源图被改写了", before, src.getPixel(100, 50))
+        assertEquals("同一张源图画两次结果不同（说明在往共享位图上叠）", a.getPixel(100, 50), b.getPixel(100, 50))
+        assertEquals("四个角必须透明", 0, a.getPixel(0, 0))
     }
 }

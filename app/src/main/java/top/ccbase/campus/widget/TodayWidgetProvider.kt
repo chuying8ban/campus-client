@@ -137,12 +137,25 @@ class TodayWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * 测试钩子：只按主题拼一张 RemoteViews（不查课表、不依赖 launcher）。
+         * 用来验证"主题到底有没有铺上去"——真机上看不到的画面，测试里能一项项断言。
+         */
+        internal fun themeViews(ctx: Context, wPx: Int, hPx: Int): RemoteViews {
+            val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
+            applyTheme(ctx, rv, wPx, hPx)
+            return rv
+        }
+
+        /**
          * 上色 + 铺底。**每次刷新都重新读一次主题**（不缓存）：
          * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
          */
         private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int) {
             val spec = WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
+            // 先垫一层不透明底色：万一 launcher 把位图丢了（MIUI 对大位图会静默丢），
+            // 卡片至少还是一张深色卡，而不是"只剩文字的透明块"（用户 2026-10-19 截图）。
+            rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
 
             // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
             // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
@@ -171,59 +184,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
             }
-            val art = WidgetThemes.imageBitmap(ctx, theme)
-            val density = ctx.resources.displayMetrics.density
-
-            if (dyn != null) {
-                // 已经用帧轮播铺底了，不要再盖静态图
-            } else if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
-                // 媒体主题但帧没生成出来（抽帧失败/内存吃紧）：至少给**一张真实画面**，
-                // 不能掉回纯色主题色 —— 用户看到的就是"我的视频变成主题色了"。
-                val still = top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
-                    ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
-                )
-                if (still != null) {
+            if (dyn == null) {
+                // 静态底：图片主题 / 媒体封面帧 / 纯色渐变，统一在 backgroundBitmapFor 里挑
+                val bmp = backgroundBitmapFor(ctx, spec, wPx, hPx)
+                if (bmp != null) {
                     rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                    rv.setImageViewBitmap(
-                        R.id.widget_bg_img,
-                        WidgetArt.roundedWithScrim(
-                            scaleToFill(still, wPx, hPx),
-                            WidgetArt.radiusFor(hPx, density),
-                            topAlpha = 0x55000000.toInt(),
-                            bottomAlpha = 0x99000000.toInt(),
-                        ),
-                    )
+                    rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
                 } else {
+                    // 连渐变都画不出来（几乎不可能）：至少别让卡片透明
                     rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                    rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
                 }
-                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
-            } else if (art != null) {
-                // 图片主题：图缩放铺满 + 压一层暗蒙版，保证字读得清
-                rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                // 圆角必须画进位图：RemoteViews 里的 ImageView 没有圆角属性（用户截图：直角）
-                // 蒙版直接画进圆角位图：布局里那层矩形 scrim 会盖住圆角（2026-10-18 "没有做到完全圆角"）
-                rv.setImageViewBitmap(
-                    R.id.widget_bg_img,
-                    WidgetArt.roundedWithScrim(
-                        scaleToFill(art, wPx, hPx),
-                        WidgetArt.radiusFor(hPx, density),
-                        topAlpha = 0x66000000.toInt(),
-                        bottomAlpha = 0x99000000.toInt(),
-                    ),
-                )
-                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
-            } else {
-                // 纯色 / DIY：现画一张渐变底，比原来的"一整块纯色"有质感得多
-                val bmp = WidgetArt.background(
-                    w = wPx,
-                    h = hPx,
-                    base = theme.bgColor,
-                    accent = theme.accentColor,
-                    light = theme.light,
-                    radiusPx = WidgetArt.radiusFor(hPx, density),
-                )
-                rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
                 rv.setViewVisibility(R.id.widget_scrim, View.GONE)
             }
 
@@ -238,22 +209,106 @@ class TodayWidgetProvider : AppWidgetProvider() {
             rv.setTextColor(R.id.widget_foot, theme.dimColor)
         }
 
-        /** 按目标宽高做 centerCrop 缩放；原图小就不放大（放大只会糊）。 */
+        /**
+         * 静态底图：媒体封面帧 > 图片主题 > 纯色渐变。失败返回 null（调用方退回不透明底色）。
+         *
+         * 抽成一个函数是为了能测——真机上这张图到底有没有生成、是不是大得被 launcher 丢掉，
+         * 只能靠测试断言，肉眼看不出原因。
+         */
+        internal fun backgroundBitmapFor(ctx: Context, spec: String, wPx: Int, hPx: Int): android.graphics.Bitmap? {
+            val theme = WidgetThemes.of(spec)
+            val density = ctx.resources.displayMetrics.density
+            runCatching {
+                if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
+                    val still = top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
+                        ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+                    )
+                    if (still != null) return bgBitmap(still, wPx, hPx, density, 0x55000000.toInt(), 0x99000000.toInt())
+                }
+                val art = WidgetThemes.imageBitmap(ctx, theme)
+                if (art != null) return bgBitmap(art, wPx, hPx, density, 0x66000000.toInt(), 0x99000000.toInt())
+            }
+            val bmp = runCatching {
+                WidgetArt.background(
+                    w = wPx,
+                    h = hPx,
+                    base = theme.bgColor,
+                    accent = theme.accentColor,
+                    light = theme.light,
+                    radiusPx = WidgetArt.radiusFor(hPx, density),
+                )
+            }.getOrNull()
+            return bmp?.let { capPixels(it) }
+        }
+
+        /** 位图预算：RemoteViews 走 binder，位图一大 MIUI 会静默丢掉整张图（卡片只剩文字）。
+         *  20 万像素 ≈ 800×250，ARGB 约 800KB，桌面 4×2 也够看。
+         */
+        private const val BG_MAX_PX = 200_000
+
+        /** 缩放铺满 + 圆角蒙版，一步成型。失败返回 null，由调用方退回纯色底。 */
+        private fun bgBitmap(
+            src: android.graphics.Bitmap,
+            wPx: Int,
+            hPx: Int,
+            density: Float,
+            topAlpha: Int,
+            bottomAlpha: Int,
+        ): android.graphics.Bitmap? = runCatching {
+            var filled = scaleToFill(src, wPx, hPx)
+            val px = filled.width.toLong() * filled.height
+            if (px > BG_MAX_PX) {
+                val s = kotlin.math.sqrt(BG_MAX_PX.toFloat() / px)
+                filled = android.graphics.Bitmap.createScaledBitmap(
+                    filled,
+                    (filled.width * s).toInt().coerceAtLeast(1),
+                    (filled.height * s).toInt().coerceAtLeast(1),
+                    true,
+                )
+            }
+            val ratio = filled.width.toFloat() / wPx
+            WidgetArt.roundedWithScrim(
+                filled,
+                WidgetArt.radiusFor(hPx, density) * ratio,
+                topAlpha,
+                bottomAlpha,
+            )
+        }.getOrNull()
+
+        /** 压到预算内：900×400 的渐变底是 36 万像素 = 1.4MB，够 launcher 丢掉的了 */
+        internal fun capPixels(bmp: android.graphics.Bitmap): android.graphics.Bitmap {
+            val px = bmp.width.toLong() * bmp.height
+            if (px <= BG_MAX_PX) return bmp
+            val s = kotlin.math.sqrt(BG_MAX_PX.toFloat() / px)
+            return android.graphics.Bitmap.createScaledBitmap(
+                bmp,
+                (bmp.width * s).toInt().coerceAtLeast(1),
+                (bmp.height * s).toInt().coerceAtLeast(1),
+                true,
+            )
+        }
+
+        /** 底色永远给不透明版本：宁可深一点，也不能让桌面卡片变透明 */
+        private fun opaque(color: Int): Int {
+            val a = android.graphics.Color.alpha(color)
+            return if (a >= 0xF0) color else android.graphics.Color.argb(
+                0xF7, android.graphics.Color.red(color),
+                android.graphics.Color.green(color), android.graphics.Color.blue(color),
+            )
+        }
+
+        /** 按目标宽高做 centerCrop；**不 recycle 源图**（可能来自共享缓存）。 */
         private fun scaleToFill(src: android.graphics.Bitmap, w: Int, h: Int): android.graphics.Bitmap {
-            val sx = w.toFloat() / src.width
-            val sy = h.toFloat() / src.height
-            val s = maxOf(sx, sy)
-            if (s <= 1f) return src
-            val out = android.graphics.Bitmap.createScaledBitmap(
-                src, (src.width * s).toInt(), (src.height * s).toInt(), true,
+            val s = maxOf(w.toFloat() / src.width, h.toFloat() / src.height)
+            val sw = (src.width * s).toInt().coerceAtLeast(1)
+            val sh = (src.height * s).toInt().coerceAtLeast(1)
+            val scaled = if (sw == src.width && sh == src.height) src
+            else android.graphics.Bitmap.createScaledBitmap(src, sw, sh, true)
+            val dx = ((scaled.width - w) / 2).coerceAtLeast(0)
+            val dy = ((scaled.height - h) / 2).coerceAtLeast(0)
+            return android.graphics.Bitmap.createBitmap(
+                scaled, dx, dy, minOf(w, scaled.width), minOf(h, scaled.height),
             )
-            val dx = ((out.width - w) / 2).coerceAtLeast(0)
-            val dy = ((out.height - h) / 2).coerceAtLeast(0)
-            val cropped = android.graphics.Bitmap.createBitmap(
-                out, dx, dy, minOf(w, out.width), minOf(h, out.height),
-            )
-            if (cropped != out) out.recycle()
-            return cropped
         }
 
         /** 课表导入成功后 / App 打开时调一次：小组件立刻跟着变，不用等 30 分钟。 */

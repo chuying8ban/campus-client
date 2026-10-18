@@ -33,15 +33,14 @@ import kotlin.math.sin
 object WidgetFrames {
 
     /**
-     * 帧数从 12 降到 **6**（2026-10-18 用户："小部件仍然不支持动图…出现了混乱"）。
+     * 帧数：**4**（不是 12，也不是 6）。
      *
-     * 真机反馈是桌面直接弹「载入窗口小部件时出现问题」—— 那是 launcher 施加 RemoteViews 时炸的。
-     * 12 张接近整卡尺寸的位图 + 抽帧时中间副本，峰值能到几十 MB，既可能把 provider 撑爆 OOM，
-     * 也超过 RemoteViews 愿意接收的位图总量。6 帧 × 240ms 仍然是一个 1.44 秒的循环，
-     * 慢镜头素材看不出差别，代价只是一半的流量和内存。
+     * RemoteViews 里的位图是连像素一起塞进 binder 事务的，一次 updateAppWidget 总大小超过
+     * ~1MB 就会被 launcher 整块丢掉（MIUI 更是静默丢 → 桌面只剩文字，2026-10-19 用户截图）。
+     * 6 帧 × 17 万像素 = 4MB，正是"主题显示不上"的元凶。现在 4 帧 × 5 万像素 ≈ 800KB。
      */
-    const val FRAMES = 6
-    const val STEP_SEC = 0.24f
+    const val FRAMES = 4
+    const val STEP_SEC = 0.32f
 
     /** 叠在插画上的"动态效果" */
     enum class ImgEffect(val id: String, val label: String, val hint: String) {
@@ -146,11 +145,12 @@ object WidgetFrames {
     private fun frameSize(wPx: Int, hPx: Int): Triple<Int, Int, Float> {
         // 别按满尺寸画：fitXY 放大肉眼看不出（画面本来就是柔焦的图/光）。**缩小不会切掉圆角** ——
         // fitXY 只拉伸不裁切，这正是 3.2.1 那次修法的关键。
-        // 每帧像素预算：6 帧 × 17 万像素 ≈ 4MB（ARGB_8888）。压到这条线以下，
-        // 塞进 RemoteViews 才不会被桌面丢掉/炸掉。
-        val perFrame = 170_000f
+        // 每帧像素预算：4 帧 × 5 万像素 ≈ 800KB（ARGB_8888）。
+        // RemoteViews 把像素一起塞进 binder 事务，总量超过 ~1MB 桌面就会整块丢掉。
+        val perFrame = 50_000f
         val px = wPx.toLong() * hPx
-        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.32f)
+        // 下限 0.24：1200×600 的极端格子也要压进预算（0.32 时 4 帧仍会到 1.1MB）
+        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.24f)
         val fw = max(120, (wPx * scale).toInt())
         val fh = max(80, (hPx * scale).toInt())
         return Triple(fw, fh, scale)
