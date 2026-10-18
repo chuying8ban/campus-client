@@ -65,7 +65,7 @@ import java.time.format.DateTimeFormatter
  * 两件事互不吃掉。没有资源就不画（不留占位）。
  */
 @Composable
-fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}) {
+fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}, onOpenWidgetTheme: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     var view by remember { mutableStateOf<TodayView?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -153,7 +153,7 @@ fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}) {
 
         // 页尾两块：考试倒计时（有才出现）、把小组件放上桌面的邀请（桌面上还没有才出现）
         item { ExamStrip(db, onOpenExam) }
-        item { WidgetInviteBottom() }
+        item { WidgetInviteBottom(onOpenTheme = onOpenWidgetTheme) }
 
 
     }

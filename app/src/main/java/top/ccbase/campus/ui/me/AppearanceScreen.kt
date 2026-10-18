@@ -77,9 +77,10 @@ import top.ccbase.campus.ui.theme.palette
  * 于是这里放一截真机顶部的 1:1 画面（同一个 [BackgroundLayer] 画的），点哪张当场就变。
  */
 @Composable
-fun AppearanceScreen(onClose: () -> Unit) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+fun AppearanceScreen(onClose: () -> Unit, initialTab: Int = 0) {
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
 
+    // 空白处的触摸由 `overlaySurface` 统一吃掉（见 Theme.kt），这里不用再挂
     Column(Modifier.fillMaxSize().overlaySurface) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 10.dp),
@@ -87,7 +88,16 @@ fun AppearanceScreen(onClose: () -> Unit) {
         ) {
             Text("外观", color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
-            Text("关闭", color = C.txt3, fontSize = 13.sp, modifier = Modifier.clickable { onClose() })
+            // 命中区补到 44dp：13sp 的几个字手指一偏就点空（点空又不会穿透到下面了，
+            // 但用户只会觉得"点了没反应"）
+            Text(
+                "关闭",
+                color = C.txt3,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clickable { onClose() }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+            )
         }
 
         // 两页切换：一眼看得出"这是两件事"，也不会改错对象

@@ -62,6 +62,13 @@ import top.ccbase.campus.widget.WidgetThemes
 fun AccentSection() {
     val ctx = LocalContext.current
     val spec = AppearanceStore.accent.value
+    // 色点必须从**没有叠过强调色的底板**算起。用 palette（= 已叠过当前强调色）再转一次，
+    // 色相会被转两遍，于是"默认紫"显示成土黄、"青叶"显示成橄榄绿 —— 2026-10-18 用户看到的就是这个。
+    val basePalette = if (palette.bg.luminance() <= 0.5f) {
+        top.ccbase.campus.ui.theme.DarkPalette
+    } else {
+        top.ccbase.campus.ui.theme.LightPalette
+    }
 
     val startHue = AccentSpec.diyHue(spec) ?: 265f
     val startSat = if (AccentSpec.isDiy(spec)) AccentSpec.diyTint(spec) else 1f
@@ -76,7 +83,7 @@ fun AccentSection() {
                 row.forEach { p ->
                     val active = spec == AccentSpec.preset(p.id) ||
                         (p.id == "default" && spec == AccentSpec.DEFAULT)
-                    val c = paletteWithAccent(palette, AccentSpec.preset(p.id)).violet
+                    val c = paletteWithAccent(basePalette, AccentSpec.preset(p.id)).violet
                     Swatch(c, active, p.name) {
                         AppearanceStore.setAccent(ctx, AccentSpec.preset(p.id))
                         hue = p.hue
@@ -132,7 +139,7 @@ fun AccentSection() {
                 fontSize = 10.5.sp, lineHeight = 16.sp, color = C.txt3,
             )
             Spacer(Modifier.height(10.dp))
-            val live = paletteWithAccent(palette, AccentSpec.diy(hue, sat))
+            val live = paletteWithAccent(basePalette, AccentSpec.diy(hue, sat))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(24.dp).background(live.violet, CircleShape))
                 Spacer(Modifier.width(8.dp))

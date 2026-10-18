@@ -31,6 +31,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -496,7 +498,12 @@ val Modifier.pageSurface: Modifier
  * 所以整页底只有两个合法写法：页面用 [pageSurface]、浮层用 [overlaySurface]；
  * 谁自己写 `.background(C.bg)`，`AppearanceGuardTest` 会拦下（那种写法在有背景图时会把背景层盖住）。
  */
-val Modifier.overlaySurface: Modifier get() = background(C.bg)
+val Modifier.overlaySurface: Modifier
+    get() = background(C.bg)
+        // 浮层必须**吃掉空白处的触摸**：背景色只是画出来的，不拦事件，
+        // 点在没挂 clickable 的地方会穿透到下面那页（2026-10-18：在外观页点右上角，
+        // 结果进了下面「我的」里的教务入口）。所有整屏浮层共用这个修饰符，一处修全部生效。
+        .pointerInput(Unit) { detectTapGestures { } }
 
 /** 背景预设的存储前缀（`preset:<id>`），渲染与设置页共用同一个字面量 */
 const val BG_PRESET_PREFIX = "preset:"

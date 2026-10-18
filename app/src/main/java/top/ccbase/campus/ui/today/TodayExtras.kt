@@ -99,7 +99,7 @@ fun WidgetInviteTop() {
 
 /** 页尾状态行：已经加过时只留一句"桌面上已有 N 个"，不重复发邀请。 */
 @Composable
-fun WidgetInviteBottom() {
+fun WidgetInviteBottom(onOpenTheme: () -> Unit = {}) {
     val ctx = LocalContext.current
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
     LifecycleResumeEffect(Unit) {
@@ -107,8 +107,9 @@ fun WidgetInviteBottom() {
         onPauseOrDispose { }
     }
     if (placed == 0) return
+    // 整行都可点：只给"换配色"三个字挂点击，手指落偏一点就没反应（2026-10-18 用户反馈"点不了"）
     Row(
-        Modifier.fillMaxWidth().padding(top = 18.dp),
+        Modifier.fillMaxWidth().padding(top = 18.dp).clickable { onOpenTheme() },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("桌面上的「今日课表」已有 $placed 个", fontSize = 11.sp, color = C.txt3)
