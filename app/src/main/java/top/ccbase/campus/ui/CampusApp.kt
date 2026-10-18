@@ -218,6 +218,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showDiag by remember { mutableStateOf(false) }
     var showSafety by remember { mutableStateOf(false) }
     var showArtGallery by remember { mutableStateOf(false) }
+    // 日程规划：null=不显示；false=列表；true=列表+直接开编辑层（从"＋ 加一条"进来）
+    var showPlan by remember { mutableStateOf<Boolean?>(null) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
     var artKind by remember { mutableStateOf("landscape") }
     var artTarget by remember { mutableStateOf("widget") }
@@ -450,6 +452,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 CampusTab.TODAY -> TodayScreen(
                     app.db,
                     onOpenExam = { extra = CampusTab.EXAM },
+                    onOpenPlan = { showPlan = false },
+                    onAddPlan = { showPlan = true },
                     onOpenWidgetTheme = {
                         appearanceTab = 1
                         idx = tabs.indexOf(CampusTab.APPEARANCE).coerceAtLeast(0)
@@ -536,6 +540,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     if (showSafety) {
         top.ccbase.campus.ui.me.SafetyScreen(onClose = { showSafety = false })
+    }
+    showPlan?.let { withEditor ->
+        top.ccbase.campus.ui.plan.DayAgendaScreen(
+            db = (LocalContext.current.applicationContext as CampusApplication).db,
+            onClose = { showPlan = null },
+            startWithEditor = withEditor,
+        )
     }
     if (showArtGallery) {
         top.ccbase.campus.ui.me.ArtGalleryScreen(

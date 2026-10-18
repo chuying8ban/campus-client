@@ -39,6 +39,7 @@ import top.ccbase.campus.util.Links
 import kotlinx.coroutines.flow.first
 import top.ccbase.campus.domain.loadToday
 import top.ccbase.campus.domain.msToNextMinute
+import top.ccbase.campus.ui.plan.TodayPlanSection
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 import java.time.LocalDateTime
@@ -65,7 +66,13 @@ import java.time.format.DateTimeFormatter
  * 两件事互不吃掉。没有资源就不画（不留占位）。
  */
 @Composable
-fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}, onOpenWidgetTheme: () -> Unit = {}) {
+fun TodayScreen(
+    db: CampusDb,
+    onOpenExam: () -> Unit = {},
+    onOpenWidgetTheme: () -> Unit = {},
+    onOpenPlan: () -> Unit = {},
+    onAddPlan: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     var view by remember { mutableStateOf<TodayView?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -150,6 +157,9 @@ fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}, onOpenWidgetTheme: ()
         } else {
             items(rows) { r -> TimeRow(r, v.weekNo) }
         }
+
+        // 日程单独一块：它和课程同一条骨架，但带「日程」标签 + 强调色，不挤在课表里
+        item { TodayPlanSection(db = db, day = today, onOpen = onOpenPlan, onAdd = onAddPlan) }
 
         // 页尾两块：考试倒计时（有才出现）、把小组件放上桌面的邀请（桌面上还没有才出现）
         item { ExamStrip(db, onOpenExam) }

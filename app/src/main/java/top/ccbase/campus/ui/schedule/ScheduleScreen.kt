@@ -166,7 +166,8 @@ private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
                     val day = slots
                         .filter { it.weekday == wd && it.inWeek(week) }
                         .sortedBy { it.p_start ?: 0 }
-                    if (day.isNotEmpty()) {
+                    // 没课的那天也要留着（用户："不要把那一天删了"），只把内容降级成一行说明
+                    run {
                         val isToday = wd == todayWd
                         Text(
                             "周" + "一二三四五六日"[wd - 1] + if (isToday) " · 今天" else "",
@@ -199,6 +200,13 @@ private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
                                     }
                                 }
                             }
+                        }
+                        if (day.isEmpty()) {
+                            Text(
+                                "这天没课",
+                                color = C.txt3, fontSize = 11.sp,
+                                modifier = Modifier.padding(vertical = 3.dp),
+                            )
                         }
                     }
                 }

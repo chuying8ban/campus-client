@@ -188,6 +188,30 @@ data class Milestone(
     val sort: Int = 0,
 )
 
+/**
+ * 用户自己排的日程（2026-10-18 新增）。
+ *
+ * 和课表是两回事：课表是从教务导进来的、只在有课的那几周有效；日程是"我今天三点要去
+ * 交材料"这种，用户自己敲的。所以单独一张表、单独一条时间线，**不并进 slots** —— 并进去
+ * 会被下次导课表覆盖掉。
+ */
+@Entity(tableName = "plan_events", indices = [Index(value = ["day"])])
+@Serializable
+data class PlanEvent(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    /** YYYY-MM-DD */
+    val day: String,
+    /** HH:mm */
+    val start: String,
+    /** HH:mm；可为空 = 没设结束时间 */
+    val end: String = "",
+    val title: String,
+    val note: String? = null,
+    /** 0/1，勾掉之后当天不再出现 */
+    val done: Int = 0,
+    val created_at: Long = System.currentTimeMillis(),
+)
+
 // ---------------------------------------------------------------- 记录（用户产生的数据）
 
 @Entity(tableName = "task_done", indices = [Index(value = ["day"]), Index(value = ["task_id", "day"])])

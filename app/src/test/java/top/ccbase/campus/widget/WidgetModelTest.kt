@@ -1,6 +1,7 @@
 package top.ccbase.campus.widget
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.ccbase.campus.domain.ClassNow
@@ -68,9 +69,42 @@ class WidgetModelTest {
     }
 
     @Test
-    fun `没课但有任务时 页脚报任务数`() {
-        val m = buildWidgetModel(view(emptyList(), tasks = 2))
-        assertEquals("还有 2 件任务", m.footer)
+    fun `任务系统取消后 没课也不许再报任务数`() {
+        // 2026-10-18：用户已经取消任务系统，但库里还留着旧任务记录，
+        // 小组件曾因此显示"还有 19 件任务"。这条钉住：不管库里有几条，都不许出现。
+        val m = buildWidgetModel(view(emptyList(), tasks = 19))
+        assertNotEquals("还有 19 件任务", m.footer)
+        assertTrue("页脚不许提任务", !m.footer.contains("任务"))
+    }
+
+    @Test
+    fun `早晚自习进同一条时间线`() {
+        val v = view(listOf(cls("高等数学", "08:00-09:35", "done"))).copy(
+            selfstudy = listOf(
+                top.ccbase.campus.domain.SelfStudyNow("morning", "07:20", "08:00", "操场", "todo"),
+                top.ccbase.campus.domain.SelfStudyNow("evening", "19:00", "21:00", "图书馆", "todo"),
+            ),
+        )
+        val m = buildWidgetModel(v, nowClock = java.time.LocalTime.of(6, 0))
+        assertEquals("早自习", m.headline)
+        assertEquals("07:20–08:00 · 操场", m.meta)
+        assertTrue("晚自习也要在后几行里", m.rows.any { it.name == "晚自习" })
+        assertTrue("自习得标出来是 self，不能当课程", m.rows.all { it.kind == WidgetRow.KIND_SELF })
+    }
+
+    @Test
+    fun `自建日程和课程分开标_且按时间插队`() {
+        val v = view(listOf(cls("高等数学", "08:00-09:35", "todo")))
+        val plans = listOf(
+            top.ccbase.campus.domain.PlanNow(
+                id = 1, day = "2026-10-19", start = "07:00", end = "",
+                title = "交实验报告", note = "教A301", done = false,
+            ),
+        )
+        val m = buildWidgetModel(v, plans = plans, nowClock = java.time.LocalTime.of(6, 0))
+        assertEquals("交实验报告", m.headline)
+        assertEquals("下一个日程", m.status)
+        assertEquals(WidgetRow.KIND_COURSE, m.rows.first { it.name == "高等数学" }.kind)
     }
 
     @Test
@@ -85,6 +119,7 @@ class WidgetModelTest {
             ),
         )
         assertEquals(3, many.rows.size)
-        assertTrue("超出的节数要写出来，不能默默截断", many.footer.contains("还有 1 节"))
+        // 2026-10-18：时间线上现在混着课/自习/日程，单位从"节"改成"项"
+        assertTrue("超出的条数要写出来，不能默默截断", many.footer.contains("还有 1 项"))
     }
 }

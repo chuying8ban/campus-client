@@ -84,7 +84,8 @@ fun WeekGrid(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "周" + "一二三四五六日"[d - 1],
+                        // 7 列时每格只有 50dp 上下，带"周"字会换行/挤掉，只留一个字
+                        "一二三四五六日"[d - 1].toString(),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = if (isToday) C.violet else C.txt2,

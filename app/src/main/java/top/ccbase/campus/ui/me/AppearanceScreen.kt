@@ -59,6 +59,9 @@ import top.ccbase.campus.ui.theme.BgStyle
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
+import top.ccbase.campus.ui.theme.DynKind
+import top.ccbase.campus.ui.theme.ANIM_PREFIX
+import top.ccbase.campus.ui.theme.DynamicBackground
 import top.ccbase.campus.ui.theme.presetById
 import top.ccbase.campus.widget.ArtRepo
 import androidx.compose.ui.graphics.asImageBitmap
@@ -376,6 +379,36 @@ private fun PreviewTile(bg: String) {
 }
 
 /**
+ * 动态主题的小卡：缩略图上真的在放动画（同一个 [DynamicBackground]，缩到 1/4 大小）。
+ * 只有 4 张，且都在这一屏里，性能可以接受；用户能"先看见它怎么动"再点。
+ */
+@Composable
+private fun DynSwatch(kind: DynKind, dark: Boolean, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .border(
+                    if (selected) 2.dp else 1.dp,
+                    if (selected) C.violet else C.line,
+                    RoundedCornerShape(12.dp),
+                ),
+        ) {
+            DynamicBackground(kind = kind, accent = C.violet, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().clickable { onClick() })
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            kind.label + if (selected) " ✓" else "",
+            color = if (selected) C.violet else C.txt2, fontSize = 11.5.sp,
+        )
+        Text(kind.hint, color = C.txt3, fontSize = 10.sp)
+    }
+}
+
+/**
  * 「在线图库」入口卡：上面一条三张缩略图，下面写"在线图库 · 上千张可搜"。
  *
  * 为什么入口要带图：用户原话「没有预览的图片，没有图片就无法吸引用户点进去」。
@@ -385,10 +418,13 @@ private fun PreviewTile(bg: String) {
 private fun GalleryEntryCard(dark: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val ctx = LocalContext.current
     var thumbs by remember { mutableStateOf<List<android.graphics.Bitmap>>(emptyList()) }
+    var total by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         thumbs = runCatching {
             withContext(Dispatchers.IO) {
-                val pool = ArtRepo.fetchCatalog(ctx).filter { it.ofOrient("portrait") }
+                val all = ArtRepo.fetchCatalog(ctx)
+                total = all.size
+                val pool = all.filter { it.ofOrient("portrait") }
                 if (pool.isEmpty()) emptyList()
                 else pool.chunked((pool.size / 3).coerceAtLeast(1))
                     .mapNotNull { ArtRepo.thumb(it.first()) }
@@ -426,7 +462,11 @@ private fun GalleryEntryCard(dark: Boolean, modifier: Modifier = Modifier, onCli
         }
         Spacer(Modifier.height(8.dp))
         Text("在线图库", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-        Text("上千张，可搜 IP", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.padding(top = 2.dp))
+        // 写真实条数：原来固定写"上千张"，用户点进去数了一遍就来问"怎么那么少"
+        Text(
+            if (total > 0) "共 $total 张 · 可搜 IP" else "精选插画 · 可搜 IP",
+            color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 
@@ -479,8 +519,10 @@ private fun PhotoEntryCard(
 @Composable
 private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
     val preset = if (bg.startsWith(BG_PRESET_PREFIX)) presetById(bg.removePrefix(BG_PRESET_PREFIX)) else null
+    val anim = if (bg.startsWith(ANIM_PREFIX)) DynKind.of(bg.removePrefix(ANIM_PREFIX)) else null
     val name = when {
         preset != null -> preset.name
+        anim != null -> "${anim.label}（动态）"
         bg.startsWith(AppearanceStore.BG_PHOTO) -> "自选图片"
         else -> "纯色"
     }
@@ -500,7 +542,9 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(9.dp))
                 .border(1.dp, C.lineHi, RoundedCornerShape(9.dp)),
         ) {
-            if (preset != null) {
+            if (anim != null) {
+                DynamicBackground(anim, C.violet, Modifier.fillMaxSize())
+            } else if (preset != null) {
                 BgPresetSurface(preset, dark, Modifier.fillMaxSize())
             } else {
                 Box(Modifier.fillMaxSize().background(if (dark) Color(0xFF221F2B) else Color(0xFFEFEDF5)))
@@ -510,7 +554,7 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text("预设主题", color = C.txt, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(2.dp))
-            Text("当前：$name · 12 款可选", color = C.txt3, fontSize = 11.sp)
+            Text("当前：$name · 16 款可选", color = C.txt3, fontSize = 11.sp)
         }
         Text("›", color = C.txt3, fontSize = 20.sp)
         Spacer(Modifier.width(6.dp))
@@ -574,10 +618,30 @@ private fun BgPresetBoard(onClose: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
             }
+            // ── 动态主题：会动的背景，自己一段 ──
+            Text("动态主题", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "画面自己在动；费电比静态多一点点（30fps，切后台就停）",
+                color = C.txt3, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            DynKind.entries.chunked(2).forEach { rowItems ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rowItems.forEach { kind ->
+                        DynSwatch(
+                            kind = kind,
+                            dark = dark,
+                            selected = bgChoice == ANIM_PREFIX + kind.id,
+                            modifier = Modifier.weight(1f),
+                        ) { AppearanceStore.setBackground(ctx, ANIM_PREFIX + kind.id) }
+                    }
+                }
+            }
             Text(
                 "换完直接生效，不用再点保存。",
                 color = C.txt3, fontSize = 11.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 20.dp),
+                modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
             )
         }
     }

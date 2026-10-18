@@ -30,8 +30,9 @@ import androidx.room.migration.Migration
         Checkin::class,
         Meta::class,
         DeletedTask::class,
+        PlanEvent::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class CampusDb : RoomDatabase() {
@@ -76,7 +77,25 @@ abstract class CampusDb : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        /**
+         * v3 → v4：用户自建日程表。
+         *
+         * 纯新增表，不动已有数据；老用户升级后日程是空的，不会跟课表打架。
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS plan_events (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "day TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL DEFAULT '', " +
+                        "title TEXT NOT NULL, note TEXT, done INTEGER NOT NULL DEFAULT 0, " +
+                        "created_at INTEGER NOT NULL DEFAULT 0)",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_plan_events_day ON plan_events(day)")
+            }
+        }
+
+        val MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 
         @Volatile
         private var inst: CampusDb? = null

@@ -28,6 +28,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,6 +47,18 @@ import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
 import top.ccbase.campus.ui.theme.palette
 import top.ccbase.campus.ui.theme.paletteWithAccent
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import top.ccbase.campus.CampusApplication
+import top.ccbase.campus.domain.loadToday
+import top.ccbase.campus.domain.toPlanNow
+import top.ccbase.campus.widget.WidgetArt
+import top.ccbase.campus.widget.WidgetModel
+import top.ccbase.campus.widget.buildWidgetModel
 import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.widget.WidgetPin
 import top.ccbase.campus.widget.WidgetThemes
@@ -201,6 +214,149 @@ fun AccentSection() {
 }
 
 /**
+ * 桌面小组件的**完整预览**（4×2，按真实比例 2:1 画，不裁剪、不截半块）。
+ *
+ * 为什么不用 Compose 重新"仿"一个：仿的迟早和真remoteviews 走样。这里底图直接调
+ * [WidgetArt.background]（真机同一函数），文字用 [buildWidgetModel] 的真实课表数据，
+ * 边距/字号照 `res/layout/widget_today.xml` 的数值按屏宽等比缩放。
+ *
+ * 什么时候会不一样：真机上的格子宽度由 launcher 决定（MIUI 4×2≈155dp 高、原生≈170dp），
+ * 窄到 210dp 以下会收起日期/周次 —— 预览按满宽画，也就是"最宽松的那种格子"。
+ */
+@Composable
+private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
+    val theme = remember(spec) { WidgetThemes.of(spec) }
+    val density = LocalDensity.current
+    var model by remember { mutableStateOf<WidgetModel?>(null) }
+    LaunchedEffect(Unit) {
+        model = runCatching {
+            withContext(Dispatchers.IO) {
+                val app = ctx.applicationContext as? CampusApplication ?: return@withContext null
+                val day = java.time.LocalDate.now().toString()
+                val plans = runCatching {
+                    app.db.dao().plansOnce(day).map { it.toPlanNow() }
+                }.getOrDefault(emptyList())
+                buildWidgetModel(loadToday(app.db), 3, plans)
+            }
+        }.getOrNull()
+    }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(2f)
+            .clip(RoundedCornerShape(18.dp))
+            .border(1.dp, C.lineHi, RoundedCornerShape(18.dp)),
+    ) {
+        val wPx = with(density) { maxWidth.toPx() }.toInt().coerceAtLeast(200)
+        val hPx = with(density) { maxHeight.toPx() }.toInt().coerceAtLeast(100)
+        val f = maxWidth.value / 320f            // 320dp = 常见 4×2 宽度
+        val art = remember(spec) { WidgetThemes.imageBitmap(ctx, theme) }
+        var bg by remember(spec, wPx, hPx, art) { mutableStateOf<android.graphics.Bitmap?>(null) }
+        LaunchedEffect(spec, wPx, hPx) {
+            if (art == null) {
+                bg = withContext(Dispatchers.IO) {
+                    WidgetArt.background(
+                        w = wPx, h = hPx,
+                        base = theme.bgColor, accent = theme.accentColor,
+                        light = theme.light,
+                        radiusPx = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density),
+                    )
+                }
+            }
+        }
+        if (art != null) {
+            Image(
+                bitmap = art.asImageBitmap(), contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Box(Modifier.fillMaxSize().background(Color(0x7A000000)))
+        } else {
+            bg?.let {
+                Image(
+                    bitmap = it.asImageBitmap(), contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        val m = model
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    start = (18 * f).dp, end = (18 * f).dp,
+                    top = (14 * f).dp, bottom = (11 * f).dp,
+                ),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size((6 * f).dp).background(Color(theme.accentColor), CircleShape),
+                )
+                Spacer(Modifier.width((7 * f).dp))
+                Text(
+                    m?.status ?: "正在上课",
+                    color = Color(theme.accentColor), fontSize = (11 * f).sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    m?.dateLine ?: "10月18日 周六",
+                    color = Color(theme.dimColor), fontSize = (10.5f * f).sp, maxLines = 1,
+                )
+                if ((m?.week ?: "").isNotBlank()) {
+                    Spacer(Modifier.width((7 * f).dp))
+                    Text(
+                        m!!.week, color = Color(theme.dimColor),
+                        fontSize = (10.5f * f).sp, maxLines = 1,
+                    )
+                }
+            }
+            Spacer(Modifier.height((7 * f).dp))
+            Text(
+                m?.headline ?: "高等数学 A",
+                color = Color(theme.headColor), fontSize = (19 * f).sp,
+                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height((3 * f).dp))
+            Text(
+                m?.meta ?: "10:10–11:45 · 教A301",
+                color = Color(theme.bodyColor), fontSize = (11.5f * f).sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            val rows = m?.rows ?: emptyList()
+            if (rows.isNotEmpty()) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = (9 * f).dp)
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.12f)),
+                )
+                rows.take(2).forEachIndexed { i, r ->
+                    Spacer(Modifier.height(((if (i == 0) 7 else 5) * f).dp))
+                    Text(
+                        buildString {
+                            append(r.time); append("　"); append(r.name)
+                            if (r.room.isNotBlank()) { append(" · "); append(r.room) }
+                        },
+                        color = Color(theme.bodyColor), fontSize = (11.5f * f).sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                m?.footer ?: "第 8 周 · 周六",
+                color = Color(theme.dimColor), fontSize = (10 * f).sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
  * 「桌面小组件」那一页的全部内容（App 主题与它分开，各存各的）。
  */
 @Composable
@@ -322,6 +478,8 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     val ctx = LocalContext.current
     var wSpec by remember { mutableStateOf(WidgetThemes.spec(ctx)) }
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
+    // 自动添加是否被挡住（小米/HyperOS 常见）；决定"手动步骤"要不要默认摊开
+    var showManual by remember { mutableStateOf(!WidgetPin.supported(ctx)) }
     val darkBase = palette.bg.luminance() <= 0.5f
 
     // 回到前台时重算"桌面上已有几个"（用户可能刚去桌面加完回来）
@@ -334,13 +492,24 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
-    // ---- 先给动作：把卡片放到桌面（这是这一页最常用的意图） ----
+    // ---- 先看预览：完整一张 4×2，换色立刻反映在它身上 ----
+    WidgetPreviewCard(ctx, wSpec)
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "按 4×2 画；桌面上格子更窄时会自动收起日期/周次。",
+        fontSize = 10.sp, color = C.txt3,
+    )
+    Spacer(Modifier.height(14.dp))
+
+    // ---- 再给动作：把卡片放到桌面（这是这一页最常用的意图） ----
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier.background(C.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
                 .clickable {
-                    WidgetPin.requestPin(ctx)
+                    // 系统不支持 / 被 ROM 挡掉时，直接把手动步骤摊开，别留一个点了没反应的按钮
+                    val ok = WidgetPin.requestPin(ctx)
                     placed = WidgetPin.placedCount(ctx)
+                    if (!ok) showManual = true
                 }
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         ) { Text("添加到桌面", fontSize = 12.sp, color = C.violet) }
@@ -351,13 +520,108 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         )
     }
     Spacer(Modifier.height(12.dp))
+    // 自动加到桌面在国产 ROM 上经常被挡（小米/HyperOS 尤其），所以这里不假设一定成功：
+    // 一键失败就把手动步骤摊开，并给一个直达"应用信息"的口子（有些机型要先允许桌面快捷方式）。
     Text(
-        "点了没反应就长按桌面空白处 → 小部件 → 「校园助手」→ 今日课表。",
+        if (showManual) "自动添加被这台手机的桌面挡住了，按下面的步骤手动加（3 步）。"
+        else "点了没反应？点右边「手动添加」看步骤。",
         fontSize = 10.sp, lineHeight = 15.sp, color = C.txt3,
     )
+    Spacer(Modifier.height(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (showManual) "收起步骤" else "手动添加",
+            fontSize = 11.sp, color = C.violet,
+            modifier = Modifier
+                .clickable { showManual = !showManual }
+                .padding(vertical = 6.dp, horizontal = 2.dp),
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            "打开应用设置",
+            fontSize = 11.sp, color = C.txt3,
+            modifier = Modifier
+                .clickable {
+                    runCatching {
+                        ctx.startActivity(
+                            android.content.Intent(
+                                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                android.net.Uri.parse("package:" + ctx.packageName),
+                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }
+                .padding(vertical = 6.dp, horizontal = 2.dp),
+        )
+    }
+    if (showManual) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(C.card, RoundedCornerShape(12.dp))
+                .border(1.dp, C.line, RoundedCornerShape(12.dp))
+                .padding(12.dp),
+        ) {
+            listOf(
+                "1. 回到桌面，**双指捏合**（或长按桌面空白处）进入编辑状态",
+                "2. 点「小部件 / 小组件」，列表里找到「校园助手」→「今日课表」",
+                "3. 按住它拖到桌面空位，松手；拖的时候可以把宽度拉成 4×2",
+            ).forEach {
+                Text(
+                    it.replace("**", ""),
+                    fontSize = 11.sp, lineHeight = 17.sp, color = C.txt2,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "小米 / HyperOS：如果「小部件」列表里找不到「校园助手」，去「设置 → 应用设置 → 校园助手 → 权限管理」，" +
+                    "把「桌面快捷方式」打开，再回桌面捏合找一次。",
+                fontSize = 10.5.sp, lineHeight = 16.sp, color = C.txt3,
+            )
+        }
+    }
     Spacer(Modifier.height(16.dp))
     Text("配色", fontSize = 11.sp, color = C.txt3)
     Spacer(Modifier.height(8.dp))
+
+    // ---- 「随时间」：桌面唯一能做到的动态 ----
+    // RemoteViews 跑不了动画，但小组件每 30 分钟会重画一次；那就让每次重画的颜色跟着
+    // 窗外光线走 —— 早上偏冷蓝、午后偏暖、入夜转深紫。
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                if (wSpec == WidgetThemes.DYNAMIC_SPEC) C.violet.copy(alpha = 0.14f) else C.card,
+                RoundedCornerShape(12.dp),
+            )
+            .border(
+                1.dp,
+                if (wSpec == WidgetThemes.DYNAMIC_SPEC) C.violet.copy(alpha = 0.5f) else C.line,
+                RoundedCornerShape(12.dp),
+            )
+            .clickable {
+                wSpec = WidgetThemes.DYNAMIC_SPEC
+                WidgetThemes.set(ctx, WidgetThemes.DYNAMIC_SPEC)
+                TodayWidgetProvider.refresh(ctx)
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "随时间",
+            fontSize = 12.sp,
+            color = if (wSpec == WidgetThemes.DYNAMIC_SPEC) C.violet else C.txt2,
+            fontWeight = FontWeight.Medium,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "随一天的光线换色（每 30 分钟一次）：现在「${WidgetThemes.dynamic().name}」",
+            fontSize = 10.5.sp, color = C.txt3, modifier = Modifier.weight(1f),
+        )
+        if (wSpec == WidgetThemes.DYNAMIC_SPEC) Text("✓", color = C.violet, fontSize = 12.sp)
+    }
+    Spacer(Modifier.height(10.dp))
 
     // ---- 纯色预置 ----
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -33,9 +33,15 @@ fun spanUnits(s: Slot): Int {
     return (b - a + 1).coerceAtLeast(1)
 }
 
-/** 有课的星期（按星期几升序）——空白列不画，课块才有宽度写全课程名 */
-fun classDays(slots: List<Slot>): List<Int> =
-    (1..7).filter { d -> slots.any { it.weekday == d } }
+/**
+ * 表里要画的星期 —— **永远是周一到周日 7 列**。
+ *
+ * 2026-10-18 用户："如果某一天没有课，课表不要把那一天删了"。
+ * 以前只画有课的星期（常见 5 列），周末一没课整列就消失，看着像"这天不存在"；
+ * 空列留着反而能一眼看出"周六是空的"，也不用靠数格子判断今天在哪。
+ * 列变窄后表头改用单字「一…日」，见 [WeekGrid]。
+ */
+fun classDays(slots: List<Slot>): List<Int> = (1..7).toList()
 
 /** 节次的钟点文字（左列第二行）：官方课表的单节时间 */
 fun unitTimeLabel(unit: Int): String {

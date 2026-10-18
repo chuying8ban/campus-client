@@ -84,13 +84,12 @@ class WeekGridLogicTest {
     }
 
     @Test
-    fun `空白的星期不占列_有课的才画`() {
+    fun `没课的星期也要占列_不许把那天删掉`() {
+        // 2026-10-18 用户："如果某一天没有课，课表不要把那一天删了"。
+        // 这条从"空白不占列"反过来了：必须永远是 7 列，空的那天留着才看得出"这天没课"。
         val (slots, _) = live()
         val days = classDays(slots)
-        assertTrue("至少要有 4 个有课的星期，实际 $days", days.size >= 4)
-        days.forEach { d ->
-            assertTrue("第 $d 天没有任何课时不该出现在列里", slots.any { it.weekday == d })
-        }
+        assertEquals("周一到周日 7 列一个都不能少", listOf(1, 2, 3, 4, 5, 6, 7), days)
     }
 
     /**

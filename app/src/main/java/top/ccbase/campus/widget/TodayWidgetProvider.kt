@@ -17,6 +17,7 @@ import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.MainActivity
 import top.ccbase.campus.R
 import top.ccbase.campus.domain.loadToday
+import top.ccbase.campus.domain.toPlanNow
 
 /**
  * 桌面「今日课表」小组件。
@@ -170,7 +171,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val model = buildWidgetModel(loadToday(app.db), MAX_ROWS)
+                    val day = java.time.LocalDate.now().toString()
+                    val plans = runCatching {
+                        app.db.dao().plansOnce(day).map { it.toPlanNow() }
+                    }.getOrDefault(emptyList())
+                    val model = buildWidgetModel(loadToday(app.db), MAX_ROWS, plans)
                     withContext(Dispatchers.Main) {
                         val mgr = AppWidgetManager.getInstance(ctx)
                         // 逐个实例兜底：某个 launcher 给的尺寸/主题让这一只画挂了，
@@ -204,6 +209,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun views(ctx: Context, mgr: AppWidgetManager, widgetId: Int, model: WidgetModel): RemoteViews {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
+            val theme = WidgetThemes.of(WidgetThemes.spec(ctx))
             rv.setTextViewText(R.id.widget_status, model.status)
             rv.setTextViewText(R.id.widget_date, model.dateLine)
             rv.setTextViewText(R.id.widget_week, model.week)
@@ -218,6 +224,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 } else {
                     rv.setViewVisibility(id, View.VISIBLE)
                     val text = buildString {
+                        // 日程和课程挤在一行会看不出来是谁，这里给日程加前缀，
+                        // 颜色也换成主题色（下面 setTextViewTextColor 一起处理）。
+                        if (row.kind == WidgetRow.KIND_PLAN) append("日程 · ")
                         append(row.time)
                         append("　")
                         append(row.name)
@@ -227,6 +236,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                         }
                     }
                     rv.setTextViewText(id, text)
+                    rv.setTextColor(
+                        id,
+                        if (row.kind == WidgetRow.KIND_PLAN) theme.accentColor else theme.bodyColor,
+                    )
                 }
             }
             rv.setTextViewText(R.id.widget_foot, model.footer)

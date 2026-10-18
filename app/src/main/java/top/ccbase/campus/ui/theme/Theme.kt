@@ -309,6 +309,12 @@ fun CampusTheme(content: @Composable () -> Unit) {
  */
 @Composable
 internal fun BackgroundLayer(bg: String, p: CampusPalette) {
+    // 动态主题先拦一道：它是"自己会动的画面"，不走预设/照片那两套静态逻辑
+    if (bg.startsWith(ANIM_PREFIX)) {
+        val kind = DynKind.of(bg.removePrefix(ANIM_PREFIX)) ?: DynKind.AURORA
+        DynamicBackground(kind, p.violet, Modifier.fillMaxSize())
+        return
+    }
     when {
         bg.startsWith(BG_PRESET_PREFIX) -> {
             val preset = presetById(bg.removePrefix(BG_PRESET_PREFIX))

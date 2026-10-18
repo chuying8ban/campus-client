@@ -265,4 +265,28 @@ interface CampusDao {
 
     @Query("SELECT COUNT(*) FROM courses")
     suspend fun courseCount(): Int
+
+    // ------------------------------------------------------------ 自建日程
+
+    @Query("SELECT * FROM plan_events WHERE day = :day ORDER BY start, id")
+    fun plansOn(day: String): Flow<List<PlanEvent>>
+
+    @Query("SELECT * FROM plan_events WHERE day = :day AND done = 0 ORDER BY start, id")
+    suspend fun plansOnce(day: String): List<PlanEvent>
+
+    /** 日程规划页要看"接下来几天"，不是只看今天 */
+    @Query("SELECT * FROM plan_events WHERE day >= :fromDay ORDER BY day, start, id")
+    fun plansSince(fromDay: String): Flow<List<PlanEvent>>
+
+    @Query("SELECT * FROM plan_events ORDER BY day DESC, start DESC, id DESC")
+    fun allPlans(): Flow<List<PlanEvent>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putPlan(row: PlanEvent): Long
+
+    @Query("UPDATE plan_events SET done = :done WHERE id = :id")
+    suspend fun setPlanDone(id: Int, done: Int)
+
+    @Query("DELETE FROM plan_events WHERE id = :id")
+    suspend fun deletePlan(id: Int)
 }

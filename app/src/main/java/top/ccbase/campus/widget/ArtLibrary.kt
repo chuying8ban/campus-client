@@ -67,6 +67,18 @@ object ArtRepo {
     fun catalogUrl(): String = "$BASE$DIR/catalog.json"
 
     /**
+     * 清单里的图地址有三种写法，都得认：
+     *   `01_x.jpg`            → 服务器上那张随包之外的成品图（/updates/art/）
+     *   `/api/art/img?u=...`  → 走本机代理去上游取，不落盘（清单扩容后绝大多数是这种）
+     *   `https://...`         → 原样用
+     */
+    private fun absUrl(p: String): String = when {
+        p.startsWith("http://") || p.startsWith("https://") -> p
+        p.startsWith("/") -> BASE + p
+        else -> "$BASE$DIR/$p"
+    }
+
+    /**
      * 解析清单。容错到"能出几张就出几张"：
      * 缺 url 的条目直接跳过，而不是整页报错 —— 服务器上少一个文件不该让图库整页变空白。
      */
@@ -90,8 +102,8 @@ object ArtRepo {
                 id = id,
                 title = o.optString("title").ifBlank { id },
                 tags = tags,
-                url = "$BASE$DIR/$file",
-                thumbUrl = "$BASE$DIR/$thumb",
+                url = absUrl(file),
+                thumbUrl = absUrl(thumb),
                 author = o.optString("author").ifBlank { "校园助手" },
                 license = o.optString("license").ifBlank { "原创生成" },
                 kind = o.optString("kind").ifBlank { "illustration" },

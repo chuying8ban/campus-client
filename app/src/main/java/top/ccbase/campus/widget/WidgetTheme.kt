@@ -112,8 +112,41 @@ object WidgetThemes {
         true
     }.getOrDefault(false)
 
+    /** 「随时间」：同一个 id，每次刷新按当前钟点算一套颜色（桌面上看起来一整天在变） */
+    const val DYNAMIC_SPEC = "dyn"
+
+    /**
+     * 按钟点给一套颜色。桌面上能做到的"动态"只有这一种：
+     * RemoteViews 不能跑动画（launcher 不会去 start 那个 drawable），但小组件本来每 30 分钟
+     * 就会重画一次 —— 那就让每次重画的颜色跟着窗外光线走。
+     */
+    fun dynamic(hour: Int = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)): WidgetTheme = when {
+        hour in 5..7 -> WidgetTheme(
+            DYNAMIC_SPEC, "清晨", bgColor = 0xF70A0E1C.toInt(), accentColor = 0xFF9DB6FF.toInt(),
+        )
+        hour in 8..10 -> WidgetTheme(
+            DYNAMIC_SPEC, "上午", bgColor = 0xF70A1218.toInt(), accentColor = 0xFF6FE3D2.toInt(),
+        )
+        hour in 11..13 -> WidgetTheme(
+            DYNAMIC_SPEC, "正午", bgColor = 0xF70B1016.toInt(), accentColor = 0xFF7FC8FF.toInt(),
+        )
+        hour in 14..16 -> WidgetTheme(
+            DYNAMIC_SPEC, "午后", bgColor = 0xF7141010.toInt(), accentColor = 0xFFFFB86B.toInt(),
+        )
+        hour in 17..18 -> WidgetTheme(
+            DYNAMIC_SPEC, "黄昏", bgColor = 0xF7180E16.toInt(), accentColor = 0xFFFF8E6B.toInt(),
+        )
+        hour in 19..22 -> WidgetTheme(
+            DYNAMIC_SPEC, "夜", bgColor = 0xF70B0913.toInt(), accentColor = 0xFFA06BFF.toInt(),
+        )
+        else -> WidgetTheme(
+            DYNAMIC_SPEC, "深夜", bgColor = 0xF7050509.toInt(), accentColor = 0xFF7C6BE8.toInt(),
+        )
+    }
+
     /** 规格 → 主题。认不出来就退回默认（外观设置出错不许把桌面卡片搞坏）。 */
     fun of(spec: String): WidgetTheme {
+        if (spec == DYNAMIC_SPEC) return dynamic()
         if (spec == USER_IMAGE_SPEC) {
             return WidgetTheme(
                 "user", "自己的图片", userImage = true,
