@@ -59,7 +59,7 @@ import top.ccbase.campus.widget.WidgetThemes
  *    跟 App 内主题各存各的 —— 桌面那张要跟壁纸搭，跟 App 想用什么颜色是两件事。
  */
 @Composable
-fun ThemeSection() {
+fun AccentSection() {
     val ctx = LocalContext.current
     val spec = AppearanceStore.accent.value
 
@@ -87,7 +87,28 @@ fun ThemeSection() {
         }
     }
 
-    Spacer(Modifier.height(18.dp))
+    Spacer(Modifier.height(12.dp))
+    var showWheel by remember { mutableStateOf(AccentSpec.isDiy(spec)) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.border(
+                1.dp,
+                if (AccentSpec.isDiy(spec)) C.violet else C.line,
+                RoundedCornerShape(9.dp),
+            ).clickable { showWheel = !showWheel }
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+        ) {
+            Text(
+                if (showWheel) "收起色环" else "自己调颜色",
+                fontSize = 11.5.sp,
+                color = if (AccentSpec.isDiy(spec)) C.violet else C.txt2,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text("外环选色相、内圆选浓淡，拖动时整屏实时跟着变", fontSize = 10.sp, color = C.txt3)
+    }
+    if (!showWheel) return
+    Spacer(Modifier.height(12.dp))
     Row(verticalAlignment = Alignment.Top) {
         ColorWheel(
             hue = hue, sat = sat,
@@ -127,13 +148,13 @@ fun ThemeSection() {
         }
     }
 
-    Spacer(Modifier.height(26.dp))
-    Heading("桌面小组件")
-    Text(
-        "这里的配色**只影响桌面那张卡片**，跟上面 App 的主题各存各的。",
-        fontSize = 10.5.sp, lineHeight = 16.sp, color = C.txt3,
-    )
-    Spacer(Modifier.height(10.dp))
+}
+
+/**
+ * 「桌面小组件」那一页的全部内容（App 主题与它分开，各存各的）。
+ */
+@Composable
+fun WidgetSection() {
     WidgetBlock()
 }
 
@@ -227,6 +248,31 @@ private fun WidgetBlock() {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
+    // ---- 先给动作：把卡片放到桌面（这是这一页最常用的意图） ----
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.background(C.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
+                .clickable {
+                    WidgetPin.requestPin(ctx)
+                    placed = WidgetPin.placedCount(ctx)
+                }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("添加到桌面", fontSize = 12.sp, color = C.violet) }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            if (placed > 0) "桌面上已有 $placed 个" else "桌面上还没有",
+            fontSize = 10.5.sp, color = C.txt3,
+        )
+    }
+    Spacer(Modifier.height(12.dp))
+    Text(
+        "点了没反应就长按桌面空白处 → 小部件 → 「校园助手」→ 今日课表。",
+        fontSize = 10.sp, lineHeight = 15.sp, color = C.txt3,
+    )
+    Spacer(Modifier.height(16.dp))
+    Text("配色", fontSize = 11.sp, color = C.txt3)
+    Spacer(Modifier.height(8.dp))
+
     // ---- 纯色预置 ----
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         WidgetThemes.presets.chunked(4).forEach { row ->
@@ -245,7 +291,7 @@ private fun WidgetBlock() {
 
     // ---- 图片预置 ----
     Spacer(Modifier.height(14.dp))
-    Text("图片主题", fontSize = 11.5.sp, color = C.txt2)
+    Text("图片", fontSize = 11.sp, color = C.txt3)
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         WidgetThemes.imageThemes.forEach { t ->
@@ -292,28 +338,6 @@ private fun WidgetBlock() {
         Text("从相册选，只存在这台手机上", fontSize = 10.sp, color = C.txt3)
     }
 
-    // ---- 放到桌面 ----
-    Spacer(Modifier.height(14.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.background(C.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
-                .clickable {
-                    WidgetPin.requestPin(ctx)
-                    placed = WidgetPin.placedCount(ctx)
-                }
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-        ) { Text("添加到桌面", fontSize = 12.sp, color = C.violet) }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            if (placed > 0) "桌面上已有 $placed 个" else "桌面上还没有",
-            fontSize = 10.5.sp, color = C.txt3,
-        )
-    }
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "小米/红米上系统可能点了没反应：长按桌面空白处 → 添加小部件 → 找「校园助手」→ 今日课表。加完这里会显示「桌面上已有 1 个」。",
-        fontSize = 10.sp, lineHeight = 16.sp, color = C.txt3,
-    )
 }
 
 @Composable
