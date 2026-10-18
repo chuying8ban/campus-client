@@ -102,6 +102,7 @@
             android:textColor="#B3ACC6" />
 
         <View
+            android:id="@+id/widget_divider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="9dp"

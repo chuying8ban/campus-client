@@ -223,6 +223,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 else -> 1
             }
             rowIds.drop(maxVisible).forEach { rv.setViewVisibility(it, View.GONE) }
+            // 没课时不画那条横线：线上方是"今天没有课"，线下面什么都没有，看着像没渲染完
+            if (model.rows.isEmpty()) rv.setViewVisibility(R.id.widget_divider, View.GONE)
             if (hDp < 132f) rv.setViewVisibility(R.id.widget_foot, View.GONE)
 
             applyTheme(ctx, rv, w, h)
