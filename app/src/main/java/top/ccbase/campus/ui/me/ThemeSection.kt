@@ -161,8 +161,8 @@ fun AccentSection() {
  * 「桌面小组件」那一页的全部内容（App 主题与它分开，各存各的）。
  */
 @Composable
-fun WidgetSection() {
-    WidgetBlock()
+fun WidgetSection(onOpenGallery: () -> Unit = {}) {
+    WidgetBlock(onOpenGallery)
 }
 
 /**
@@ -239,7 +239,7 @@ private fun hsv(h: Float, s: Float, v: Float = 0.9f): Color =
  * 用户自己就能看出到底成了没有。
  */
 @Composable
-private fun WidgetBlock() {
+private fun WidgetBlock(onOpenGallery: () -> Unit) {
     val ctx = LocalContext.current
     var wSpec by remember { mutableStateOf(WidgetThemes.spec(ctx)) }
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
@@ -296,21 +296,19 @@ private fun WidgetBlock() {
         }
     }
 
-    // ---- 图片预置 ----
-    Spacer(Modifier.height(14.dp))
-    Text("图片", fontSize = 11.sp, color = C.txt3)
-    Spacer(Modifier.height(8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        WidgetThemes.imageThemes.forEach { t ->
-            ArtThumb(
-                res = t.imageRes, name = t.name, selected = wSpec == t.id,
-                onClick = {
-                    wSpec = t.id
-                    WidgetThemes.set(ctx, t.id)
-                    TodayWidgetProvider.refresh(ctx)
-                },
-            )
-        }
+    // 原来这里有 4 张"图片主题"，其实是程序画的渐变色块，用户一看就知道不是图（"怎么还是渐变色"）。
+    // 现在图走「在线图库」（服务器上真实插画，可搜索），这里只留纯色 + 图库 + 自己上传。
+
+    // ---- 在线图库 ----
+    Spacer(Modifier.height(10.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.border(1.dp, C.line, RoundedCornerShape(9.dp))
+                .clickable { onOpenGallery() }
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+        ) { Text("在线图库", fontSize = 12.sp, color = C.txt2) }
+        Spacer(Modifier.width(10.dp))
+        Text("插画底图，可搜索", fontSize = 10.sp, color = C.txt3)
     }
 
     // ---- 上传自己的图 ----

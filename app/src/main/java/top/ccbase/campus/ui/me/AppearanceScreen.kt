@@ -77,7 +77,7 @@ import top.ccbase.campus.ui.theme.palette
  * 于是这里放一截真机顶部的 1:1 画面（同一个 [BackgroundLayer] 画的），点哪张当场就变。
  */
 @Composable
-fun AppearanceScreen(onClose: () -> Unit, initialTab: Int = 0) {
+fun AppearanceScreen(onClose: () -> Unit, initialTab: Int = 0, onOpenArtGallery: () -> Unit = {}) {
     var tab by rememberSaveable { mutableIntStateOf(initialTab) }
 
     // 空白处的触摸由 `overlaySurface` 统一吃掉（见 Theme.kt），这里不用再挂
@@ -117,7 +117,7 @@ fun AppearanceScreen(onClose: () -> Unit, initialTab: Int = 0) {
                 .padding(horizontal = 16.dp)
                 .padding(top = 14.dp, bottom = 28.dp),
         ) {
-            if (tab == 0) AppThemePane() else WidgetPane()
+            if (tab == 0) AppThemePane() else WidgetPane(onOpenArtGallery)
         }
     }
 }
@@ -267,13 +267,13 @@ private fun AppThemePane() {
 // ────────────────────────────── 桌面小组件 ──────────────────────────────
 
 @Composable
-private fun WidgetPane() {
+private fun WidgetPane(onOpenArtGallery: () -> Unit) {
     Text(
         "这里改的只是桌面上那张卡的配色。App 里看到什么颜色跟它无关 —— 两边各存各的。",
         color = C.txt2, fontSize = 12.sp, lineHeight = 18.sp,
     )
     Spacer(Modifier.height(16.dp))
-    WidgetSection()
+    WidgetSection(onOpenGallery = onOpenArtGallery)
 }
 
 // ────────────────────────────── 公用小件 ──────────────────────────────
