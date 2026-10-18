@@ -1,12 +1,12 @@
 {
-  "version_code": 131,
-  "version_name": "3.4.12",
-  "url": "/updates/campus-3.4.12.apk",
-  "sha256": "124a5e8d91c2a7d515a8bdd5bf4731050efdf1fe594dfe779dde2c946fe3cbf6",
-  "size": 8310395,
+  "version_code": 132,
+  "version_name": "3.4.13",
+  "url": "/updates/campus-3.4.13.apk",
+  "sha256": "219c7b0580507a01ff914d5f1fae147ebe3f647e8cdb8175e70e2b92fb065941",
+  "size": 8326911,
   "notes": [
-    "动图主题不再整屏发黑，画面亮起来",
-    "动图没下完整会提示重下，不再留黑屏",
-    "背景坏了会自动退回预设配色"
+    "登录页可以勾「账号密码也记住」，自动填好并提交",
+    "默认仍只保留会话、不存密码；关了即删除",
+    "学校会话过期时不再只能干瞪眼"
   ]
 }

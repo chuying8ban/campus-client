@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +96,13 @@ fun SchoolImportFlow(
         mutableStateOf(SchoolSession.remembered(ctx) || !SchoolSession.asked(ctx))
     }
     var confirmRemember by remember { mutableStateOf(false) }
+    // 「记住账号密码」：可选，默认关。开了以后学校会话过期也能自动填表登录（见 CredentialVault）。
+    var saveCred by remember { mutableStateOf(CredentialVault.has(ctx)) }
+    var credDialog by remember { mutableStateOf(false) }
+    var credUser by remember { mutableStateOf("") }
+    var credPass by remember { mutableStateOf("") }
+    var credErr by remember { mutableStateOf<String?>(null) }
+    var credToast by remember { mutableStateOf<String?>(null) }
     var forgetNotice by remember { mutableStateOf(false) }
     var keepManual by remember { mutableStateOf(true) }
 
@@ -140,6 +148,62 @@ fun SchoolImportFlow(
     }
 
     if (confirmRemember) AlertDialog(onDismissRequest={confirmRemember=false},title={Text("在本机记住学校登录？")},text={Text("只保留这台手机的学校登录会话，不保存密码，不上传 Cookie。共用手机不建议开启。学校可随时让会话过期；卸载或清除数据后无法恢复。不会后台频繁访问学校。")},confirmButton={TextButton(onClick={SchoolSession.setRemembered(ctx,true,school);rememberLogin=true;confirmRemember=false}){Text("同意并开启")}},dismissButton={TextButton(onClick={confirmRemember=false}){Text("取消")}})
+    // 存/删之后的回音：一句话就够了，别弹第二个对话框
+    LaunchedEffect(credToast) {
+        val t = credToast ?: return@LaunchedEffect
+        android.widget.Toast.makeText(ctx, t, android.widget.Toast.LENGTH_SHORT).show()
+        credToast = null
+    }
+    if (credDialog) AlertDialog(
+        onDismissRequest = { credDialog = false; saveCred = CredentialVault.has(ctx) },
+        title = { Text("记住账号密码") },
+        text = {
+            Column {
+                Text(
+                    "只存在这台手机，用系统密钥库加密，不上传、不参与云同步。" +
+                        "共用手机不建议开启；关闭开关即删除。",
+                    fontSize = 12.sp, color = C.txt2, lineHeight = 18.sp,
+                )
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = credUser, onValueChange = { credUser = it },
+                    label = { Text("学号 / 用户名") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = credPass, onValueChange = { credPass = it },
+                    label = { Text("密码") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                credErr?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, color = C.red, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (credUser.isBlank() || credPass.isEmpty()) {
+                    credErr = "账号和密码都要填"
+                } else if (CredentialVault.save(ctx, credUser.trim(), credPass)) {
+                    saveCred = true
+                    credDialog = false
+                    credPass = ""
+                    credToast = "已保存在本机，下次自动登录"
+                } else {
+                    credErr = "没存上，稍后再试一次"
+                }
+            }) { Text("保存") }
+        },
+        dismissButton = {
+            TextButton(onClick = { credDialog = false; saveCred = CredentialVault.has(ctx) }) { Text("取消") }
+        },
+    )
     if (forgetNotice) AlertDialog(onDismissRequest={forgetNotice=false},title={Text("已忘记学校登录")},text={Text("本机学校会话已清除，原课表和云端账号未改变。")},confirmButton={TextButton(onClick={forgetNotice=false}){Text("知道了")}})
     when (stage) {
         Stage.Intro -> Column(
@@ -154,7 +218,7 @@ fun SchoolImportFlow(
             Spacer(Modifier.height(10.dp))
             Text(
                 "课表默认只导入到你自己的手机里，不会发给任何服务器。\n"
-                    + "登录发生在学校官方页面 ${school.origin}；App 不读取、不保存你的教务密码。",
+                    + "登录发生在学校官方页面 ${school.origin}；App 默认不读取、不保存你的教务密码。",
                 fontSize = 13.sp, lineHeight = 21.sp, color = C.txt2,
             )
             err?.let {
@@ -169,11 +233,29 @@ fun SchoolImportFlow(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Checkbox(checked=rememberLogin,onCheckedChange={if(it)confirmRemember=true else {SchoolSession.setRemembered(ctx,false,school);rememberLogin=false;forgetNotice=true}})
-                Text("登录一次，以后进入自动登录\n只在本机保留登录会话，不保存密码",color=C.txt2,fontSize=13.sp)
+                Text("登录一次，以后进入自动登录\n只在本机保留登录会话，默认不保存密码",color=C.txt2,fontSize=13.sp)
             }
             if(rememberLogin) {
                 Text("有效会话会复用，过期需重新登录；不保证永久在线。",color=C.txt2,fontSize=12.sp)
                 TextButton(onClick={SchoolSession.forget(ctx,school);rememberLogin=false;forgetNotice=true}){Text("忘记登录")}
+            }
+            // 会话一定会过期（学校那边定的），想"再也不输密码"就得本机留一份凭据 —— 可选，默认关。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.Checkbox(
+                    checked = saveCred,
+                    onCheckedChange = { on ->
+                        if (on) { credUser = ""; credPass = ""; credErr = null; credDialog = true }
+                        else { CredentialVault.clear(ctx); saveCred = false; credToast = "已删掉本机保存的账号密码" }
+                    },
+                )
+                Column(Modifier.weight(1f)) {
+                    Text("账号密码也记住（自动登录）", color = C.txt2, fontSize = 13.sp)
+                    Text(
+                        if (saveCred) "已加密保存在本机；登录页会自动填好并提交"
+                        else "不勾选：只保留登录会话，学校那边会话过期就要重新输",
+                        color = C.txt3, fontSize = 11.sp, lineHeight = 16.sp,
+                    )
+                }
             }
             Spacer(Modifier.height(24.dp))
             Box(

@@ -517,6 +517,24 @@ private fun configureSecureWebView(
                 view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 1000)
                 view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 4000)
             }
+            // 记住账号密码的用户：会话过期落到登录页时自动填表并提交。
+            // 默认没有存凭据，这里就什么都不做（行为和以前一样）。
+            if (profile.allows(url) && android.net.Uri.parse(url).path == "/student/login") {
+                val cred = CredentialVault.load(view.context)
+                if (cred != null) {
+                    val js = CredentialVault.autofillJs(cred.first, cred.second)
+                    // 表单是 Vue 异步渲染的，一次填不进去：错开几次重试；翻走/登录成功就自然不再命中
+                    listOf(1200L, 3000L, 6500L).forEach { at ->
+                        view.postDelayed({
+                            val now = view.url.orEmpty()
+                            if (!profile.allows(now) || android.net.Uri.parse(now).path != "/student/login") return@postDelayed
+                            view.evaluateJavascript(js) { r ->
+                                if (r?.contains("clicked") == true) onDiagnostic("已用记住的账号自动登录")
+                            }
+                        }, at)
+                    }
+                }
+            }
             if (profile.allows(url) && android.net.Uri.parse(url).path == "/student/login") {
                 // 只计数，不读取输入框值、页面 HTML 或 Cookie。
                 view.postDelayed({

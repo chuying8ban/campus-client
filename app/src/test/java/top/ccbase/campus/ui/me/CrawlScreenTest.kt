@@ -95,19 +95,29 @@ class CrawlScreenTest {
             "src/main/java/top/ccbase/campus/school/SchoolImportFlow.kt",
             "src/main/java/top/ccbase/campus/school/SchoolWebLogin.kt",
         )
-        val forbidden = listOf(
-            "PasswordVisualTransformation",   // 密码框
+        // 2026-10-19 起允许「可选记住账号密码」：用户自己勾选才出现密码框，
+        // 所以 SchoolImportFlow.kt 里出现密码框不再算违规；但下面两条底线不许破：
+        //   · 任何文件都不许开 addJavascriptInterface / 去读学校页面里的密码 DOM；
+        //   · 除勾选入口那个文件以外，别的地方仍不许有密码输入框。
+        val forbiddenAlways = listOf(
             "addJavascriptInterface",          // 通用 JS bridge（会暴露原生对象）
-            "getPassword",                    // 读取密码 DOM
-            "KeyboardType.Password",          // 学校搜索框允许，密码输入仍禁止
+            "getPassword",                     // 读取密码 DOM
         )
+        val forbiddenExceptOptIn = listOf(
+            "PasswordVisualTransformation",
+            "KeyboardType.Password",
+        )
+        val optInFile = "school/SchoolImportFlow.kt"
         val bad = mutableListOf<String>()
         files.forEach { rel ->
             val f = File(rel)
             assertTrue("找不到 $rel（测试工作目录变了？）", f.isFile)
             f.readLines().forEachIndexed { i, raw ->
                 val code = raw.substringBefore("//")
-                forbidden.forEach { tok -> if (code.contains(tok)) bad += "$rel:${i + 1}  $tok" }
+                forbiddenAlways.forEach { tok -> if (code.contains(tok)) bad += "$rel:${i + 1}  $tok" }
+                if (!rel.endsWith(optInFile)) {
+                    forbiddenExceptOptIn.forEach { tok -> if (code.contains(tok)) bad += "$rel:${i + 1}  $tok" }
+                }
             }
         }
         assertTrue("导入链里出现了密码输入/JS bridge 的痕迹：\n" + bad.joinToString("\n"), bad.isEmpty())
