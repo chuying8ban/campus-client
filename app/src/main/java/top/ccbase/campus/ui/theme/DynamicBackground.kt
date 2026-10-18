@@ -11,10 +11,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.delay
 import top.ccbase.campus.widget.DynPainter
+import top.ccbase.campus.widget.WidgetFrames
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * 动态主题（2026-10-18）。
@@ -82,6 +90,75 @@ fun DynamicBackground(kind: DynKind, accent: Color, modifier: Modifier = Modifie
     Canvas(modifier.fillMaxSize()) {
         drawIntoCanvas { canvas ->
             DynPainter.frame(canvas.nativeCanvas, kind, t, size.width, size.height, argb)
+        }
+    }
+}
+
+// ── 让一张二次元图动起来（动态壁纸那种）────────────────────────────────────
+
+/**
+ * 2026-10-18 用户："动态主题不仅仅是那些粒子特效，而是要有动态二次元图片那种，类似于动态壁纸"。
+ *
+ * 做法：图做**微推近**（Ken Burns，1.03±0.03）+ 前景飘一层樱瓣/雪/光斑/星点。
+ * 只叠粒子会像"贴纸在动"，只推近又太闷，两个一起才像壁纸。
+ */
+const val ANIMPHOTO_PREFIX = "animphoto:"
+
+fun animPhotoSpec(effect: WidgetFrames.ImgEffect): String = ANIMPHOTO_PREFIX + effect.id
+
+fun parseAnimPhoto(spec: String): WidgetFrames.ImgEffect? {
+    if (!spec.startsWith(ANIMPHOTO_PREFIX)) return null
+    return WidgetFrames.ImgEffect.of(spec.removePrefix(ANIMPHOTO_PREFIX))
+}
+
+@Composable
+fun DynamicPhotoBackground(
+    bitmap: ImageBitmap,
+    effect: WidgetFrames.ImgEffect,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    var t by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(bitmap, effect) {
+        val start = System.currentTimeMillis()
+        while (true) {
+            t = (System.currentTimeMillis() - start) / 1000f
+            delay(FRAME_MS)
+        }
+    }
+    val argb = accent.toArgb()
+    Canvas(modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
+        val phase = (t / 3.2f) * 2f * PI.toFloat()
+        val zoom = 1.03f + 0.03f * sin(phase)
+        val scale = maxOf(w / bitmap.width, h / bitmap.height) * zoom
+        val dw = bitmap.width * scale
+        val dh = bitmap.height * scale
+        val dx = (w - dw) / 2f + w * 0.012f * sin(phase * 0.7f)
+        val dy = (h - dh) / 2f + h * 0.010f * cos(phase * 0.9f)
+        drawImage(
+            image = bitmap,
+            srcOffset = IntOffset.Zero,
+            srcSize = IntSize(bitmap.width, bitmap.height),
+            dstOffset = IntOffset(dx.toInt(), dy.toInt()),
+            dstSize = IntSize(dw.toInt(), dh.toInt()),
+            filterQuality = FilterQuality.Low,
+        )
+        if (effect != WidgetFrames.ImgEffect.DRIFT) {
+            val kind = when (effect) {
+                WidgetFrames.ImgEffect.PETALS -> DynKind.PETALS
+                WidgetFrames.ImgEffect.SNOW -> DynKind.SNOW
+                WidgetFrames.ImgEffect.BOKEH -> DynKind.BOKEH
+                WidgetFrames.ImgEffect.STARS -> DynKind.STARS
+                WidgetFrames.ImgEffect.FIREFLIES -> DynKind.FIREFLIES
+                WidgetFrames.ImgEffect.BUBBLES -> DynKind.BUBBLES
+                WidgetFrames.ImgEffect.DRIFT -> DynKind.PETALS
+            }
+            drawIntoCanvas { canvas ->
+                DynPainter.particles(canvas.nativeCanvas, kind, t, w, h, argb, 0.6f)
+            }
         }
     }
 }

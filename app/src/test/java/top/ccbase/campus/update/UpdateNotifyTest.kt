@@ -54,7 +54,9 @@ class UpdateNotifyTest {
         UpdateNotify.post(c, manifest(), "1.38-T1")
         UpdateNotify.post(c, manifest(), "1.38-T1")
         val nm = c.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        assertEquals("通知 id 没固定死，通知栏被堆了一排", 1, shadowOf(nm).allNotifications.size)
+        // 只看「有新版本」这条通道：3.2.0 起 App 启动还会发一条「已更新到 x」，那是另一条通道的事
+        val mine = shadowOf(nm).allNotifications.filter { it.channelId == UpdateNotify.CHANNEL }
+        assertEquals("通知 id 没固定死，通知栏被堆了一排", 1, mine.size)
     }
 
     @Test

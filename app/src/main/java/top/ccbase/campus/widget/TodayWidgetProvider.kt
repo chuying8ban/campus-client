@@ -80,6 +80,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         /** requestPinAppWidget 的 successCallback 走这个 action（钉到桌面成功那一刻） */
         const val ACTION_PINNED = "top.ccbase.campus.WIDGET_PINNED"
+
+        /** 布局里 ViewFlipper 的 12 个帧位（顺序就是播放顺序） */
+        private val FRAME_IDS = intArrayOf(
+            R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5,
+            R.id.f6, R.id.f7, R.id.f8, R.id.f9, R.id.f10, R.id.f11,
+        )
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250
         private const val FALLBACK_H_DP = 110
@@ -118,35 +124,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val spec = WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
 
-            // 动态主题：帧轮播铺在最底层，静态底图让位（两者只显示一个，别叠着）
-            val dyn = WidgetDyn.parse(spec)
-            if (dyn != null) {
-                runCatching {
-                    rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
-                    rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
-                    rv.setViewVisibility(R.id.widget_scrim, View.GONE)
-                    val fi = Intent(ctx, WidgetFrameService::class.java)
-                        .putExtra("kind", dyn.first.id)
-                        .putExtra("accent", dyn.second)
-                        .putExtra("w", wPx)
-                        .putExtra("h", hPx)
-                    rv.setRemoteAdapter(R.id.widget_flip, fi)
-                    rv.setInt(R.id.widget_flip, "setFlipInterval", 90)
-                    rv.setBoolean(R.id.widget_flip, "setAutoStart", true)
-                }.onFailure {
-                    // 某些桌面不认 flipper：退回一张静态帧，至少不是空卡
-                    android.util.Log.w("TodayWidget", "动态主题加载失败，退回静态", it)
-                    val bmp = WidgetArt.background(
-                        wPx, hPx, 0xFF0B0913.toInt(), dyn.second, false,
-                        WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density),
-                    )
-                    rv.setViewVisibility(R.id.widget_flip, View.GONE)
-                    rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                    rv.setImageViewBitmap(
-                        R.id.widget_bg_img,
-                        WidgetArt.rounded(bmp, WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density)),
-                    )
+            // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
+            // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
+            val frames = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx) }.getOrNull()
+            val dyn = frames != null
+            if (frames != null) {
+                rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
+                rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
+                FRAME_IDS.forEachIndexed { i, id ->
+                    rv.setImageViewBitmap(id, frames[i % frames.size])
                 }
+                rv.setInt(R.id.widget_flip, "setFlipInterval", 120)
+                rv.setBoolean(R.id.widget_flip, "setAutoStart", true)
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
             }

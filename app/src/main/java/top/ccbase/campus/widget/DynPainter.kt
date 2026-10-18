@@ -288,6 +288,123 @@ object DynPainter {
         paint.shader = null
     }
 
+    /**
+     * **只画粒子层**，不画底色 —— 用在"让一张二次元图动起来"上（2026-10-18 用户：
+     * "动态主题不仅仅是那些粒子特效，而是要有动态二次元图片那种，类似于动态壁纸"）。
+     *
+     * 图本身做微动（见 `DynamicPhotoBackground` / `WidgetFrames.photo`），这里负责往图上叠
+     * 樱瓣/雪/光斑/星点 —— 看上去就是壁纸在呼吸，而不是一块纯粒子面板。
+     *
+     * @param strength 0~1，越大粒子越明显（压在插画上不能用满）
+     */
+    fun particles(c: Canvas, kind: Kind, t: Float, w: Float, h: Float, accent: Int, strength: Float = 0.8f) {
+        if (w <= 0f || h <= 0f || strength <= 0f) return
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val a0 = strength.coerceIn(0f, 1f)
+
+        when (kind) {
+            Kind.PETALS -> {
+                val rnd = Random(8)
+                repeat(44) {
+                    val x0 = rnd.nextFloat() * w
+                    val speed = 0.10f + rnd.nextFloat() * 0.22f
+                    val sway = 18f + rnd.nextFloat() * 40f
+                    val phase = rnd.nextFloat() * 6.28f
+                    val sz = 3f + rnd.nextFloat() * 5f
+                    val y = ((t * speed + rnd.nextFloat()) % 1.15f) * h - h * 0.08f
+                    val x = x0 + sway * sin(t * 0.9f + phase)
+                    paint.color = withAlpha(0xFFFFC0D8.toInt(), (0.25f + rnd.nextFloat() * 0.45f) * a0)
+                    c.drawOval(RectF(x, y, x + sz * 1.7f, y + sz), paint)
+                }
+            }
+
+            Kind.SNOW -> {
+                val rnd = Random(31)
+                repeat(60) {
+                    val x0 = rnd.nextFloat() * w
+                    val speed = 0.06f + rnd.nextFloat() * 0.14f
+                    val phase = rnd.nextFloat() * 6.28f
+                    val sz = 1.4f + rnd.nextFloat() * 3f
+                    val y = ((t * speed + rnd.nextFloat()) % 1.1f) * h - h * 0.05f
+                    val x = x0 + (10f + rnd.nextFloat() * 20f) * sin(t * 0.5f + phase)
+                    paint.color = withAlpha(Color.WHITE, (0.35f + rnd.nextFloat() * 0.5f) * a0)
+                    c.drawCircle(x, y, sz, paint)
+                }
+            }
+
+            Kind.BOKEH -> {
+                val rnd = Random(404)
+                repeat(18) {
+                    val x = rnd.nextFloat() * w
+                    val y = rnd.nextFloat() * h
+                    val r = w * (0.04f + rnd.nextFloat() * 0.10f)
+                    val ph = rnd.nextFloat() * 6.28f
+                    val a = (0.10f + 0.12f * (0.5f + 0.5f * sin(t * 0.6f + ph))) * a0
+                    val col = if (rnd.nextBoolean()) accent else 0xFFFFC46B.toInt()
+                    paint.shader = RadialGradient(
+                        x, y, r, intArrayOf(withAlpha(col, a), Color.TRANSPARENT),
+                        floatArrayOf(0f, 1f), Shader.TileMode.CLAMP,
+                    )
+                    c.drawCircle(x, y, r, paint)
+                    paint.shader = null
+                }
+            }
+
+            Kind.STARS -> {
+                val rnd = Random(20261018)
+                repeat(70) {
+                    val x = rnd.nextFloat() * w
+                    val y = rnd.nextFloat() * h
+                    val phase = rnd.nextFloat() * 6.28f
+                    val a = (0.5f * (0.55f + 0.45f * sin(t * 1.6f + phase))) * a0
+                    paint.color = withAlpha(Color.WHITE, a)
+                    c.drawCircle(x, y, 0.8f + rnd.nextFloat() * 1.4f, paint)
+                }
+            }
+
+            Kind.FIREFLIES -> {
+                val rnd = Random(2026)
+                repeat(24) {
+                    val bx = rnd.nextFloat() * w
+                    val by = rnd.nextFloat() * h
+                    val ax = 20f + rnd.nextFloat() * 60f
+                    val ay = 15f + rnd.nextFloat() * 45f
+                    val ph = rnd.nextFloat() * 6.28f
+                    val x = bx + ax * sin(t * 0.35f + ph)
+                    val y = by + ay * cos(t * 0.27f + ph * 1.7f)
+                    val a = (0.35f + 0.65f * (0.5f + 0.5f * sin(t * 1.1f + ph)))
+
+                    paint.shader = RadialGradient(
+                        x, y, 26f + 20f * a,
+                        intArrayOf(withAlpha(0xFFB7FF8A.toInt(), 0.28f * a * a0), Color.TRANSPARENT),
+                        floatArrayOf(0f, 1f), Shader.TileMode.CLAMP,
+                    )
+                    c.drawCircle(x, y, 26f, paint)
+                    paint.shader = null
+                }
+            }
+
+            Kind.BUBBLES -> {
+                val rnd = Random(11)
+                paint.style = Paint.Style.STROKE
+                repeat(20) {
+                    val x0 = rnd.nextFloat() * w
+                    val speed = 0.05f + rnd.nextFloat() * 0.12f
+                    val r = 6f + rnd.nextFloat() * 22f
+                    val ph = rnd.nextFloat() * 6.28f
+                    val y = h - ((t * speed + rnd.nextFloat()) % 1.1f) * h
+                    val x = x0 + 12f * sin(t * 0.7f + ph)
+                    paint.strokeWidth = Math.max(1.1f, r * 0.10f)
+                    paint.color = withAlpha(0xFFBFE9FF.toInt(), (0.22f + rnd.nextFloat() * 0.20f) * a0)
+                    c.drawCircle(x, y, r, paint)
+                }
+                paint.style = Paint.Style.FILL
+            }
+
+            else -> Unit // 其余动效只有底色才成立，叠在照片上没意义
+        }
+    }
+
     private fun withAlpha(color: Int, a: Float): Int {
         val alpha = (a.coerceIn(0f, 1f) * 255).toInt()
         return (alpha shl 24) or (color and 0x00FFFFFF)

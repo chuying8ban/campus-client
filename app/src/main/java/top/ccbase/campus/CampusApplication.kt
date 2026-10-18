@@ -37,6 +37,11 @@ open class CampusApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         db = CampusDb.get(this)
+        // 兜底：#静音后手机重启/被清后台，下课那条恢复闹钟就没了。
+        // 每次进程起来先还一次铃声（只在"我们按着静音、且已过该恢复的时间"时才动）。
+        runCatching { top.ccbase.campus.alarm.Silence.healIfStuck(this) }
+        // 更新说明：这一版还没提示过就发一条通知（用户 2026-10-18 要求"每次更新后要放一则更新内容"）
+        runCatching { top.ccbase.campus.update.UpdateNotice.maybeNotify(this) }
         // 全 App 共用一个传输层，并把它选定的链路路线（直连/不带 SNI）落盘 —— 只探一次
         top.ccbase.campus.net.Net.init(this)
         // 这台设备的身份：作者功能（后台/抢课）绑设备要用它，必须早于任何一次请求

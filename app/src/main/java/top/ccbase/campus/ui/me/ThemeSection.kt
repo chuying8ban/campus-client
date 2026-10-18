@@ -9,6 +9,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -62,6 +64,8 @@ import top.ccbase.campus.widget.WidgetArt
 import top.ccbase.campus.widget.WidgetModel
 import top.ccbase.campus.widget.buildWidgetModel
 import top.ccbase.campus.widget.TodayWidgetProvider
+import top.ccbase.campus.widget.WidgetDyn
+import top.ccbase.campus.widget.WidgetFrames
 import top.ccbase.campus.widget.WidgetPin
 import top.ccbase.campus.widget.WidgetThemes
 
@@ -252,7 +256,14 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
         val wPx = with(density) { maxWidth.toPx() }.toInt().coerceAtLeast(200)
         val hPx = with(density) { maxHeight.toPx() }.toInt().coerceAtLeast(100)
         val f = maxWidth.value / 320f            // 320dp = 常见 4×2 宽度
-        val art = remember(spec) { WidgetThemes.imageBitmap(ctx, theme) }
+        // 预览也要"所见即所得"：gif/视频主题取一帧当封面，别退回成纯色渐变
+        val art = remember(spec) {
+            if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
+                top.ccbase.campus.ui.theme.UserMedia.stillBitmap(ctx)
+            } else {
+                WidgetThemes.imageBitmap(ctx, theme)
+            }
+        }
         var bg by remember(spec, wPx, hPx, art) { mutableStateOf<android.graphics.Bitmap?>(null) }
         LaunchedEffect(spec, wPx, hPx) {
             if (art == null) {
@@ -364,6 +375,41 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
 @Composable
 fun WidgetSection(onOpenGallery: () -> Unit = {}) {
     WidgetBlock(onOpenGallery)
+}
+
+/**
+ * 「让它动起来」一排芯片（2026-10-18 用户：动态主题要像动态壁纸，不是只有粒子）。
+ *
+ * 同一排同时给 App 背景和桌面小组件用：点了回传 effect id（null = 静止），
+ * 两边各自决定怎么落盘（App 写 `animphoto:`，小组件写 `dyni:`）。
+ */
+@Composable
+fun MotionChips(currentEffectId: String?, onPick: (String?) -> Unit) {
+    val items = listOf<Pair<String?, String>>(null to "静止") +
+        WidgetFrames.ImgEffect.entries.map { it.id to it.label }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items.forEach { (id, label) ->
+            val selected = id == currentEffectId
+            Text(
+                label,
+                fontSize = 11.sp,
+                color = if (selected) C.violet else C.txt2,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selected) C.violet.copy(alpha = 0.16f) else C.card)
+                    .border(
+                        1.dp,
+                        if (selected) C.violet.copy(alpha = 0.5f) else C.line,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .clickable { onPick(id) }
+                    .padding(horizontal = 11.dp, vertical = 7.dp),
+            )
+        }
+    }
 }
 
 /**
@@ -639,6 +685,52 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             )
         }
     }
+    // App 里传的 gif / 视频，直接挪过来当小组件的动态背景（用户："小组件同理"）。
+    // 桌面播不了视频，我们抽 12 帧轮播 —— 观感上还是"在动"，但不占后台。
+    val media = remember { top.ccbase.campus.ui.theme.UserMedia.current(ctx) }
+    if (media != null) {
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (wSpec == top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)) {
+                "✓ 正在用你传的${media.kind.label}"
+            } else {
+                "用你传的${media.kind.label}当背景"
+            },
+            fontSize = 12.sp,
+            color = if (wSpec == top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)) C.violet else C.txt2,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(C.card)
+                .clickable {
+                    val next = top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)
+                    wSpec = next
+                    WidgetThemes.set(ctx, next)
+                    TodayWidgetProvider.refresh(ctx)
+                }
+                .padding(horizontal = 11.dp, vertical = 8.dp),
+        )
+    }
+
+    // 让选中的那张图动起来（小组件也能动：12 帧轮播，见 WidgetFrames）
+    val curTheme = remember(wSpec) { WidgetThemes.of(wSpec) }
+    if (curTheme.hasImage) {
+        Spacer(Modifier.height(14.dp))
+        Text("让它动起来", fontSize = 11.sp, color = C.txt3)
+        Spacer(Modifier.height(7.dp))
+        MotionChips(currentEffectId = WidgetDyn.parseImage(wSpec)?.id) { id ->
+            val effect = WidgetFrames.ImgEffect.of(id)
+            val next = if (effect == null) curTheme.id else WidgetDyn.imageSpec(effect)
+            wSpec = next
+            WidgetThemes.set(ctx, next)
+            TodayWidgetProvider.refresh(ctx)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（12 帧循环，不用 App 在后台跑）。",
+            fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
+        )
+    }
+
     Spacer(Modifier.height(16.dp))
     Text("配色", fontSize = 11.sp, color = C.txt3)
     Spacer(Modifier.height(8.dp))

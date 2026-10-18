@@ -326,13 +326,46 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 Canvas(Modifier.fillMaxSize()) { drawBgPreset(themed, scrim, p) }
             }
         }
-        bg.startsWith(AppearanceStore.BG_PHOTO) -> {
+        bg.startsWith(UserMedia.PREFIX) -> {
+            // 用户自己传的 gif / 视频：真播，不假装
+            val ctx = LocalContext.current
+            val media = remember(bg) { UserMedia.current(ctx) }
+            Box(Modifier.fillMaxSize().background(p.bg))
+            if (media != null) {
+                Box(Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value)) {
+                    UserMediaBackground(media, Modifier.fillMaxSize())
+                }
+                // 视频/gif 拿不到"明暗极值"，遮罩按固定档走：还是上下厚中间薄，
+                // 但保证顶部标题、底部导航的字能看清。
+                val edge = 0.62f
+                val mid = 0.18f
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0.00f to p.bg.copy(alpha = edge),
+                            0.18f to p.bg.copy(alpha = edge * 0.70f),
+                            0.45f to p.bg.copy(alpha = mid),
+                            0.75f to p.bg.copy(alpha = mid),
+                            0.92f to p.bg.copy(alpha = edge * 0.78f),
+                            1.00f to p.bg.copy(alpha = edge),
+                        ),
+                    ),
+                )
+            }
+        }
+        bg.startsWith(AppearanceStore.BG_PHOTO) || bg.startsWith(ANIMPHOTO_PREFIX) -> {
             // 图是异步解码的（IO 线程），解出来之前先铺底色，避免闪一下白
             val bmp = rememberBackgroundPhoto(bg)
             val ex = rememberPhotoExtremes(bg)
             val scrim = remember(ex, p.bg) { photoScrim(ex, p) }
             Box(Modifier.fillMaxSize().background(p.bg))
-            if (bmp != null) {
+            val motion = parseAnimPhoto(bg)
+            if (bmp != null && motion != null) {
+                // 动态图片：微推近 + 前景粒子（动态壁纸那种），不透明度同样受"图片浓淡"管
+                Box(Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value)) {
+                    DynamicPhotoBackground(bmp, motion, p.violet, Modifier.fillMaxSize())
+                }
+            } else if (bmp != null) {
                 Image(
                     bitmap = bmp,
                     contentDescription = null,
@@ -506,7 +539,8 @@ object AppearanceStore {
      */
     fun setBackground(ctx: Context, value: String) {
         prefs(ctx).edit().putString(K_BG, value).apply()
-        if (!value.startsWith(BG_PHOTO)) BackgroundPhoto.clear(ctx)
+        // 动态图片（animphoto:）用的还是同一张 bg.jpg，别把它删了
+        if (!value.startsWith(BG_PHOTO) && !value.startsWith(ANIMPHOTO_PREFIX)) BackgroundPhoto.clear(ctx)
         bound = true
         background.value = value
     }

@@ -46,7 +46,16 @@ object AlarmScheduler {
         NudgeKind.UNSILENCE -> ACTION_UNSILENCE
     }
 
-    private fun op(ctx: Context, id: Int, action: String, title: String, body: String, atMs: Long, what: String): PendingIntent =
+    private fun op(
+        ctx: Context,
+        id: Int,
+        action: String,
+        title: String,
+        body: String,
+        atMs: Long,
+        what: String,
+        endMs: Long = 0L,
+    ): PendingIntent =
         PendingIntent.getBroadcast(
             ctx, id,
             Intent(ctx, NudgeReceiver::class.java).apply {
@@ -57,6 +66,8 @@ object AlarmScheduler {
                 putExtra("at", atMs)
                 // 标题里的名词（上课 / 早自习 / 晚自习）—— 到点才知道该说哪句话
                 putExtra("what", what)
+                // 静音动作带结束时刻：兜底自愈要用（闹钟丢了也能知道该恢复了）
+                putExtra("end", endMs)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -75,7 +86,8 @@ object AlarmScheduler {
         for (a in actions) {
             if (n >= MAX_ALARMS) break
             val ms = msOf(a.at)
-            if (set(ctx, BASE_ID + idx, actionName(a.kind), a.at, ms, a.title, a.body, a.what)) {
+            val endMs = a.endAt?.let { msOf(it) } ?: 0L
+            if (set(ctx, BASE_ID + idx, actionName(a.kind), a.at, ms, a.title, a.body, a.what, endMs)) {
                 n++
                 if (earliest == 0L || ms < earliest) earliest = ms
             }
@@ -89,12 +101,22 @@ object AlarmScheduler {
         return n
     }
 
-    private fun set(ctx: Context, id: Int, action: String, at: LocalDateTime, atMs: Long, title: String, body: String, what: String = ""): Boolean {
+    private fun set(
+        ctx: Context,
+        id: Int,
+        action: String,
+        at: LocalDateTime,
+        atMs: Long,
+        title: String,
+        body: String,
+        what: String = "",
+        endMs: Long = 0L,
+    ): Boolean {
         if (atMs <= System.currentTimeMillis()) return false     // 过期的直接跳过
         return try {
             am(ctx).setAlarmClock(
                 AlarmManager.AlarmClockInfo(atMs, showPending(ctx)),
-                op(ctx, id, action, title, body, atMs, what),
+                op(ctx, id, action, title, body, atMs, what, endMs),
             )
             sp(ctx).edit().putBoolean(id.toString(), true).apply()
             true

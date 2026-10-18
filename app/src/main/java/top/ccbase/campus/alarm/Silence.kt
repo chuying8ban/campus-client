@@ -38,19 +38,73 @@ object Silence {
         }
     }
 
-    /** 真正改铃声。返回 false = 没权限，得让用户去设置里开 */
-    fun silence(ctx: Context): Boolean {
+    private const val P = "silence_mark"
+    private const val K_OURS = "ours"        // 现在这个静音是不是我们按的
+    private const val K_PREV = "prev"        // 按之前用户自己的模式（静音/震动/正常）
+    private const val K_UNTIL = "until"      // 这一段什么时候结束（epoch ms）
+    private const val K_START = "start"      // 这一段什么时候按下去的（没结束时间时用它兜底）
+
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences(P, Context.MODE_PRIVATE)
+
+    /**
+     * 真正改铃声。返回 false = 没权限，得让用户去设置里开。
+     *
+     * @param untilMs 这一段静音的结束时刻。恢复由闹钟负责，这个值只用于**兜底自愈**：
+     *   App 下次启动/收到任何闹钟时，如果发现"我们在静音、而且已经过了结束时间"，
+     *   就顺手把铃声还回去。用户 2026-10-18 要求"课和自习结束后自动取消静音"——
+     *   只靠一个闹钟不可靠（被系统清掉、手机重启、用户手动清了后台都会丢），必须有这道保险。
+     */
+    fun silence(ctx: Context, untilMs: Long = 0L): Boolean {
         if (!canWrite(ctx)) return false
         val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val sp = prefs(ctx)
+        // 只在"第一次由我们静音"时记住用户原来的模式：连续两节课之间不要把他自己的震动覆盖掉
+        if (!sp.getBoolean(K_OURS, false) || am.ringerMode != AudioManager.RINGER_MODE_SILENT) {
+            sp.edit()
+                .putBoolean(K_OURS, true)
+                .putInt(K_PREV, am.ringerMode)
+                .putLong(K_UNTIL, untilMs)
+                .putLong(K_START, System.currentTimeMillis())
+                .apply()
+        } else if (untilMs > 0L) {
+            // 同一段没断：把结束时间往后推（下一节更晚下课时）
+            sp.edit().putLong(K_UNTIL, maxOf(untilMs, sp.getLong(K_UNTIL, 0L))).apply()
+        }
         am.ringerMode = AudioManager.RINGER_MODE_SILENT
         return true
     }
 
+    /**
+     * 下课恢复。**还回用户原来的模式**，不是一律"正常"：
+     * 他平时手机就是震动的人，上完课突然变响铃，比不恢复还烦。
+     */
     fun unsilence(ctx: Context): Boolean {
         if (!canWrite(ctx)) return false
         val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.ringerMode = AudioManager.RINGER_MODE_NORMAL
+        val prev = prefs(ctx).getInt(K_PREV, AudioManager.RINGER_MODE_NORMAL)
+        am.ringerMode = when (prev) {
+            AudioManager.RINGER_MODE_VIBRATE -> AudioManager.RINGER_MODE_VIBRATE
+            AudioManager.RINGER_MODE_SILENT -> AudioManager.RINGER_MODE_NORMAL // 本来就是静音，别再闷着
+            else -> AudioManager.RINGER_MODE_NORMAL
+        }
+        prefs(ctx).edit().putBoolean(K_OURS, false).putLong(K_UNTIL, 0L).apply()
         return true
+    }
+
+    /**
+     * 兜底自愈：如果我们还按着静音、而这一段早该结束了 → 立刻恢复。
+     * 返回 true 表示"这次真的动手恢复了"（调用方可以补一条通知）。
+     */
+    fun healIfStuck(ctx: Context): Boolean {
+        val sp = prefs(ctx)
+        if (!sp.getBoolean(K_OURS, false)) return false
+        val until = sp.getLong(K_UNTIL, 0L)
+        // until=0（老版本留下的标记）＝ 不知道什么时候结束，只要已过 1 分钟就放行
+        // 不知道结束时间（老标记/提醒顺手静音）时，按"最多静 3 小时"兜底 ——
+        // 用"1 分钟"会在一节课中途把铃声放回来，比不恢复更糟。
+        val due = if (until > 0L) until + 30_000L else sp.getLong(K_START, 0L) + 3 * 3600_000L
+        if (System.currentTimeMillis() < due) return false
+        return unsilence(ctx)
     }
 }
 

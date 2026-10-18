@@ -56,13 +56,6 @@
             </intent-filter>
         </service>
 
-        <!-- 桌面小组件的「动态主题」：给 AdapterViewFlipper 供帧。
-             没有它，动态主题会退化成一张静态帧（provider 里 runCatching 兜底）。 -->
-        <service
-            android:name=".widget.WidgetFrameService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
-
         <!-- 闹钟到点由系统唤醒，无需 App 在运行 -->
         <receiver
             android:name=".alarm.NudgeReceiver"

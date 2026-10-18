@@ -47,6 +47,11 @@ data class NudgeAction(
     val body: String = "",
     /** 提醒类动作带上：标题里说"什么"（上课/早自习/晚自习） */
     val what: String = "",
+    /**
+     * 静音动作带上：这一段什么时候结束。
+     * 用途是**兜底**：闹钟丢了/重启了，App 下次醒来还能知道"早该恢复了"。
+     */
+    val endAt: LocalDateTime? = null,
 )
 
 /** 下一个到点项（课或自习）—— 内部用，两种来源统一成一种形状 */
@@ -281,7 +286,9 @@ fun silenceSpans(windows: List<NudgeWindow>): List<Pair<LocalDateTime, LocalDate
 /** 提醒：**每个**到点项一条（自习和课各算一条，不能合并） */
 fun planReminders(windows: List<NudgeWindow>, remind: Boolean): List<NudgeAction> {
     if (!remind) return emptyList()
-    return windows.map { NudgeAction(it.start, NudgeKind.REMIND, "", it.body, it.what) }
+    // 提醒那条到点会顺手静音（正文带"已静音"），所以它也要带结束时间：
+    // 否则"兜底自愈"不知道这节课上到几点，可能在课中途就把铃声放回来。
+    return windows.map { NudgeAction(it.start, NudgeKind.REMIND, "", it.body, it.what, endAt = it.end) }
 }
 
 /**
@@ -305,7 +312,9 @@ fun planSilence(
             .filter { it.isNotBlank() }
             .distinct()
         val body = inside.joinToString(" / ")
-        if (a !in remindInstants) out += NudgeAction(a, NudgeKind.SILENCE, "🔕 已自动静音", body)
+        if (a !in remindInstants) {
+            out += NudgeAction(a, NudgeKind.SILENCE, "🔕 已自动静音", body, endAt = b)
+        }
         out += NudgeAction(b, NudgeKind.UNSILENCE, "🔔 已恢复铃声", "")
     }
     return out

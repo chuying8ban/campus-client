@@ -33,13 +33,24 @@ class NudgeReceiver : BroadcastReceiver() {
         val at = DiagLog.now()
         val label = { prefix: String -> if (body.isBlank()) prefix else "$prefix·$body" }
 
+        // 兜底：任何一条闹钟醒来都顺手检查一次"我们是不是还按着静音但早该结束了"。
+        // 恢复闹钟被系统清掉、手机重启、用户清过后台 —— 这三种情况都靠这一句兜回来。
+        if (Silence.healIfStuck(context)) {
+            DiagLog.append(context, Attempt(at, label("兜底恢复"), true, "错过下课点，已补恢复铃声"))
+            runCatching { Notify.post(context, "🔔 已恢复铃声", "刚才那节课/自习已经结束，铃声已还回来") }
+        }
+
         when (intent.action) {
             AlarmScheduler.ACTION_REMIND -> {
                 val left = if (atMs > 0L) (atMs - System.currentTimeMillis()) / 1000 else 60L
                 val what = intent.getStringExtra("what").orEmpty().ifBlank { "上课" }
                 // 用户顺手开了静音就在同一条通知里报结果（不再单发一条"已静音"）
                 val wantSilence = NudgePrefs.silenceEnabled(context)
-                val silFail = if (!wantSilence || Silence.silence(context)) null else failReason(context)
+                val silFail = if (!wantSilence || Silence.silence(context, intent.getLongExtra("end", 0L))) {
+                    null
+                } else {
+                    failReason(context)
+                }
                 val f = fireRemind(left, what, body, wantSilence, silFail, Notify.allowed(context))
                 Notify.postRemind(context, f.title, f.body)
                 DiagLog.append(context, Attempt(at, label("课前提醒"), f.ok, f.reason))
@@ -47,7 +58,8 @@ class NudgeReceiver : BroadcastReceiver() {
             }
 
             AlarmScheduler.ACTION_SILENCE -> {
-                val ok = Silence.silence(context)
+                // 带上结束时刻：闹钟丢了也能自愈（见 Silence.healIfStuck）
+                val ok = Silence.silence(context, intent.getLongExtra("end", 0L))
                 DiagLog.append(context, Attempt(at, label("课前静音"), ok, if (ok) "" else failReason(context)))
                 if (ok) {
                     Notify.post(context, title, if (body.isEmpty()) "即将开始" else "$body 即将开始")

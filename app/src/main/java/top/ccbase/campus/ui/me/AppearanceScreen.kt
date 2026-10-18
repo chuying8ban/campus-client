@@ -65,7 +65,11 @@ import top.ccbase.campus.ui.theme.parseAnim
 import top.ccbase.campus.ui.theme.hint
 import top.ccbase.campus.ui.theme.DynamicBackground
 import top.ccbase.campus.ui.theme.presetById
+import top.ccbase.campus.ui.theme.UserMedia
+import top.ccbase.campus.ui.theme.animPhotoSpec
+import top.ccbase.campus.ui.theme.parseAnimPhoto
 import top.ccbase.campus.widget.ArtRepo
+import top.ccbase.campus.widget.WidgetFrames
 import androidx.compose.ui.graphics.asImageBitmap
 
 /**
@@ -206,6 +210,7 @@ private fun AppThemePane(
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     val photoSet = bgChoice.startsWith(AppearanceStore.BG_PHOTO)
+    val mediaSet = bgChoice.startsWith(UserMedia.PREFIX)
 
     // 系统照片选择器：**不申请存储权限**（这也是它存在的意义）
     val pickImage = rememberLauncherForActivityResult(
@@ -222,6 +227,26 @@ private fun AppThemePane(
                 msg = "这张图读不出来，换一张试试"
             } else {
                 AppearanceStore.setBackground(ctx, "${AppearanceStore.BG_PHOTO}:$stamp")
+            }
+        }
+    }
+
+    // 自带动图/视频当背景（2026-10-18 用户要求）。用 OpenDocument 而不是照片选择器：
+    // 照片选择器只给图片，gif/视频拿不到；这里也不要存储权限（拿的是 uri 授权）。
+    val pickMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        msg = null
+        scope.launch {
+            val kind = withContext(Dispatchers.IO) { UserMedia.save(ctx, uri) }
+            busy = false
+            if (kind == null) {
+                msg = "这个文件读不出来（只收 gif 和 mp4/webm 视频，80MB 以内）"
+            } else {
+                BackgroundPhoto.clear(ctx)
+                AppearanceStore.setBackground(ctx, UserMedia.spec(kind))
             }
         }
     }
@@ -289,6 +314,30 @@ private fun AppThemePane(
         Text("›", color = C.txt3, fontSize = 16.sp)
     }
 
+    // 让它动起来：动态壁纸那种（微推近 + 樱瓣/雪/光斑…），作用在选中的那张图上
+    if (photoSet) {
+        Spacer(Modifier.height(12.dp))
+        Text("让它动起来", color = C.txt3, fontSize = 11.sp)
+        Spacer(Modifier.height(7.dp))
+        MotionChips(currentEffectId = parseAnimPhoto(AppearanceStore.background.value)?.id) { id ->
+            val effect = WidgetFrames.ImgEffect.of(id)
+            val next = if (effect == null) {
+                // 回到静止：仍然显示这张图
+                "${AppearanceStore.BG_PHOTO}:${System.currentTimeMillis()}"
+            } else {
+                animPhotoSpec(effect)
+            }
+            AppearanceStore.setBackground(ctx, next)
+        }
+        if (parseAnimPhoto(AppearanceStore.background.value) != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "已经动起来了：画面会缓慢推近，前景还有一层粒子（费电比静止多一点，切后台会停）。",
+                color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
+            )
+        }
+    }
+
     // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
     if (photoSet) {
         Spacer(Modifier.height(12.dp))
@@ -338,7 +387,32 @@ private fun AppThemePane(
             },
         )
     }
-    if (photoSet) {
+    // 动图/视频：单独一行入口，不跟「选一张图」挤在同一排（那个是静态图，能调浓淡和粒子）
+    Spacer(Modifier.height(10.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(C.card)
+            .clickable { if (!busy) pickMedia.launch(arrayOf("image/gif", "video/*")) }
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🎞", fontSize = 15.sp)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(
+                if (mediaSet) "换一个动图 / 视频" else "上传动图 / 视频当背景",
+                color = C.txt, fontSize = 13.sp,
+            )
+            Text(
+                "gif、mp4、webm —— 真正的动态壁纸那种（视频静音循环）",
+                color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
+            )
+        }
+    }
+
+    if (photoSet || mediaSet) {
         Spacer(Modifier.height(10.dp))
         Text(
             "换回内置背景",
@@ -346,6 +420,7 @@ private fun AppThemePane(
             modifier = Modifier
                 .clickable {
                     BackgroundPhoto.clear(ctx)
+                    UserMedia.clear(ctx)
                     AppearanceStore.setBackground(ctx, AppearanceStore.BG_SOLID)
                 }
                 .padding(vertical = 8.dp, horizontal = 2.dp),

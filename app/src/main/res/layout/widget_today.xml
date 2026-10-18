@@ -9,15 +9,93 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 动态主题的帧轮播（RemoteViews 里唯一能自己动的东西就是 AdapterViewFlipper）。
-         静态主题时它是 gone，底图走下面的 ImageView。 -->
-    <AdapterViewFlipper
+    <!-- 动态主题的帧轮播。
+         ⚠️ 2026-10-18 用户装 3.0.x 后桌面直接报「载入窗口小部件时出现问题」——根因是用
+         `AdapterViewFlipper` + `RemoteViewsService`：那套要桌面去 bind 一个 RemoteViewsService，
+         MIUI 的桌面不认，整个 RemoteViews 充气失败（不是我们崩，是它的 inflater 崩）。
+         现在换成 **ViewFlipper + 12 个现成的 ImageView**：只用到 ImageView/ViewFlipper 这两个
+         最基础的支持列表成员，帧由 provider 直接 setImageViewBitmap 灌进去，不需要任何 Service。
+         12 帧 × 120ms ≈ 1.44 秒一个循环。 -->
+    <ViewFlipper
         android:id="@+id/widget_flip"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:autoStart="true"
-        android:flipInterval="90"
-        android:visibility="gone" />
+        android:flipInterval="120"
+        android:visibility="gone">
+        <ImageView
+            android:id="@+id/f0"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f4"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f5"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f6"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f7"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f8"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f9"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f10"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <ImageView
+            android:id="@+id/f11"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+    </ViewFlipper>
 
     <ImageView
         android:id="@+id/widget_bg_img"
