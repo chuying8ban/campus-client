@@ -21,80 +21,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:autoStart="true"
-        android:flipInterval="120"
+        android:flipInterval="320"
         android:visibility="gone">
-        <ImageView
-            android:id="@+id/f0"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f1"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f2"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f3"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f4"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f5"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f6"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f7"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f8"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f9"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f10"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
-        <ImageView
-            android:id="@+id/f11"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scaleType="fitXY"
-            android:contentDescription="@null" />
+        <!-- ⚠️ 帧位数量必须**等于**实际帧数（现在是 4）。
+             2026-10-19 的坑：布局里留了 12 个帧位、只灌 4 帧，剩下的 setViewVisibility(GONE)。
+             ViewAnimator 是**按子 View 下标轮播**的（不看可见性，轮到就把那个设为 VISIBLE），
+             于是 8 个空 ImageView 也会被翻到 —— 卡片 2/3 的时间是空白，看屏幕就是"主题黑/在闪"。 -->
+        <ImageView android:id="@+id/f0" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
     </ViewFlipper>
 
     <ImageView

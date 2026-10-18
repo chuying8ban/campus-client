@@ -59,6 +59,7 @@ import top.ccbase.campus.ui.theme.BgPresetSurface
 import top.ccbase.campus.ui.theme.BgPresets
 import top.ccbase.campus.ui.theme.BgStyle
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.DYN_PRESETS
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
 import top.ccbase.campus.ui.theme.DynKind
@@ -459,7 +460,7 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () ->
     ) {
         Text("动态主题库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(8.dp))
-        Text("72 款会动的小组件背景", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+        Text("${DYN_PRESETS.size} 款会动的小组件背景", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
         Text("›", color = C.txt3, fontSize = 16.sp)
     }
 
@@ -873,7 +874,7 @@ private fun BgPresetBoard(onClose: () -> Unit, onOpenDyn: () -> Unit = {}) {
             ) {
                 Text("更多动态", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.width(8.dp))
-                Text("72 款 · 可搜（雪/雨/星/粉…）", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+                Text("${DYN_PRESETS.size} 款 · 可搜（雪/雨/星/粉…）", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
                 Text("›", color = C.txt3, fontSize = 16.sp)
             }
             Spacer(Modifier.height(14.dp))

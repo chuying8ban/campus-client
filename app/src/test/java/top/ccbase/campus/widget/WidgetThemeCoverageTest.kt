@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import top.ccbase.campus.R
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -69,6 +70,21 @@ class WidgetThemeCoverageTest {
             }
         }
         assertTrue("这些动效在小组件上是空的/黑的：${bad.joinToString()}", bad.isEmpty())
+    }
+
+    /**
+     * 帧位数量必须等于帧数（2026-10-19 的坑：布局 12 个帧位只灌 4 帧，
+     * ViewAnimator 不看可见性、按子 View 轮播，78% 的时间翻到空白 → 卡片看着像纯黑）。
+     */
+    @Test
+    fun `轮播帧位数量必须等于实际帧数`() {
+        val root = android.view.LayoutInflater.from(ctx)
+            .inflate(R.layout.widget_today, android.widget.FrameLayout(ctx))
+        val flip = root.findViewById<android.widget.ViewFlipper>(R.id.widget_flip)
+        assertTrue(
+            "帧位 ${flip.childCount} 个，但实际帧数是 ${WidgetFrames.FRAMES} —— 多出来的位子会翻成空白",
+            flip.childCount == WidgetFrames.FRAMES,
+        )
     }
 
     @Test

@@ -81,11 +81,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
         /** requestPinAppWidget 的 successCallback 走这个 action（钉到桌面成功那一刻） */
         const val ACTION_PINNED = "top.ccbase.campus.WIDGET_PINNED"
 
-        /** 布局里 ViewFlipper 的 12 个帧位（顺序就是播放顺序） */
-        private val FRAME_IDS = intArrayOf(
-            R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5,
-            R.id.f6, R.id.f7, R.id.f8, R.id.f9, R.id.f10, R.id.f11,
-        )
+        /**
+         * 布局里 ViewFlipper 的帧位，**数量必须等于 [WidgetFrames.FRAMES]**。
+         *
+         * ⚠️ 2026-10-19：这里原来是 12 个，只灌 4 帧、其余 `setViewVisibility(GONE)`。
+         * ViewAnimator 是按**子 View 下标**轮播的，不看可见性 —— 轮到一个空白 ImageView 就整卡空白。
+         * 12 个位子只有 4 个有图 = 卡片 2/3 的时间是空的，用户看到的就是"动态主题一片黑"。
+         */
+        private val FRAME_IDS = intArrayOf(R.id.f0, R.id.f1, R.id.f2, R.id.f3)
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250
         private const val FALLBACK_H_DP = 110
@@ -169,14 +172,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewVisibility(R.id.widget_scrim, View.GONE)
                 // 只灌实际生成的帧，多出来的 ImageView 直接 GONE：
                 // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
+                // 帧不够就**重复最后一帧**填满，绝不留空位：ViewAnimator 会把空位也翻出来。
                 FRAME_IDS.forEachIndexed { i, id ->
-                    if (i < frames.size) {
-                        rv.setImageViewBitmap(id, frames[i])
-                        rv.setViewVisibility(id, View.VISIBLE)
-                    } else {
-                        rv.setImageViewBitmap(id, null)
-                        rv.setViewVisibility(id, View.GONE)
-                    }
+                    rv.setImageViewBitmap(id, frames[i.coerceAtMost(frames.size - 1)])
+                    rv.setViewVisibility(id, View.VISIBLE)
                 }
                 rv.setInt(
                     R.id.widget_flip, "setFlipInterval",

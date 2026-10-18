@@ -747,7 +747,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（6 帧循环，不用 App 在后台跑）。",
+            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（4 帧循环，不用 App 在后台跑）。",
             fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
         )
     }
@@ -812,8 +812,41 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         }
     }
 
-    // 原来这里有 4 张"图片主题"，其实是程序画的渐变色块，用户一看就知道不是图（"怎么还是渐变色"）。
-    // 现在图走「在线图库」（服务器上真实插画，可搜索），这里只留纯色 + 图库 + 自己上传。
+    // ---- 图片（2026-10-19：这四张以前是程序画的渐变色块，被用户当场指出"怎么还是渐变色"；
+    //      3.4.9 换成真照片 960×420，理由就没了，重新摆回这一页。更多图去上面的在线图库。）----
+    Spacer(Modifier.height(12.dp))
+    Text("图片", color = C.txt2, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        WidgetThemes.imageThemes.forEach { t ->
+            val on = wSpec == t.id
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .clickable {
+                        val err = WidgetThemes.apply(ctx, t.id)
+                        if (err == null) {
+                            wSpec = t.id
+                            TodayWidgetProvider.refresh(ctx)
+                            toast(ctx, "已应用：${t.name}")
+                        } else toast(ctx, err)
+                    },
+            ) {
+                Box(
+                    Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp))
+                        .border(if (on) 2.dp else 1.dp, if (on) C.violet else C.line, RoundedCornerShape(10.dp)),
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(t.imageRes),
+                        contentDescription = t.name,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(t.name, color = if (on) C.violet else C.txt3, fontSize = 10.sp, maxLines = 1)
+            }
+        }
+    }
 
     // 在线图库入口已经挪到这一页最上面（和「动态主题库」并排），这里不再放第二个入口 ——
     // 同一件事留两个入口，用户反而不知道点哪个。
@@ -825,10 +858,15 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             val bmp = runCatching {
                 ctx.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
             }.getOrNull()
-            if (bmp != null && WidgetThemes.saveUserImage(ctx, bmp)) {
+            if (bmp == null) {
+                toast(ctx, "这张图读不出来，换一张试试")
+            } else if (WidgetThemes.saveUserImage(ctx, bmp)) {
                 wSpec = WidgetThemes.USER_IMAGE_SPEC
                 runCatching { WidgetThemes.apply(ctx, wSpec) }.getOrNull()?.let { toast(ctx, it) }
                 TodayWidgetProvider.refresh(ctx)
+                toast(ctx, "已应用到桌面")
+            } else {
+                toast(ctx, "这张图存不下来（可能太大），换一张试试")
             }
         }
     }
