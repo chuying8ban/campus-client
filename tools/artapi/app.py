@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import threading
+from concurrent import futures
 import time
 import urllib.error
 import urllib.parse
@@ -93,6 +94,33 @@ for _zh, _tag in ZH2TAG.items():
 
 _cache = {}
 _lock = threading.Lock()
+
+# 热门词预热：用户打字时上游才现算，一页要 2~4 秒，第一下几乎总是"等半天"。
+# 后台每 4 分钟把这几个词的第 1 页算好放进缓存（和正常请求走同一条 handle_search 路径的话
+# 会绕不开 HTTP，所以这里直接复用 _cache 结构）。
+WARM_WORDS = ["原神", "少女", "樱花", "校服", "星空", "赛博", "和服", "猫",
+              "风景", "城市", "夜景", "海", "天空", "机甲"]
+WARM_TTL = 240
+
+
+def warm_loop():
+    """后台把热门词第 1 页预热进缓存（两种 orient 都做）。
+
+    走**自己的 127.0.0.1 接口**而不是内部函数调用：这样预热的就是用户真正会拿到的那份响应，
+    不用把 handle_search 拆成两半，也不会两处逻辑漂移。
+    """
+    time.sleep(8)  # 先把端口让给真请求
+    while True:
+        for w in WARM_WORDS:
+            for orient in ("portrait", "landscape"):
+                try:
+                    http_get(
+                        f"http://127.0.0.1:{PORT}/search?" + urllib.parse.urlencode(
+                            {"q": w, "page": 1, "orient": orient, "limit": 100}),
+                        {"Accept": "application/json"}, timeout=30)
+                except Exception:
+                    pass
+        time.sleep(WARM_TTL)
 
 
 def translate(q):
@@ -216,25 +244,37 @@ class Handler(BaseHTTPRequestHandler):
         # 为什么"一段一段占"而不是 page+extra：tag/orient/白底过滤会砍掉 60% 以上，
         # 若两页都从 page 和 page+1 开始，翻页会大量重复（还撞 Compose 的 key）。
         span = 6
+        batch_size = 2
+        spans_per_batch_max = span // batch_size
         first = (page - 1) * span + 1
+        # 这 6 页**并发**去要。之前是一页一页串着等，冷缓存要 7 秒多，几乎贴着客户端超时，
+        # 用户那边看到的就是"搜索失败"。并发后同样的活 1~2 秒。
+        def fetch_one(pno):
+            url = UPSTREAM + "?" + urllib.parse.urlencode(
+                {"tags": cand, "limit": limit, "page": pno})
+            raw = http_get(url, {"User-Agent": UA, "Referer": REFERER, "Accept": "application/json"})
+            return json.loads(raw)
+
+        # 分批并发：先要 2 页，够一屏就停；不够再来 2 页。6 页一次全要会白等 5~10 秒
+        # （上游单页就要 1.5 秒），而大多数 tag 两页就够。
         for cand in cands:
             posts = []
             upstream_full = False
-            for extra in range(span):
-                url = UPSTREAM + "?" + urllib.parse.urlencode(
-                    {"tags": cand, "limit": limit, "page": first + extra})
-                try:
-                    raw = http_get(url, {"User-Agent": UA, "Referer": REFERER, "Accept": "application/json"})
-                    got = json.loads(raw)
-                except Exception as e:
-                    upstream_err = str(e)[:80]
-                    break
-                if not isinstance(got, list) or not got:
-                    break
-                posts.extend(got)
-                upstream_full = upstream_full or len(got) >= limit
+            for batch in range(spans_per_batch_max):
+                base_pno = first + batch * batch_size
+                with futures.ThreadPoolExecutor(max_workers=batch_size) as pool:
+                    rs = [pool.submit(fetch_one, base_pno + j) for j in range(batch_size)]
+                    for f in rs:
+                        try:
+                            got = f.result(timeout=20)
+                        except Exception as e:
+                            upstream_err = str(e)[:80]
+                            continue
+                        if isinstance(got, list) and got:
+                            posts.extend(got)
+                            upstream_full = upstream_full or len(got) >= limit
                 usable = sum(1 for q in posts if orient_ok(q, orient))
-                if usable >= wanted:
+                if usable >= wanted or not upstream_full:
                     break
             if posts:
                 break
@@ -316,4 +356,6 @@ if __name__ == "__main__":
     os.makedirs(CACHE_DIR, exist_ok=True)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     print(f"artapi listening 127.0.0.1:{PORT}", flush=True)
+    # daemon：进程退出就跟着退，不拖住 systemctl restart
+    threading.Thread(target=warm_loop, daemon=True).start()
     srv.serve_forever()

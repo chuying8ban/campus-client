@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 import top.ccbase.campus.data.local.CampusDb
 import top.ccbase.campus.data.local.PlanEvent
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.Digits
 import java.time.LocalDate
 import java.time.LocalTime
@@ -138,6 +140,15 @@ private fun PlanRow(p: PlanEvent, dao: () -> top.ccbase.campus.data.local.Campus
                 Text(p.note, color = C.txt3, fontSize = 11.sp, maxLines = 1)
             }
         }
+        // 删除放在行尾、只占 34dp：删完这一行直接消失，不留空壳（用户："日程能够删除，
+        // 不要在那里占位置"）。勾完成是点整行，删是点这个 ×，两个动作不会误触。
+        Text(
+            "✕",
+            color = C.txt3, fontSize = 13.sp,
+            modifier = Modifier
+                .clickable { scope.launch { dao().deletePlan(p.id) } }
+                .padding(horizontal = 9.dp, vertical = 8.dp),
+        )
     }
 }
 
@@ -150,7 +161,16 @@ fun DayAgendaScreen(db: CampusDb, onClose: () -> Unit, startWithEditor: Boolean 
     val all by db.dao().allPlans().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    // 整页要**自己铺底色**（之前直接叠在今日页上，底下的课表和顶部"已核对课表"那一条就透上来了，
+    // 看着像日程页烂了）；再加状态栏留白，标题才不会钻到系统栏底下。
+    Column(
+        Modifier
+            .fillMaxSize()
+            // 整屏浮层：必须不透明 + 吃掉空白触摸，否则下面的今日页会透上来（overlaySurface 就是干这个的）
+            .overlaySurface
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp),
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -200,12 +220,7 @@ fun DayAgendaScreen(db: CampusDb, onClose: () -> Unit, startWithEditor: Boolean 
                                     .clickable { editing = p; showEditor = true }
                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                             )
-                            Text(
-                                "删", color = C.txt3, fontSize = 11.sp,
-                                modifier = Modifier
-                                    .clickable { scope.launch { db.dao().deletePlan(p.id) } }
-                                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                            )
+                            // 删除已经挪到行尾的 ✕（同一页只有一个删除入口，不留第二处）
                         }
                     }
                 }

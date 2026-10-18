@@ -73,10 +73,15 @@ object WidgetArt {
         return bmp
     }
 
-    /** 圆角大小：桌面小组件的通用观感，取短边的 ~13%，再夹在 16~34dp 之间。 */
+    /**
+     * 圆角大小：默认就要是**一眼看得出是圆角矩形**（用户 2026-10-18："小部件我希望默认为圆角矩形"）。
+     *
+     * 原来是短边 13%、夹 16~34dp —— 4×2 的卡在小米桌面上算出来才 20dp 出头，配上导出位图后
+     * 看起来接近直角。现在取短边 20%、夹 22~46dp，和系统图标组的圆角一个量级。
+     */
     fun radiusFor(h: Int, density: Float): Float {
-        val byHeight = h * 0.13f
-        return byHeight.coerceIn(16f * density, 34f * density)
+        val byHeight = h * 0.20f
+        return byHeight.coerceIn(22f * density, 46f * density)
     }
 
     private fun withAlpha(color: Int, alpha: Float): Int {

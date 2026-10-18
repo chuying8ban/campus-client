@@ -338,9 +338,25 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                     contentScale = ContentScale.Crop,
                 )
             }
-            // 这个 alpha 是**按这张图自己的明暗**算的：深色照片几乎不用压，亮图自动压回去。
-            // 缺极值文件（旧版本装的、或量失败）才退回 SCRIM_ALPHA 那套最坏情况。
-            if (scrim > 0f) Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = scrim)))
+            // 遮罩不再整片糊一层：整片均匀压暗会让"背景图"看起来像一块灰玻璃（用户：
+            // "我希望 app 背景图能够更明显一些"）。改成上下两头厚、中间薄 —— 顶栏/底部导航
+            // 那些字有把握，画面中间尽量露出原图。
+            if (scrim > 0f) {
+                val mid = (scrim * 0.62f).coerceAtLeast(0.10f)
+                val edge = (mid + 0.30f).coerceAtMost(0.94f)
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0.00f to p.bg.copy(alpha = edge),
+                            0.16f to p.bg.copy(alpha = edge * 0.72f),
+                            0.42f to p.bg.copy(alpha = mid),
+                            0.72f to p.bg.copy(alpha = mid),
+                            0.90f to p.bg.copy(alpha = edge * 0.78f),
+                            1.00f to p.bg.copy(alpha = edge),
+                        ),
+                    ),
+                )
+            }
         }
     }
 }

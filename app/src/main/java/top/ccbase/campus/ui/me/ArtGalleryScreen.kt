@@ -89,6 +89,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var hint by remember { mutableStateOf<String?>(null) }
     // 按「搜索」按钮时跳过 400ms 防抖（打字才需要防抖，按钮是明确意图）
     var tick by remember { mutableIntStateOf(0) }
+    // 搜索过程的一句话（"正在搜…" / "没搜到，再点一次"），别让用户对着空白干等
+    var stage by remember { mutableStateOf<String?>(null) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     val grid = rememberLazyGridState()
@@ -104,20 +106,41 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         loading = false
     }
 
-    // 搜索：停手 400ms 再发，别每敲一个字打一次网络
+    // 搜索：停手 400ms 再发，别每敲一个字打一次网络。
+    //
+    // 2026-10-18 用户反馈：搜不到的时候界面上只有一句"搜索失败，检查下网络"，也不知道在干嘛。
+    // 实际原因通常不是他的网，而是**上游第一次查要现算**（冷缓存 7 秒左右，几乎贴着客户端超时）。
+    // 所以现在：① 自动重试一次；② 每一步都写进 [stage] 给用户看；③ 失败时明说"再点一次搜索"。
     LaunchedEffect(query, tick) {
         val q = query.trim()
         if (q.isEmpty()) {
-            live = emptyList(); page = 1; hasMore = false; error = null; hint = null
+            live = emptyList(); page = 1; hasMore = false; error = null; hint = null; stage = null
             return@LaunchedEffect
         }
         if (tick == 0) delay(400)
         loading = true; error = null
-        runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
-            .onSuccess { pg ->
+        var last: String? = null
+        for (attempt in 1..2) {
+            stage = if (attempt == 1) "正在搜「$q」…（整库查询，第一次要几秒）"
+            else "第一次没返回，正在再试一次…"
+            val r = runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
+            if (r.isSuccess) {
+                val pg = r.getOrThrow()
                 live = pg.items; page = 1; hasMore = pg.hasMore; hint = pg.hint
+                stage = if (pg.items.isEmpty()) {
+                    "「$q」这次没搜到 —— 再点一下「搜索」多试一次"
+                } else {
+                    "「$q」找到 ${pg.items.size} 张"
+                }
+                loading = false
+                return@LaunchedEffect
             }
-            .onFailure { error = "搜索失败，检查下网络" }
+            last = r.exceptionOrNull()?.message ?: "未知错误"
+            if (attempt == 1) delay(700)
+        }
+        // 两次都失败：不清掉已经显示出来的图，只在上面写清楚原因和下一步
+        error = "搜索超时（$last）—— 服务器这次没赶上，再点一下「搜索」；多点几次通常就出来了"
+        stage = null
         loading = false
     }
 
@@ -246,9 +269,17 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
 
+        if (query.isBlank()) {
+            // 常态提示：搜索是打服务器现查，偶尔会慢/空一次，先告诉他该怎么办，别让他以为是坏了
+            Text(
+                "搜不到就再点一次「搜索」—— 查的是整库，偶尔要等上游几秒",
+                color = C.txt3, fontSize = 10.sp,
+                modifier = Modifier.padding(start = 16.dp, top = 6.dp),
+            )
+        }
         Text(
             when {
-                error != null -> ""
+                stage != null -> stage!!
                 loading -> "读取中…"
                 query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
                 else -> "「${query.trim()}」${shown.size} 张" + if (hasMore) " · 继续往下滑" else ""
@@ -261,11 +292,15 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             Text(it, color = C.amber, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
         error?.let {
-            Text(it, color = C.amber, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+            Text(
+                it, color = C.amber, fontSize = 11.5.sp, lineHeight = 17.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
         }
 
         when {
-            loading -> CenterHint("正在读图库…", spinner = true)
+            // 已经有图就别整块换成转圈：搜索时旧图留着，上面那行字在走路，才不像卡死
+            loading && shown.isEmpty() -> CenterHint("正在读图库…", spinner = true)
             shown.isEmpty() -> CenterHint(
                 when {
                     hint != null -> hint!!

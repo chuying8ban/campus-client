@@ -423,7 +423,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 tabs.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = idx == i,
-                        onClick = { idx = i; extra = null },
+                        onClick = {
+                            // 点底部「外观」永远从「App 主题」开始（用户：进入外观默认是 app 主题）。
+                            // 例外只有今日页那个「换配色」——它是直接给 appearanceTab 赋值再切过去的。
+                            if (t == CampusTab.APPEARANCE) appearanceTab = 0
+                            idx = i
+                            extra = null
+                        },
                         icon = { Icon(t.icon, contentDescription = t.label, modifier = Modifier.size(21.dp)) },
                         label = { Text(t.label, fontSize = 11.sp) },
                         alwaysShowLabel = true,

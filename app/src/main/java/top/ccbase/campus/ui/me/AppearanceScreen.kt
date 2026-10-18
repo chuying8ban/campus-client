@@ -241,6 +241,29 @@ private fun AppThemePane(
     // 12 个色板平铺在这里，等于把「选背景」和「选主题色」挤在同一屏，谁都不显眼。
     BgEntryCard(bgChoice, dark = dark) { onOpenPresets() }
 
+    // 动态主题放在**这一页**（2026-10-18 用户："动态主题怎么没做" —— 之前塞进了预设主题的
+    // 二级页，他根本看不到）。四张卡直接铺在这里，缩略图里真的在动。
+    Spacer(Modifier.height(18.dp))
+    SectionLabel("动态主题")
+    Text(
+        "画面自己在动。Canvas 现画，30fps，切后台自动停 —— 不费电也不占包体。",
+        color = C.txt3, fontSize = 11.sp, lineHeight = 16.sp,
+    )
+    Spacer(Modifier.height(10.dp))
+    DynKind.entries.chunked(2).forEach { rowItems ->
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            rowItems.forEach { kind ->
+                DynSwatch(
+                    kind = kind,
+                    dark = dark,
+                    selected = bgChoice == ANIM_PREFIX + kind.id,
+                    modifier = Modifier.weight(1f),
+                ) { AppearanceStore.setBackground(ctx, ANIM_PREFIX + kind.id) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+
     // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
     if (photoSet) {
         Spacer(Modifier.height(12.dp))
@@ -617,26 +640,6 @@ private fun BgPresetBoard(onClose: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-            }
-            // ── 动态主题：会动的背景，自己一段 ──
-            Text("动态主题", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(
-                "画面自己在动；费电比静态多一点点（30fps，切后台就停）",
-                color = C.txt3, fontSize = 11.sp,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Spacer(Modifier.height(10.dp))
-            DynKind.entries.chunked(2).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    rowItems.forEach { kind ->
-                        DynSwatch(
-                            kind = kind,
-                            dark = dark,
-                            selected = bgChoice == ANIM_PREFIX + kind.id,
-                            modifier = Modifier.weight(1f),
-                        ) { AppearanceStore.setBackground(ctx, ANIM_PREFIX + kind.id) }
-                    }
-                }
             }
             Text(
                 "换完直接生效，不用再点保存。",
