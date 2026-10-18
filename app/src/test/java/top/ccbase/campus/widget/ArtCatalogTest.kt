@@ -22,7 +22,7 @@ class ArtCatalogTest {
         {"version":1,"items":[
           {"id":"01_starry","title":"星夜","tags":["星空","少女","夜色"],"file":"01_starry.jpg","thumb":"01_starry_t.jpg","author":"校园助手","license":"原创生成"},
           {"id":"03_cyber","title":"赛博街","tags":["赛博","霓虹","雨夜"],"file":"03_cyber.jpg"},
-          {"id":"web_01","title":"星空","tags":["夜空"],"file":"web_01.jpg","kind":"photo","author":"某人","license":"CC0 1.0"},
+          {"id":"web_01","title":"星空","tags":["夜空"],"file":"web_01.jpg","kind":"photo","orient":"portrait","author":"某人","license":"CC0 1.0"},
           {"id":"broken","title":"坏条目"}
         ]}
     """.trimIndent()
@@ -50,6 +50,9 @@ class ArtCatalogTest {
         assertEquals(3, items.count { it.matches("") })
         assertEquals(1, items.count { it.ofKind("photo") })
         assertEquals(2, items.count { it.ofKind("illustration") })
+        // 没写 orient 的一律当横图（老清单）；写了 portrait 的进竖版图库
+        assertEquals(2, items.count { it.ofOrient("landscape") })
+        assertEquals(1, items.count { it.ofOrient("portrait") })
         assertEquals(0, items.count { it.matches("樱花") })
     }
 }

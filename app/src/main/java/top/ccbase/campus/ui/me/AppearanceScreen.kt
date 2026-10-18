@@ -120,7 +120,7 @@ fun AppearanceScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(top = 14.dp, bottom = 28.dp),
+                .padding(top = 18.dp, bottom = 28.dp),
         ) {
             if (tab == 0) AppThemePane(onOpenGallery) else WidgetPane(onOpenGallery)
         }
@@ -225,7 +225,7 @@ private fun AppThemePane(onOpenGallery: (String, String) -> Unit) {
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        PaneTab("在线图库", false) { onOpenGallery("photo", "background") }
+        PaneTab("在线图库", false) { onOpenGallery("portrait", "background") }
         PaneTab(
             when {
                 busy -> "正在处理…"
@@ -279,7 +279,7 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit) {
         color = C.txt2, fontSize = 12.sp, lineHeight = 18.sp,
     )
     Spacer(Modifier.height(16.dp))
-    WidgetSection(onOpenGallery = { onOpenGallery("illustration", "widget") })
+    WidgetSection(onOpenGallery = { onOpenGallery("landscape", "widget") })
 }
 
 // ────────────────────────────── 公用小件 ──────────────────────────────

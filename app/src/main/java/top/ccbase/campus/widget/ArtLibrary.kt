@@ -30,11 +30,14 @@ data class ArtItem(
     val thumbUrl: String,
     val author: String,
     val license: String,
-    /** illustration = 插画（小组件用）；photo = 摄影（App 页面背景用） */
+    /** illustration = 插画；photo = 摄影 */
     val kind: String = "illustration",
+    /** landscape = 横图（桌面小组件）；portrait = 竖图（App 页面背景，手机是竖屏） */
+    val orient: String = "landscape",
 ) {
-    /** 两种用途分开列：小组件要插画，App 背景要摄影，混在一起搜反而更难找。 */
+    /** 两种用途分开列：小组件横向、App 背景竖向，混在一起搜反而更难找。 */
     fun ofKind(kind: String): Boolean = this.kind == kind
+    fun ofOrient(orient: String): Boolean = this.orient == orient
 
     /** 搜索匹配：标题/标签/id 任一命中即算。空查询 = 全部。 */
     fun matches(query: String): Boolean {
@@ -85,16 +88,33 @@ object ArtRepo {
                 author = o.optString("author").ifBlank { "校园助手" },
                 license = o.optString("license").ifBlank { "原创生成" },
                 kind = o.optString("kind").ifBlank { "illustration" },
+                orient = o.optString("orient").ifBlank { "landscape" },
             )
         }
         return out
     }
 
-    /** 拉清单。失败抛异常，由 UI 显示"图库暂时读不出来"，不静默空列表。 */
-    fun fetchCatalog(): List<ArtItem> {
-        val reply = Net.dial.call("GET", catalogUrl(), mapOf("Accept" to "application/json"), null)
-        if (reply.code != 200) throw IllegalStateException("图库清单 HTTP ${reply.code}")
-        return parseCatalog(reply.text)
+    /**
+     * 拉清单。失败抛异常，由 UI 显示"图库暂时读不出来"，不静默空列表。
+     *
+     * 清单现在有近千条、400 多 KB，每次打开都重下一遍太浪费（校园网也就那样）。
+     * 所以本机留一份缓存、10 分钟内直接用；网络失败时优先退回旧缓存而不是给用户看空白。
+     */
+    fun fetchCatalog(ctx: android.content.Context, maxAgeMs: Long = 10 * 60 * 1000L): List<ArtItem> {
+        val cache = java.io.File(ctx.cacheDir, "art_catalog.json")
+        if (cache.isFile && System.currentTimeMillis() - cache.lastModified() < maxAgeMs) {
+            runCatching { return parseCatalog(cache.readText()) }
+        }
+        return try {
+            val reply = Net.dial.call("GET", catalogUrl(), mapOf("Accept" to "application/json"), null)
+            if (reply.code != 200) throw IllegalStateException("图库清单 HTTP ${reply.code}")
+            runCatching { cache.writeText(reply.text) }
+            parseCatalog(reply.text)
+        } catch (e: Exception) {
+            // 有旧缓存就先给旧的（图库不该因为一次网络抖动整页空白）
+            if (cache.isFile) runCatching { return parseCatalog(cache.readText()) }
+            throw e
+        }
     }
 
     /** 缩略图（内存缓存，12 张一屏够用）。 */

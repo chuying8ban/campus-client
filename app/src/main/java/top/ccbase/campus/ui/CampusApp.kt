@@ -215,7 +215,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showAppearance by remember { mutableStateOf(false) }
     var showArtGallery by remember { mutableStateOf(false) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
-    var artKind by remember { mutableStateOf("illustration") }
+    var artKind by remember { mutableStateOf("landscape") }
     var artTarget by remember { mutableStateOf("widget") }
     // 外观开局落在哪一页：0=App 主题，1=桌面小组件（今日页「换配色」直接进第二页）
     var appearanceTab by remember { mutableIntStateOf(0) }

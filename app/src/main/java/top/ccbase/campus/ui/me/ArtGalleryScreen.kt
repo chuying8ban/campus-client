@@ -71,13 +71,18 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
 
-    val photoMode = kind == "photo"
+    // orient=portrait 是 App 页面背景（手机竖屏铺满），landscape 是桌面小组件
+    val portrait = kind == "portrait"
 
     LaunchedEffect(Unit) {
-        state = runCatching { withContext(Dispatchers.IO) { ArtRepo.fetchCatalog() } }
+        state = runCatching { withContext(Dispatchers.IO) { ArtRepo.fetchCatalog(ctx) } }
             .fold(
                 onSuccess = {
-                    val mine = it.filter { i -> i.ofKind(kind) }
+                    val mine = if (portrait) {
+                        it.filter { i -> i.ofOrient("portrait") }
+                    } else {
+                        it.filter { i -> i.ofOrient("landscape") && i.ofKind("illustration") }
+                    }
                     if (mine.isEmpty()) GalleryState.Empty else GalleryState.Ready(mine)
                 },
                 onFailure = { GalleryState.Failed(it.message ?: "网络不给力") },
@@ -90,7 +95,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (photoMode) "摄影图库" else "插画图库",
+                if (portrait) "竖版图库" else "横版图库",
                 color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
@@ -113,7 +118,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         ) {
             if (query.isEmpty()) {
                 Text(
-                    if (photoMode) "搜：夜空 / 樱花 / 富士山 / 秋叶 …" else "搜：星空 / 樱花 / 赛博 / 少女 …",
+                    if (portrait) "搜：少女 / 樱花 / 夜空 / 校服 …" else "搜：风景 / 城市 / 赛博 / 星空 …",
                     color = C.txt3, fontSize = 12.5.sp,
                 )
             }
@@ -145,12 +150,17 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 if (shown.isEmpty()) {
                     CenterHint("没有匹配「$query」的图")
                 } else {
+                    Text(
+                        "共 ${shown.size} 张" + if (query.isBlank()) "" else "（已筛选）",
+                        color = C.txt3, fontSize = 10.5.sp,
+                        modifier = Modifier.padding(start = 16.dp, top = 2.dp),
+                    )
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.weight(1f),
                     ) {
                         items(shown, key = { it.id }) { item ->
                             ArtCard(
@@ -227,7 +237,7 @@ private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f)
+                .aspectRatio(if (item.orient == "portrait") 3f / 4f else 16f / 9f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color(0xFF1B1824))
                 .border(1.dp, C.line, RoundedCornerShape(12.dp)),

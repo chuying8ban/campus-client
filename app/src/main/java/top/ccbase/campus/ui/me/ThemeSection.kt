@@ -8,8 +8,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -103,22 +106,29 @@ fun AccentSection() {
                 if (AccentSpec.isDiy(spec)) C.violet else C.line,
                 RoundedCornerShape(9.dp),
             ).clickable { showWheel = !showWheel }
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
             Text(
                 if (showWheel) "收起色环" else "自己调颜色",
-                fontSize = 11.5.sp,
+                fontSize = 12.sp,
                 color = if (AccentSpec.isDiy(spec)) C.violet else C.txt2,
             )
         }
-        Spacer(Modifier.width(8.dp))
-        Text("外环选色相、内圆选浓淡，拖动时整屏实时跟着变", fontSize = 10.sp, color = C.txt3)
+        Spacer(Modifier.width(10.dp))
+        Text("点一下就换色，按住拖动看效果", fontSize = 10.sp, color = C.txt3)
     }
     if (!showWheel) return
-    Spacer(Modifier.height(12.dp))
-    Row(verticalAlignment = Alignment.Top) {
+
+    val live = paletteWithAccent(basePalette, AccentSpec.diy(hue, sat))
+
+    // 一屏宽度的 62%，最大 260dp：手机竖屏上正好，横屏/平板上也不会挤成一条
+    val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val wheelSize = minOf(260.dp, screenW * 0.62f)
+
+    Spacer(Modifier.height(14.dp))
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         ColorWheel(
-            hue = hue, sat = sat,
+            hue = hue, sat = sat, size = wheelSize,
             onPick = { h, s ->
                 hue = h
                 sat = s
@@ -130,31 +140,56 @@ fun AccentSection() {
                 AppearanceStore.setAccent(ctx, AccentSpec.diy(hue, sat))  // 松手才落盘
             },
         )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text("自己调", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = C.txt)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "外环选颜色，往里拖变淡。按住拖动，整屏当场跟着变；松手记住。",
-                fontSize = 10.5.sp, lineHeight = 16.sp, color = C.txt3,
-            )
-            Spacer(Modifier.height(10.dp))
-            val live = paletteWithAccent(basePalette, AccentSpec.diy(hue, sat))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(24.dp).background(live.violet, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text("第 3~20 周", fontSize = 12.sp, color = live.violet, style = Digits)
-            }
-            Spacer(Modifier.height(8.dp))
-            Box(
-                Modifier.background(live.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
-                    .padding(horizontal = 12.dp, vertical = 7.dp),
-            ) { Text("按钮文字", fontSize = 11.5.sp, color = live.violet) }
-            Spacer(Modifier.height(8.dp))
-            Text(if (dragging) "松手生效…" else "已记住这个颜色", fontSize = 9.5.sp, color = C.txt3)
-        }
     }
 
+    // 选中的结果必须**当场看得见**：色点 + 色号 + 浓淡百分比。
+    // 只有色环在转、没有读数时，手指挡住的地方等于没有反馈。
+    Spacer(Modifier.height(14.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(30.dp).background(live.violet, CircleShape))
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                "#%06X".format(0xFFFFFF and live.violet.toArgb()),
+                fontSize = 12.5.sp, color = C.txt, style = Digits,
+            )
+            Text(
+                "浓淡 ${(sat * 100).toInt()}% · " + if (dragging) "松手生效…" else "已记住",
+                fontSize = 10.sp, color = C.txt3,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            Modifier.background(live.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) { Text("第 3~20 周", fontSize = 11.5.sp, color = live.violet) }
+    }
+
+    // 手指点不到环上的窄条时，这排是兜底：8 个色相一点就中
+    Spacer(Modifier.height(12.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f).forEach { h0 ->
+            val on = kotlin.math.abs(((hue - h0 + 540f) % 360f) - 180f) > 172f
+            Box(
+                Modifier.size(34.dp)
+                    .clip(CircleShape)
+                    .background(hsv(h0, 1f))
+                    .border(if (on) 2.dp else 0.dp, if (on) Color.White else Color.Transparent, CircleShape)
+                    .clickable {
+                        hue = h0
+                        AppearanceStore.setAccent(ctx, AccentSpec.diy(h0, sat))
+                    },
+            )
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    Text(
+        "色环：外圈转色相，往里拖变淡；拖到哪整屏变到哪。",
+        fontSize = 10.sp, lineHeight = 15.sp, color = C.txt3,
+    )
 }
 
 /**
@@ -172,58 +207,94 @@ fun WidgetSection(onOpenGallery: () -> Unit = {}) {
 private fun ColorWheel(
     hue: Float,
     sat: Float,
+    size: Dp,
     onPick: (hue: Float, sat: Float) -> Unit,
     onDone: () -> Unit,
 ) {
-    val size = 158.dp
-    val ringW = 15.dp
+    val ringW = 26.dp          // 原来 15dp，环带太窄、手指对不准
+    val ringGrab = 20.dp       // 环带外侧再多给一圈"算你点中环"的容差
     val density = androidx.compose.ui.platform.LocalDensity.current
-    val maxR = with(density) { size.toPx() } / 2f
-    val boxPx = remember { mutableStateOf(0f) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    var box by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var lastBucket by remember { mutableIntStateOf(-1) }
 
-    fun pick(pos: Offset) {
-        val c = maxR
-        val d = pos - Offset(c, c)
-        val r = hypot(d.x, d.y)
-        if (r < 1f) return
-        var deg = Math.toDegrees(atan2(d.y.toDouble(), d.x.toDouble())).toFloat() + 90f
+    fun emit(pos: Offset) {
+        val w = box.width.toFloat()
+        if (w <= 0f) return
+        val c = w / 2f
+        val dx = pos.x - c
+        val dy = pos.y - c
+        val r = hypot(dx, dy)
+        val ringPx = with(density) { ringW.toPx() }
+        val grabPx = with(density) { ringGrab.toPx() }
+        var deg = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat() + 90f
         if (deg < 0) deg += 360f
-        onPick(deg % 360f, (r / maxR).coerceIn(0.2f, 1f))
+        deg %= 360f
+        // 点在环带（含容差）→ 只改色相，浓淡保持不动；点在内圆 → 色相+浓淡一起改
+        val inRing = r >= (c - ringPx - grabPx)
+        val newSat = if (inRing) sat else (r / (c - ringPx)).coerceIn(0.15f, 1f)
+        onPick(deg, newSat)
+        // 每转过 12° 抖一下：手指按着屏幕时看不见指针，靠手感确认"在变"
+        val bucket = (deg / 12f).toInt()
+        if (bucket != lastBucket) {
+            lastBucket = bucket
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+        }
     }
 
     Box(
         Modifier.size(size)
-            .pointerInput(Unit) { detectTapGestures { pick(it) } }
-            .pointerInput(Unit) {
-                detectDragGestures(onDragEnd = { onDone() }, onDragCancel = { onDone() }) { ch, _ ->
-                    pick(ch.position)
-                    ch.consume()
+            .onSizeChanged { box = it }
+            .pointerInput(box) {
+                // 不用 detectDragGestures：它有"先超过触摸阈值才算拖动"的等待期，
+                // 手指一按先竖向划一下就会被外层 ScrollColumn 抢走（用户反馈"拖不动/页面在滚"）。
+                // 这里按下就吃掉事件，直到抬起 —— 环内整块区域归我。
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    emit(down.position)
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!ch.pressed) { ch.consume(); break }
+                        emit(ch.position)
+                        ch.consume()
+                    }
+                    onDone()
                 }
             },
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            boxPx.value = this.size.width
             val r = this.size.width / 2f
+            val ringPx = ringW.toPx()
+            // 外圈：色相
             drawCircle(
                 brush = Brush.sweepGradient(
                     listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f, 360f).map { hsv(it, 0.85f) },
                 ),
-                radius = r - ringW.toPx() / 2f,
-                style = Stroke(width = ringW.toPx(), cap = StrokeCap.Butt),
+                radius = r - ringPx / 2f,
+                style = Stroke(width = ringPx, cap = StrokeCap.Butt),
             )
+            // 内圆：从白到当前色相的径向渐变 = 浓淡（中心最淡）
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Color.White.copy(alpha = 0.92f), hsv(hue, 1f)),
-                    radius = r - ringW.toPx() - 6f,
+                    listOf(hsv(hue, 0.10f), hsv(hue, 0.92f)),
+                    radius = r - ringPx - 3f,
                 ),
-                radius = r - ringW.toPx() - 6f,
+                radius = r - ringPx - 3f,
             )
+            // 环上指针：一根短白线，比圆点更好认
             val rad = Math.toRadians((hue - 90f).toDouble())
-            val rr = ((r - ringW.toPx() / 2f) * sat).coerceAtMost(r - ringW.toPx() / 2f)
-            val px = center.x + (cos(rad) * rr).toFloat()
-            val py = center.y + (sin(rad) * rr).toFloat()
-            drawCircle(Color.White, radius = 7f, center = Offset(px, py), style = Stroke(width = 3f))
-            drawCircle(Color.Black.copy(alpha = 0.35f), radius = 9.5f, center = Offset(px, py), style = Stroke(width = 1.5f))
+            val ringR = r - ringPx / 2f
+            val hx = center.x + (cos(rad) * ringR).toFloat()
+            val hy = center.y + (sin(rad) * ringR).toFloat()
+            drawCircle(Color.White, radius = 9f, center = Offset(hx, hy), style = Stroke(width = 3f))
+            // 内圆落点
+            val dotR = ((r - ringPx) * sat).coerceIn(6f, r - ringPx)
+            val px = center.x + (cos(rad) * dotR).toFloat()
+            val py = center.y + (sin(rad) * dotR).toFloat()
+            drawCircle(Color.White, radius = 8f, center = Offset(px, py), style = Stroke(width = 3f))
+            drawCircle(Color.Black.copy(alpha = 0.45f), radius = 10f, center = Offset(px, py), style = Stroke(width = 1.5f))
         }
     }
 }
