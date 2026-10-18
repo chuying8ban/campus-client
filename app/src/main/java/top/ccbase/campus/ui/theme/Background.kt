@@ -67,12 +67,17 @@ val BgPresets: List<BgPreset> = listOf(
     presetOf("sand", "暖砂", BgStyle.RICH, listOf(0x3A2417, 0x150E08), listOf(g(0xFF9A3D, 0.14f, 0.08f, 0.95f, 0.55f), g(0xFF6B9A, 0.90f, 0.90f, 0.85f, 0.26f))),
     presetOf("graphite", "石墨", BgStyle.RICH, listOf(0x1B1C23, 0x0B0B0F), listOf(g(0x9FB4D8, 0.50f, -0.05f, 1.10f, 0.26f))),
 
-    presetOf("dusk-soft", "雾紫", BgStyle.CALM, listOf(0x1B1538, 0x0C0A13), listOf(g(0x8B5CF6, 0.50f, -0.08f, 0.90f, 0.34f))),
-    presetOf("violet-soft", "月蓝", BgStyle.CALM, listOf(0x101B3C, 0x090C16), listOf(g(0x4F7CFF, 0.50f, -0.08f, 0.90f, 0.32f))),
-    presetOf("ocean-soft", "青瓷", BgStyle.CALM, listOf(0x07202F, 0x060C12), listOf(g(0x38BDF8, 0.50f, -0.08f, 0.90f, 0.26f))),
-    presetOf("mint-soft", "苔青", BgStyle.CALM, listOf(0x08241B, 0x06110C), listOf(g(0x34D399, 0.50f, -0.08f, 0.90f, 0.28f))),
-    presetOf("sand-soft", "麦沙", BgStyle.CALM, listOf(0x2A1808, 0x110B05), listOf(g(0xFF9A3D, 0.50f, -0.08f, 0.90f, 0.34f))),
-    presetOf("graphite-soft", "素灰", BgStyle.CALM, listOf(0x1C1B1E, 0x0C0B0D), listOf(g(0xD8CFC2, 0.50f, -0.08f, 0.90f, 0.18f))),
+    // 「淡雅」原来只是把「浓郁」压暗一点点，两种款式摆在一起几乎分不出（2026-10-18 用户
+    // 截图：暮紫/雾紫、靛蓝/月蓝、深海/青瓷 三对看着一模一样）。现在按**两个方向**拉开：
+    //   浓郁 = 饱和、深、光晕贴着角，像"打光"；
+    //   淡雅 = 灰调、亮、几乎无光晕，像一整块"雾面纸"。
+    // 老 id 不动（老用户选过的背景不会失效）。
+    presetOf("dusk-soft", "雾紫", BgStyle.CALM, listOf(0x6B5A9E, 0x2E2750), listOf(g(0xB3A0D8, 0.50f, 0.05f, 1.10f, 0.18f))),
+    presetOf("violet-soft", "月蓝", BgStyle.CALM, listOf(0x2E3C5C, 0x171E2E), listOf(g(0x86A2CE, 0.50f, 0.05f, 1.10f, 0.15f))),
+    presetOf("ocean-soft", "青瓷", BgStyle.CALM, listOf(0x25484E, 0x122529), listOf(g(0x7FCBD2, 0.50f, 0.05f, 1.10f, 0.15f))),
+    presetOf("mint-soft", "苔青", BgStyle.CALM, listOf(0x30453C, 0x1A2620), listOf(g(0x9CCBB2, 0.50f, 0.05f, 1.10f, 0.14f))),
+    presetOf("sand-soft", "麦沙", BgStyle.CALM, listOf(0x4B3D2C, 0x262017), listOf(g(0xD3B995, 0.50f, 0.05f, 1.10f, 0.16f))),
+    presetOf("graphite-soft", "素灰", BgStyle.CALM, listOf(0x3D3B42, 0x1F1E23), listOf(g(0xC9C3B8, 0.50f, 0.05f, 1.10f, 0.12f))),
 )
 
 fun presetById(id: String): BgPreset? = BgPresets.firstOrNull { it.id == id }

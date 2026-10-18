@@ -178,11 +178,31 @@ object ArtRepo {
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
 
-    private fun downloadBytes(url: String): ByteArray? = runCatching {
-        val buf = java.io.ByteArrayOutputStream()
-        Net.dial.stream(url) { chunk, n, _ -> buf.write(chunk, 0, n) }
-        buf.toByteArray()
-    }.getOrNull()
+    /**
+     * 取一张图。先走 App 那条自己选路的链（校园网能通的那条），失败再退回普通
+     * HttpURLConnection —— 图床和我们不是同一套握手指纹，只用一条路会在某些网络下
+     * 整片缩略图空白（用户看到的"图库没有预览图"）。
+     */
+    private fun downloadBytes(url: String): ByteArray? {
+        runCatching {
+            val buf = java.io.ByteArrayOutputStream()
+            if (Net.dial.stream(url) { chunk, n, _ -> buf.write(chunk, 0, n) } > 0) {
+                return buf.toByteArray()
+            }
+        }
+        return runCatching {
+            val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 15_000
+            c.readTimeout = 60_000
+            c.setRequestProperty("Accept", "image/*")
+            try {
+                if (c.responseCode !in 200..299) return null
+                c.inputStream.use { it.readBytes() }
+            } finally {
+                c.disconnect()
+            }
+        }.getOrNull()
+    }
 
     fun clearThumbs() = thumbs.evictAll()
 }

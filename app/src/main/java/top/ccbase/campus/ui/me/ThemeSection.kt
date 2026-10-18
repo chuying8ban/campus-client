@@ -80,7 +80,7 @@ fun AccentSection() {
     var dragging by remember { mutableStateOf(false) }
 
     Heading("主题色")
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ACCENT_PRESETS.chunked(6).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { p ->
@@ -97,26 +97,34 @@ fun AccentSection() {
         }
     }
 
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(14.dp))
     var showWheel by remember { mutableStateOf(AccentSpec.isDiy(spec)) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.border(
-                1.dp,
-                if (AccentSpec.isDiy(spec)) C.violet else C.line,
-                RoundedCornerShape(9.dp),
-            ).clickable { showWheel = !showWheel }
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Text(
-                if (showWheel) "收起色环" else "自己调颜色",
-                fontSize = 12.sp,
-                color = if (AccentSpec.isDiy(spec)) C.violet else C.txt2,
+    // 「自己调颜色」原来是个小胶囊，右边还挤一句说明，跟上面的色点视觉重量完全不搭。
+    // 现在：整行一个按钮（44dp 命中区），说明单独一行放下面。
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(
+                if (AccentSpec.isDiy(spec)) C.violet.copy(alpha = 0.12f) else Color.Transparent,
+                RoundedCornerShape(10.dp),
             )
-        }
-        Spacer(Modifier.width(10.dp))
-        Text("点一下就换色，按住拖动看效果", fontSize = 10.sp, color = C.txt3)
+            .border(
+                1.dp,
+                if (AccentSpec.isDiy(spec)) C.violet.copy(alpha = 0.55f) else C.line,
+                RoundedCornerShape(10.dp),
+            )
+            .clickable { showWheel = !showWheel },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (showWheel) "收起色环" else "自己调颜色",
+            fontSize = 13.sp,
+            color = if (AccentSpec.isDiy(spec)) C.violet else C.txt2,
+        )
     }
+    Spacer(Modifier.height(6.dp))
+    Text("点一下就换色，按住拖动看效果", fontSize = 10.5.sp, color = C.txt3)
     if (!showWheel) return
 
     val live = paletteWithAccent(basePalette, AccentSpec.diy(hue, sat))

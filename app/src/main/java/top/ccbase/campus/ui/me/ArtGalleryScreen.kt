@@ -87,6 +87,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var hint by remember { mutableStateOf<String?>(null) }
+    // 按「搜索」按钮时跳过 400ms 防抖（打字才需要防抖，按钮是明确意图）
+    var tick by remember { mutableIntStateOf(0) }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     val grid = rememberLazyGridState()
@@ -103,13 +105,13 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     }
 
     // 搜索：停手 400ms 再发，别每敲一个字打一次网络
-    LaunchedEffect(query) {
+    LaunchedEffect(query, tick) {
         val q = query.trim()
         if (q.isEmpty()) {
-            live = emptyList(); page = 1; hasMore = false; error = null
+            live = emptyList(); page = 1; hasMore = false; error = null; hint = null
             return@LaunchedEffect
         }
-        delay(400)
+        if (tick == 0) delay(400)
         loading = true; error = null
         runCatching { withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey) } }
             .onSuccess { pg ->
@@ -166,28 +168,50 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             )
         }
 
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .background(C.card, RoundedCornerShape(10.dp))
-                .border(1.dp, C.line, RoundedCornerShape(10.dp))
-                .padding(horizontal = 12.dp, vertical = 11.dp),
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (query.isEmpty()) {
-                Text(
-                    if (portrait) "搜整库：少女 / 樱花 / 夜空 / 校服 …" else "搜整库：风景 / 城市 / 赛博 / 星空 …",
-                    color = C.txt3, fontSize = 12.5.sp,
+            Box(
+                Modifier
+                    .weight(1f)
+                    .background(C.card, RoundedCornerShape(10.dp))
+                    .border(1.dp, C.line, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 12.dp, vertical = 11.dp),
+            ) {
+                if (query.isEmpty()) {
+                    Text(
+                        if (portrait) "搜整库：少女 / 樱花 / 原神 …" else "搜整库：风景 / 城市 / 星空 …",
+                        color = C.txt3, fontSize = 12.5.sp,
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it; tick = 0 },
+                    singleLine = true,
+                    textStyle = TextStyle(color = C.txt, fontSize = 13.sp),
+                    cursorBrush = SolidColor(C.violet),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                    ),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                        onSearch = { tick += 1 },
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            BasicTextField(
-                value = query,
-                onValueChange = { query = it },
-                singleLine = true,
-                textStyle = TextStyle(color = C.txt, fontSize = 13.sp),
-                cursorBrush = SolidColor(C.violet),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Spacer(Modifier.size(8.dp))
+            Box(
+                Modifier
+                    .height(44.dp)
+                    .background(C.violet.copy(alpha = 0.18f), RoundedCornerShape(10.dp))
+                    .border(1.dp, C.violet.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .clickable { if (query.isNotBlank()) tick += 1 }
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("搜索", color = C.violet, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
         }
 
         // 热门词：新用户不知道能搜什么，空着进来只看到"精选 N 张"很容易以为没内容。

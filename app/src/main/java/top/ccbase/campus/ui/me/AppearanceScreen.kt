@@ -25,6 +25,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,8 @@ import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
 import top.ccbase.campus.ui.theme.presetById
+import top.ccbase.campus.widget.ArtRepo
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * 「外观」—— 两页，互不干扰：
@@ -260,31 +264,41 @@ private fun AppThemePane(
         }
     }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        PaneTab("在线图库", false) { onOpenGallery("portrait", "background") }
-        PaneTab(
-            when {
-                busy -> "正在处理…"
-                photoSet -> "换一张照片"
-                else -> "用自己的照片"
+    Spacer(Modifier.height(12.dp))
+    // 两个入口等宽并排，各自成一张卡 —— 原来两个小胶囊挤在同一行、右边还挂一句
+    // "换回内置背景"，三个东西抢一条线（用户原话："按钮都挤在一块了"）。
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        GalleryEntryCard(
+            dark = dark,
+            modifier = Modifier.weight(1f),
+            onClick = { onOpenGallery("portrait", "background") },
+        )
+        PhotoEntryCard(
+            dark = dark,
+            busy = busy,
+            photoSet = photoSet,
+            modifier = Modifier.weight(1f),
+            onClick = {
+                if (!busy) {
+                    pickImage.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                }
             },
-            photoSet,
-        ) {
-            if (!busy) {
-                pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }
-        }
-        if (photoSet) {
-            Text(
-                "换回内置背景",
-                color = C.txt3,
-                fontSize = 10.5.sp,
-                modifier = Modifier.clickable {
+        )
+    }
+    if (photoSet) {
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "换回内置背景",
+            color = C.txt3, fontSize = 11.sp,
+            modifier = Modifier
+                .clickable {
                     BackgroundPhoto.clear(ctx)
                     AppearanceStore.setBackground(ctx, AppearanceStore.BG_SOLID)
-                },
-            )
-        }
+                }
+                .padding(vertical = 8.dp, horizontal = 2.dp),
+        )
     }
     msg?.let {
         Spacer(Modifier.height(8.dp))
@@ -362,6 +376,103 @@ private fun PreviewTile(bg: String) {
 }
 
 /**
+ * 「在线图库」入口卡：上面一条三张缩略图，下面写"在线图库 · 上千张可搜"。
+ *
+ * 为什么入口要带图：用户原话「没有预览的图片，没有图片就无法吸引用户点进去」。
+ * 图是异步拉的（缓存命中就秒出），拉不到就显示占位色块 —— 入口本身不能因为网络卡住。
+ */
+@Composable
+private fun GalleryEntryCard(dark: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    var thumbs by remember { mutableStateOf<List<android.graphics.Bitmap>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        thumbs = runCatching {
+            withContext(Dispatchers.IO) {
+                val pool = ArtRepo.fetchCatalog(ctx).filter { it.ofOrient("portrait") }
+                if (pool.isEmpty()) emptyList()
+                else pool.chunked((pool.size / 3).coerceAtLeast(1))
+                    .mapNotNull { ArtRepo.thumb(it.first()) }
+                    .take(3)
+            }
+        }.getOrDefault(emptyList())
+    }
+    Column(
+        modifier
+            .background(C.card, RoundedCornerShape(14.dp))
+            .border(1.dp, C.line, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(3) { i ->
+                val bmp = thumbs.getOrNull(i)
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (dark) Color(0xFF221F2B) else Color(0xFFEAE7F0)),
+                ) {
+                    if (bmp != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("在线图库", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+        Text("上千张，可搜 IP", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
+/** 「用自己的照片」入口卡：和图库卡同高同宽，两个并排才不显得一高一矮 */
+@Composable
+private fun PhotoEntryCard(
+    dark: Boolean,
+    busy: Boolean,
+    photoSet: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier
+            .background(C.card, RoundedCornerShape(14.dp))
+            .border(1.dp, C.line, RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(10.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (dark) Color(0xFF221F2B) else Color(0xFFEAE7F0)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                if (busy) "…" else "+",
+                color = C.txt3, fontSize = 20.sp, fontWeight = FontWeight.Light,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            when {
+                busy -> "正在处理…"
+                photoSet -> "换一张照片"
+                else -> "用自己的照片"
+            },
+            color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+        )
+        Text("只存这台手机", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.padding(top = 2.dp))
+    }
+}
+
+/**
  * 「页面背景」的唯一入口：左边一块当前背景的缩影，右边写名字 + 一个 ›。
  * 点进去是完整的预设主题板（浓郁 + 淡雅合在一起挑）。
  */
@@ -435,16 +546,33 @@ private fun BgPresetBoard(onClose: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            BgPresets.chunked(3).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    rowItems.forEach { preset ->
-                        BgSwatch(
-                            preset = preset,
-                            dark = dark,
-                            selected = bgChoice == BG_PRESET_PREFIX + preset.id,
-                        ) { AppearanceStore.setBackground(ctx, BG_PRESET_PREFIX + preset.id) }
+            // 一块板，但两种款式各自成段、带一句话说明 —— 只靠颜色区分对色弱的人不成立。
+            BgStyle.entries.forEach { style ->
+                Text(
+                    style.label,
+                    color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    when (style) {
+                        BgStyle.RICH -> "饱和、深邃，光落在角上"
+                        BgStyle.CALM -> "灰调、明亮，像一整块雾面纸"
+                    },
+                    color = C.txt3, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                BgPresets.filter { it.style == style }.chunked(3).forEach { rowItems ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowItems.forEach { preset ->
+                            BgSwatch(
+                                preset = preset,
+                                dark = dark,
+                                selected = bgChoice == BG_PRESET_PREFIX + preset.id,
+                            ) { AppearanceStore.setBackground(ctx, BG_PRESET_PREFIX + preset.id) }
+                        }
                     }
                 }
+                Spacer(Modifier.height(6.dp))
             }
             Text(
                 "换完直接生效，不用再点保存。",
