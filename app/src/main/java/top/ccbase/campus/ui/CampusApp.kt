@@ -445,8 +445,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 )
                 CampusTab.LIBRARY -> top.ccbase.campus.ui.library.LearningHub(app.db)
                 CampusTab.BOARD -> BoardScreen(app.db)
-                CampusTab.EXAM -> top.ccbase.campus.ui.records.ExamScreen(app.db) { extra = null }
-                CampusTab.GRADE -> top.ccbase.campus.ui.records.GradeScreen(app.db) { extra = null }
+                CampusTab.EXAM -> top.ccbase.campus.ui.records.ExamScreen(app.db)
+                CampusTab.GRADE -> top.ccbase.campus.ui.records.GradeScreen(app.db)
                 CampusTab.ME -> MeScreen(
                     onOpenBoard = { extra = CampusTab.BOARD },
                     // 监控**不再从「我的」进**（用户口径 2026-09-30：「把我的里面的监控删了」）——

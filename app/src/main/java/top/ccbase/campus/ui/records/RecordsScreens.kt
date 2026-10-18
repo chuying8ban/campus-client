@@ -34,9 +34,13 @@ import top.ccbase.campus.ui.theme.Digits
  *  - 空就说空（"这次读取时教务里还没有考试安排"），不摆一张空卡片；
  *  - 没有数据也绝不显示 0 分 / 0 学分那种"看起来像成绩"的东西。
  */
+/**
+ * 注意：这里**不画返回箭头**。子页的「‹ 返回」由 CampusApp 的悬浮条统一提供，
+ * 两处都画就是一行"‹ 返回"加一行"‹ 考试安排"——2026-10-18 用户截图点出来的重复。
+ */
 @Composable
-fun ExamScreen(db: CampusDb, onBack: () -> Unit) {
-    RecordsScaffold("考试安排", db, onBack) { records, at ->
+fun ExamScreen(db: CampusDb) {
+    RecordsScaffold("考试安排", db) { records, at ->
         val exams = records?.exams.orEmpty()
         if (exams.isEmpty()) {
             item {
@@ -54,8 +58,8 @@ fun ExamScreen(db: CampusDb, onBack: () -> Unit) {
 }
 
 @Composable
-fun GradeScreen(db: CampusDb, onBack: () -> Unit) {
-    RecordsScaffold("成绩", db, onBack) { records, at ->
+fun GradeScreen(db: CampusDb) {
+    RecordsScaffold("成绩", db) { records, at ->
         val grades = records?.grades.orEmpty()
         if (grades.isEmpty()) {
             item {
@@ -78,7 +82,6 @@ fun GradeScreen(db: CampusDb, onBack: () -> Unit) {
 private fun RecordsScaffold(
     title: String,
     db: CampusDb,
-    onBack: () -> Unit,
     content: androidx.compose.foundation.lazy.LazyListScope.(EamsRecords?, String?) -> Unit,
 ) {
     var records by remember { mutableStateOf<EamsRecords?>(null) }
@@ -96,11 +99,10 @@ private fun RecordsScaffold(
 
     Column(Modifier.fillMaxSize().pageSurface) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 14.dp, end = 22.dp, top = 26.dp, bottom = 8.dp),
+            // top 从 26 提到 44：上面那条悬浮「‹ 返回」占着顶部，标题要让它
+            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 44.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("‹", fontSize = 26.sp, color = C.txt2, modifier = Modifier.clickable { onBack() }.padding(8.dp))
-            Spacer(Modifier.width(6.dp))
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = C.txt)
         }
         if (!loaded) {

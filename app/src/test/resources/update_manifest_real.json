@@ -1,12 +1,10 @@
 {
-  "version_code": 95,
-  "version_name": "2.2.2",
-  "url": "/updates/campus-2.2.2.apk",
-  "sha256": "5c1243365177b15051403e9be0fa02cdd95fefc9ab087d02ca5b8e4caddece83",
-  "size": 7699885,
+  "version_code": 96,
+  "version_name": "2.2.3",
+  "url": "/updates/campus-2.2.3.apk",
+  "sha256": "63f71a021a053f7a8ddfed1d466360bc7777059d3dc5777767e608b4473bdbd7",
+  "size": 7699889,
   "notes": [
-    "修「模式访问权限」列表里找不到校园助手，勿扰访问授不上",
-    "修好授权后自动静音才真正会生效",
-    "小组件邀请提示挪到今天页最上面，一眼能看到"
+    "考试/成绩页去掉重复的返回箭头，只剩顶部那条「‹ 返回」"
   ]
 }
