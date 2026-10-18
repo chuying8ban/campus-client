@@ -30,7 +30,12 @@ data class ArtItem(
     val thumbUrl: String,
     val author: String,
     val license: String,
+    /** illustration = 插画（小组件用）；photo = 摄影（App 页面背景用） */
+    val kind: String = "illustration",
 ) {
+    /** 两种用途分开列：小组件要插画，App 背景要摄影，混在一起搜反而更难找。 */
+    fun ofKind(kind: String): Boolean = this.kind == kind
+
     /** 搜索匹配：标题/标签/id 任一命中即算。空查询 = 全部。 */
     fun matches(query: String): Boolean {
         val q = query.trim()
@@ -79,6 +84,7 @@ object ArtRepo {
                 thumbUrl = "$BASE$DIR/$thumb",
                 author = o.optString("author").ifBlank { "校园助手" },
                 license = o.optString("license").ifBlank { "原创生成" },
+                kind = o.optString("kind").ifBlank { "illustration" },
             )
         }
         return out

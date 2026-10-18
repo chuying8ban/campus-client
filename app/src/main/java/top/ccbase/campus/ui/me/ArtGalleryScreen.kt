@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.ccbase.campus.ui.theme.AppearanceStore
+import top.ccbase.campus.ui.theme.BackgroundPhoto
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.widget.ArtItem
@@ -61,7 +63,7 @@ import top.ccbase.campus.widget.WidgetThemes
  * 图是真从服务器拉的（`/updates/art/`），**只在选中那一张时下载**，不会一次拉满。
  */
 @Composable
-fun ArtGalleryScreen(onClose: () -> Unit) {
+fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
@@ -69,10 +71,15 @@ fun ArtGalleryScreen(onClose: () -> Unit) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
 
+    val photoMode = kind == "photo"
+
     LaunchedEffect(Unit) {
         state = runCatching { withContext(Dispatchers.IO) { ArtRepo.fetchCatalog() } }
             .fold(
-                onSuccess = { if (it.isEmpty()) GalleryState.Empty else GalleryState.Ready(it) },
+                onSuccess = {
+                    val mine = it.filter { i -> i.ofKind(kind) }
+                    if (mine.isEmpty()) GalleryState.Empty else GalleryState.Ready(mine)
+                },
                 onFailure = { GalleryState.Failed(it.message ?: "网络不给力") },
             )
     }
@@ -82,7 +89,10 @@ fun ArtGalleryScreen(onClose: () -> Unit) {
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("插画图库", color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (photoMode) "摄影图库" else "插画图库",
+                color = C.txt, fontSize = 19.sp, fontWeight = FontWeight.SemiBold,
+            )
             Spacer(Modifier.weight(1f))
             Text(
                 "关闭",
@@ -102,7 +112,10 @@ fun ArtGalleryScreen(onClose: () -> Unit) {
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
             if (query.isEmpty()) {
-                Text("搜：星空 / 樱花 / 赛博 / 少女 …", color = C.txt3, fontSize = 12.5.sp)
+                Text(
+                    if (photoMode) "搜：夜空 / 樱花 / 富士山 / 秋叶 …" else "搜：星空 / 樱花 / 赛博 / 少女 …",
+                    color = C.txt3, fontSize = 12.5.sp,
+                )
             }
             BasicTextField(
                 value = query,
@@ -149,13 +162,25 @@ fun ArtGalleryScreen(onClose: () -> Unit) {
                                     msg = null
                                     scope.launch {
                                         val ok = withContext(Dispatchers.IO) {
-                                            val bmp = ArtRepo.full(item)
-                                            val saved = bmp != null && WidgetThemes.saveUserImage(ctx, bmp)
-                                            if (saved) {
-                                                WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
-                                                TodayWidgetProvider.refresh(ctx)
+                                            val bmp = ArtRepo.full(item) ?: return@withContext false
+                                            if (target == "background") {
+                                                // App 页面背景：和系统相册选图走同一条落盘逻辑（会量明暗极值算遮罩）
+                                                val stamp = BackgroundPhoto.saveBitmap(ctx, bmp)
+                                                if (stamp == null) false else {
+                                                    AppearanceStore.setBackground(
+                                                        ctx,
+                                                        "${AppearanceStore.BG_PHOTO}:$stamp",
+                                                    )
+                                                    true
+                                                }
+                                            } else {
+                                                val saved = WidgetThemes.saveUserImage(ctx, bmp)
+                                                if (saved) {
+                                                    WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
+                                                    TodayWidgetProvider.refresh(ctx)
+                                                }
+                                                saved
                                             }
-                                            saved
                                         }
                                         busyId = null
                                         if (ok) onClose() else msg = "这张图没下下来，换一张试试"
@@ -225,5 +250,15 @@ private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
         }
         Spacer(Modifier.height(5.dp))
         Text(item.title, color = C.txt2, fontSize = 11.5.sp, maxLines = 1)
+        // 网图的作者/协议要跟着图一起露出来（CC 协议要求署名；这也是"图从哪来"的交代）
+        if (item.kind == "photo") {
+            Text(
+                "${item.author} · ${item.license}",
+                color = C.txt3,
+                fontSize = 9.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 1.dp),
+            )
+        }
     }
 }

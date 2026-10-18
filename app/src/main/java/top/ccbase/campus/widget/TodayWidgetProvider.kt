@@ -72,6 +72,20 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private const val FALLBACK_W_DP = 250
         private const val FALLBACK_H_DP = 110
 
+        /**
+         * 各种格子高度下能放几行（0 = 只留状态+课名）。
+         * 抽成纯函数是为了能测：真机尺寸千奇百怪，靠肉眼试不过来。
+         */
+        fun rowsFor(hDp: Float): Int = when {
+            hDp >= 175f -> 3
+            hDp >= 145f -> 2
+            hDp >= 118f -> 1
+            else -> 0
+        }
+
+        /** 窄格子（2×2、3×2 拉扁）要收字号、砍掉日期周次。 */
+        fun isNarrow(wDp: Float): Boolean = wDp < 210f
+
         /** 实例的实际像素尺寸（launcher 给的 dp 值 × 密度）。 */
         private fun sizePx(ctx: Context, mgr: AppWidgetManager, id: Int): Pair<Int, Int> {
             val opt = runCatching { mgr.getAppWidgetOptions(id) }.getOrNull()
@@ -159,7 +173,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     val model = buildWidgetModel(loadToday(app.db), MAX_ROWS)
                     withContext(Dispatchers.Main) {
                         val mgr = AppWidgetManager.getInstance(ctx)
-                        ids.forEach { mgr.updateAppWidget(it, views(ctx, mgr, it, model)) }
+                        // 逐个实例兜底：某个 launcher 给的尺寸/主题让这一只画挂了，
+                        // 不该把同一桌面上的其它实例一起拖下水（updateAppWidget 抛异常会中断整个循环）
+                        ids.forEach { id ->
+                            runCatching { mgr.updateAppWidget(id, views(ctx, mgr, id, model)) }
+                                .onFailure { android.util.Log.w("TodayWidget", "实例 $id 刷新失败", it) }
+                        }
                     }
                 } catch (e: Exception) {
                     // 读库失败不该让桌面留一块白：把最后一句"打开看看"写上，也不崩
@@ -214,18 +233,36 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             val (w, h) = sizePx(ctx, mgr, widgetId)
 
-            // 高度吃紧时主动砍行 —— RemoteViews 不能测量，只能按 launcher 给的高度算。
-            // 4×2 的格子只有 140~160dp，硬塞三行＋页脚就会被裁成半行字，比少显示更难看出问题。
-            val hDp = h / ctx.resources.displayMetrics.density
-            val maxVisible = when {
-                hDp >= 175f -> 3
-                hDp >= 145f -> 2
-                else -> 1
-            }
+            // 尺寸自适应：RemoteViews 不能测量，只能按 launcher 报的格子尺寸算。
+            // 不同 ROM 的格子差很多（MIUI 4×2≈155dp，原生 4×2≈170dp，某些桌面 2×2 只有 110dp），
+            // 所以**宽、高各分档**，不是只砍行。
+            val density = ctx.resources.displayMetrics.density
+            val hDp = h / density
+            val wDp = w / density
+
+            // ① 高度：砍行 + 砍页脚
+            val maxVisible = rowsFor(hDp)
             rowIds.drop(maxVisible).forEach { rv.setViewVisibility(it, View.GONE) }
+            if (maxVisible == 0) {
+                rv.setViewVisibility(R.id.widget_divider, View.GONE)
+                rv.setViewVisibility(R.id.widget_meta, View.GONE)
+            }
             // 没课时不画那条横线：线上方是"今天没有课"，线下面什么都没有，看着像没渲染完
             if (model.rows.isEmpty()) rv.setViewVisibility(R.id.widget_divider, View.GONE)
             if (hDp < 132f) rv.setViewVisibility(R.id.widget_foot, View.GONE)
+
+            // ② 宽度：窄格子先牺牲右侧的日期/周次（它们最可省），再收字号
+            if (wDp < 230f) rv.setViewVisibility(R.id.widget_week, View.GONE)
+            if (wDp < 195f) rv.setViewVisibility(R.id.widget_date, View.GONE)
+            if (isNarrow(wDp)) {
+                // 小格子字号统一降一档，保证课名不被折成两行
+                rv.setTextViewTextSize(R.id.widget_head, android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+                rv.setTextViewTextSize(R.id.widget_status, android.util.TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                rv.setTextViewTextSize(R.id.widget_row1, android.util.TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                rv.setTextViewTextSize(R.id.widget_row2, android.util.TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                rv.setTextViewTextSize(R.id.widget_row3, android.util.TypedValue.COMPLEX_UNIT_SP, 10.5f)
+                rv.setViewPadding(R.id.widget_content, (12 * density).toInt(), (10 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
+            }
 
             applyTheme(ctx, rv, w, h)
 

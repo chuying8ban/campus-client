@@ -1,12 +1,12 @@
 {
-  "version_code": 102,
-  "version_name": "2.5.0",
-  "url": "/updates/campus-2.5.0.apk",
-  "sha256": "6446baf45bfe2232cd729ff7d4cd1f498958ef0a4486aef58ae23b0b7b9218a7",
+  "version_code": 103,
+  "version_name": "2.6.0",
+  "url": "/updates/campus-2.6.0.apk",
+  "sha256": "fa173e22cbbbea06d7c2053c8bdf8ed2d4ba104cc871a224dfec21771e40ea75",
   "size": 7716957,
   "notes": [
-    "小组件可换真实插画：在线图库，13 张，可按星空/樱花/赛博等关键词搜索",
-    "点一张就下载到手机并立刻刷到桌面，图只存本机",
-    "去掉原来那 4 张\"图片主题\"（其实是渐变色块）"
+    "App 外观也能换图库背景（摄影 10 张，可搜索）",
+    "小组件插画图库 13 张，两边入口分开",
+    "小组件按格子真实尺寸排版，小格不再裁半行字"
   ]
 }

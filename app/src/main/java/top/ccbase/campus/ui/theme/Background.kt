@@ -298,6 +298,30 @@ object BackgroundPhoto {
      */
     fun save(ctx: Context, uri: Uri): Long? = try {
         val bitmap = decodeDownsampled(ctx, uri) ?: return null
+        write(ctx, bitmap)
+    } catch (e: Exception) {
+        android.util.Log.w("BackgroundPhoto", "背景图保存失败", e)
+        null
+    }
+
+    /**
+     * 已经有 Bitmap 时直接用（在线图库下载完就是 Bitmap，没必要再走 Uri/相册那条路）。
+     * 和 [save] 完全同一条落盘逻辑：同一文件名、同样量极值、同样返回写入时刻。
+     */
+    fun saveBitmap(ctx: Context, src: Bitmap): Long? = try {
+        val long = maxOf(src.width, src.height)
+        val bitmap = if (long > MAX_SIDE * 2) {
+            // 图库给的是 1280 宽，正常不会进来；万一以后放 4K 图也不至于一次性占满内存
+            val s = (MAX_SIDE * 2).toFloat() / long
+            Bitmap.createScaledBitmap(src, (src.width * s).toInt(), (src.height * s).toInt(), true)
+        } else src
+        write(ctx, bitmap)
+    } catch (e: Exception) {
+        android.util.Log.w("BackgroundPhoto", "背景图保存失败", e)
+        null
+    }
+
+    private fun write(ctx: Context, bitmap: Bitmap): Long? {
         val f = file(ctx)
         f.parentFile?.mkdirs()
         val tmp = File(f.parentFile, "$FILE_NAME.tmp")
@@ -307,10 +331,7 @@ object BackgroundPhoto {
         if (f.exists()) f.delete()
         val ok = tmp.renameTo(f)
         if (!ok) { tmp.copyTo(f, overwrite = true); tmp.delete() }
-        System.currentTimeMillis()
-    } catch (e: Exception) {
-        android.util.Log.w("BackgroundPhoto", "背景图保存失败", e)
-        null
+        return System.currentTimeMillis()
     }
 
     /** 解码已经存好的那张图（文件本身已经是降采样过的，这里直接全解） */

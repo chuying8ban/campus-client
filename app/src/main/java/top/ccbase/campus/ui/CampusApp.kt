@@ -214,6 +214,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showSafety by remember { mutableStateOf(false) }
     var showAppearance by remember { mutableStateOf(false) }
     var showArtGallery by remember { mutableStateOf(false) }
+    // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
+    var artKind by remember { mutableStateOf("illustration") }
+    var artTarget by remember { mutableStateOf("widget") }
     // 外观开局落在哪一页：0=App 主题，1=桌面小组件（今日页「换配色」直接进第二页）
     var appearanceTab by remember { mutableIntStateOf(0) }
     // 「手机自己抓课表」浮层：教务密码不出手机的抓取路径
@@ -517,11 +520,19 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         top.ccbase.campus.ui.me.AppearanceScreen(
             onClose = { showAppearance = false },
             initialTab = appearanceTab,
-            onOpenArtGallery = { showArtGallery = true },
+            onOpenGallery = { kind, target ->
+                artKind = kind
+                artTarget = target
+                showArtGallery = true
+            },
         )
     }
     if (showArtGallery) {
-        top.ccbase.campus.ui.me.ArtGalleryScreen(onClose = { showArtGallery = false })
+        top.ccbase.campus.ui.me.ArtGalleryScreen(
+            kind = artKind,
+            target = artTarget,
+            onClose = { showArtGallery = false },
+        )
     }
     if (showCrawl) {
         // 这里拿不到下面 when 分支里的局部 app，用 LocalContext 取（和 162/328 行同一个写法）
