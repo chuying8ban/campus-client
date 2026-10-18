@@ -59,6 +59,7 @@ import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.widget.ArtItem
 import top.ccbase.campus.widget.ArtRepo
 import top.ccbase.campus.widget.TodayWidgetProvider
+import top.ccbase.campus.ui.theme.UserMedia
 import top.ccbase.campus.widget.WidgetThemes
 
 /**
@@ -237,6 +238,13 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
 
+        // 角标说明：静态/动态混排，不解释一句，用户以为是"加载失败"或"点了没动"
+        Text(
+            "▶ 动 = 会动的画面，点了直接当动态壁纸（不用再找视频）",
+            color = C.txt3, fontSize = 10.5.sp,
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
+        )
+
         // 热门词：新用户不知道能搜什么，空着进来只看到"精选 N 张"很容易以为没内容。
         // 直接给一排能点的词，点一下就等于搜一次。
         val hotWords = if (portrait) {
@@ -326,6 +334,20 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                             msg = null
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) {
+                                    // 动态：整段视频存下来当"动态壁纸"（解码成 Bitmap 就只剩一帧）
+                                    if (item.animated) {
+                                        val bytes = ArtRepo.bytes(item) ?: return@withContext false
+                                        val kind = UserMedia.saveBytes(ctx, bytes)
+                                            ?: return@withContext false
+                                        if (target == "background") {
+                                            BackgroundPhoto.clear(ctx)
+                                            AppearanceStore.setBackground(ctx, UserMedia.spec(kind))
+                                        } else {
+                                            WidgetThemes.set(ctx, UserMedia.spec(kind))
+                                            TodayWidgetProvider.refresh(ctx)
+                                        }
+                                        return@withContext true
+                                    }
                                     val bmp = ArtRepo.full(item) ?: return@withContext false
                                     if (target == "background") {
                                         // App 页面背景：和系统相册选图走同一条落盘逻辑（会量明暗极值算遮罩）
@@ -404,6 +426,20 @@ private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+        // 「动」角标：静态/动态混在一条流里，不标出来用户点开才知道是视频
+        if (item.animated) {
+            Row(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xA6000000))
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("▶ 动", color = Color.White, fontSize = 9.5.sp)
+            }
         }
         if (busy) {
             Box(

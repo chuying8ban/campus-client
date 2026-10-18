@@ -113,6 +113,26 @@ object UserMedia {
         if (ext == "gif") Kind.GIF else Kind.VIDEO
     }.getOrNull()
 
+    /**
+     * 直接从字节落盘（图库里点一张动态图时用）。
+     *
+     * 图库返回的是 mp4/webm；不认 mime 就按魔数判：`ftyp` 在 offset 4 = MP4，`1A 45 DF A3` = WebM。
+     */
+    fun saveBytes(ctx: Context, bytes: ByteArray): Kind? = runCatching {
+        val isMp4 = bytes.size > 12 && String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp"
+        val isWebm = bytes.size > 4 && bytes[0] == 0x1A.toByte() && bytes[1] == 0x45.toByte() &&
+            bytes[2] == 0xDF.toByte() && bytes[3] == 0xA3.toByte()
+        if (!isMp4 && !isWebm) return null
+        clear(ctx)
+        val out = File(dir(ctx), if (isWebm) "theme_media.webm" else "theme_media.mp4")
+        out.outputStream().use { it.write(bytes) }
+        if (out.length() == 0L) {
+            out.delete()
+            return null
+        }
+        Kind.VIDEO
+    }.getOrNull()
+
     /** 抽一帧/一张：给不做动画的地方（比如预览缩略图）用 */
     fun stillBitmap(ctx: Context, maxSide: Int = 720): Bitmap? {
         val m = current(ctx) ?: return null

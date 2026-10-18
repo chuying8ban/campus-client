@@ -34,6 +34,11 @@ data class ArtItem(
     val kind: String = "illustration",
     /** landscape = 横图（桌面小组件）；portrait = 竖图（App 页面背景，手机是竖屏） */
     val orient: String = "landscape",
+    /**
+     * 动态内容（mp4/webm）。用户 2026-10-18："搜索出来的内容如果是动态的要标注是动态"。
+     * 图库里静态和动态**混在一条流里**，这个字段决定卡片上有没有「动」角标、以及点下去走播放而不是解码。
+     */
+    val animated: Boolean = false,
 ) {
     /** 两种用途分开列：小组件横向、App 背景竖向，混在一起搜反而更难找。 */
     fun ofKind(kind: String): Boolean = this.kind == kind
@@ -164,8 +169,9 @@ object ArtRepo {
                 thumbUrl = BASE + "/api/art" + o.optString("thumb"),
                 author = o.optString("author").ifBlank { "未知画师" },
                 license = o.optString("license").ifBlank { "同人作品" },
-                kind = "illustration",
+                kind = if (o.optBoolean("animated", false)) "animated" else "illustration",
                 orient = o.optString("orient").ifBlank { orient },
+                animated = o.optBoolean("animated", false),
             )
         }
         return LivePage(
@@ -183,6 +189,11 @@ object ArtRepo {
         thumbs.put(item.id, bmp)
         return bmp
     }
+
+    /**
+     * 原始字节（动图/视频用）。静态图仍走 [full] 解码，动态必须保字节 —— 解码成 Bitmap 就只剩一帧。
+     */
+    fun bytes(item: ArtItem): ByteArray? = downloadBytes(item.url)
 
     /** 整张图。调用方负责压缩并落盘（见 WidgetThemes.saveUserImage）。 */
     fun full(item: ArtItem): Bitmap? {

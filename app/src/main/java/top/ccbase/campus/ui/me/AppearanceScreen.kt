@@ -166,7 +166,12 @@ fun AppearanceScreen(
     }
 
     // 预设主题板是二级页：盖在外观页上（不是塞进滚动区，否则会被页面滚动带着走）
-    if (showPresetBoard) BgPresetBoard { showPresetBoard = false }
+    if (showPresetBoard) {
+        BgPresetBoard(
+            onClose = { showPresetBoard = false },
+            onOpenDyn = { onOpenDynLibrary("app") },
+        )
+    }
 }
 
 @Composable
@@ -275,45 +280,8 @@ private fun AppThemePane(
     // 12 个色板平铺在这里，等于把「选背景」和「选主题色」挤在同一屏，谁都不显眼。
     BgEntryCard(bgChoice, dark = dark) { onOpenPresets() }
 
-    // 动态主题放在**这一页**（2026-10-18 用户："动态主题怎么没做" —— 之前塞进了预设主题的
-    // 二级页，他根本看不到）。四张卡直接铺在这里，缩略图里真的在动。
-    Spacer(Modifier.height(18.dp))
-    SectionLabel("动态主题")
-    Text(
-        "画面自己在动。Canvas 现画，30fps，切后台自动停 —— 不费电也不占包体。",
-        color = C.txt3, fontSize = 11.sp, lineHeight = 16.sp,
-    )
-    Spacer(Modifier.height(10.dp))
-    DynKind.entries.chunked(2).forEach { rowItems ->
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            rowItems.forEach { kind ->
-                DynSwatch(
-                    kind = kind,
-                    dark = dark,
-                    selected = bgChoice == ANIM_PREFIX + kind.id,
-                    modifier = Modifier.weight(1f),
-                ) { AppearanceStore.setBackground(ctx, ANIM_PREFIX + kind.id) }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-    }
-
-    // 库里 72 款（12 种动效 × 6 个色系），能搜 —— 上面四张只是"最常见的几种"
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(C.card, RoundedCornerShape(12.dp))
-            .border(1.dp, C.line, RoundedCornerShape(12.dp))
-            .clickable { onOpenDyn() }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("动态主题库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.width(8.dp))
-        Text("72 款 · 可搜（雪/雨/星/粉…）", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
-        Text("›", color = C.txt3, fontSize = 16.sp)
-    }
-
+    // 动态主题不再平铺在这里（用户 2026-10-18："这里不要放一堆主题占位置"）：
+    // 粒子类动效已并进「预设主题」，二次元动态图并进「在线图库」，这一页只留入口。
     // 让它动起来：动态壁纸那种（微推近 + 樱瓣/雪/光斑…），作用在选中的那张图上
     if (photoSet) {
         Spacer(Modifier.height(12.dp))
@@ -694,7 +662,10 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text("预设主题", color = C.txt, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(2.dp))
-            Text("当前：$name · 16 款可选", color = C.txt3, fontSize = 11.sp)
+            Text(
+                "当前：$name · ${BgPresets.size} 款配色 + 动态",
+                color = C.txt3, fontSize = 11.sp,
+            )
         }
         Text("›", color = C.txt3, fontSize = 20.sp)
         Spacer(Modifier.width(6.dp))
@@ -706,7 +677,7 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
  * 点一下立刻换，不关页 —— 换配色最需要的是来回比。
  */
 @Composable
-private fun BgPresetBoard(onClose: () -> Unit) {
+private fun BgPresetBoard(onClose: () -> Unit, onOpenDyn: () -> Unit = {}) {
     val ctx = LocalContext.current
     val bgChoice = AppearanceStore.background.value
     val dark = C.bg.luminance() <= 0.5f
@@ -730,6 +701,45 @@ private fun BgPresetBoard(onClose: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            // 动态（粒子类）并进预设板（用户 2026-10-18："把这种动态主题放进预设里"）。
+            // 缩略图是真在动的 —— 静态截图分不出"极光"和"紫渐变"。
+            Text("动态", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "画面自己在动，Canvas 现画，30fps，切后台自动停。",
+                color = C.txt3, fontSize = 11.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            DynKind.entries.chunked(3).forEach { rowItems ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rowItems.forEach { kind ->
+                        DynSwatch(
+                            kind = kind,
+                            dark = dark,
+                            selected = bgChoice == ANIM_PREFIX + kind.id,
+                            modifier = Modifier.weight(1f),
+                        ) { AppearanceStore.setBackground(ctx, ANIM_PREFIX + kind.id) }
+                    }
+                    repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(C.card, RoundedCornerShape(12.dp))
+                    .border(1.dp, C.line, RoundedCornerShape(12.dp))
+                    .clickable { onOpenDyn() }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("更多动态", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(8.dp))
+                Text("72 款 · 可搜（雪/雨/星/粉…）", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+                Text("›", color = C.txt3, fontSize = 16.sp)
+            }
+            Spacer(Modifier.height(14.dp))
+
             // 一块板，但两种款式各自成段、带一句话说明 —— 只靠颜色区分对色弱的人不成立。
             BgStyle.entries.forEach { style ->
                 Text(
