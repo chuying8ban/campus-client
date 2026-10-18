@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态小圆点。RemoteViews 不能给 View 设圆角背景色，所以用 shape。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#A06BFF" />
+</shape>

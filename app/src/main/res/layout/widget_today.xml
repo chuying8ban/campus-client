@@ -1,31 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 今日课表小组件：四行字，不做完整课表（桌面这块地方小，回答"今天还有什么课"就够）。
+<!-- 今日课表小组件 v2（2026-10-18 重排，用户原话："太简陋了"）。
 
-     结构是 FrameLayout 三层：
-       ① widget_bg_img   图片底（预设图片主题 / 用户自己上传的照片），默认 GONE
-       ② widget_scrim    图片上压一层半透明黑，保证白字看得清（图片主题时才显示）
-       ③ 内容             文字与点击区域
-     纯色主题走 root 的 background（drawable 或运行时上色），图片主题把 ①② 打开。
-     文字颜色统一由 TodayWidgetProvider.applyTheme() 按主题写，不在这里写死。 -->
+     三层：图底（渐变或预设/用户图片）→ 蒙版（只对图片主题）→ 内容。
+     层次：状态（色点+小字）→ 课程名（唯一的大字）→ 时间地点 → 后几节 → 页脚。
+     颜色全部由 TodayWidgetProvider.applyTheme() 按主题写，这里只给默认值。 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/widget_bg">
+    android:layout_height="match_parent">
 
     <ImageView
         android:id="@+id/widget_bg_img"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:contentDescription="@null"
-        android:visibility="gone" />
+        android:contentDescription="@null" />
 
     <View
         android:id="@+id/widget_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#99000000"
+        android:background="#7A000000"
         android:visibility="gone" />
 
     <LinearLayout
@@ -33,85 +28,127 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingLeft="14dp"
-        android:paddingRight="14dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="10dp">
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="11dp">
 
+        <!-- ① 状态行：色点 + 状态，右侧 日期 / 周次 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <View
+                android:id="@+id/widget_dot"
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/widget_dot" />
+
             <TextView
+                android:id="@+id/widget_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="今日"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:textColor="#EAE7F4" />
+                android:layout_marginStart="7dp"
+                android:singleLine="true"
+                android:textSize="11sp"
+                android:textColor="#A06BFF" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/widget_date"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
                 android:singleLine="true"
-                android:ellipsize="end"
-                android:textSize="11sp"
-                android:textColor="#6F6889" />
+                android:textSize="10.5sp"
+                android:textColor="#8A84A0" />
+
+            <TextView
+                android:id="@+id/widget_week"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:singleLine="true"
+                android:textSize="10.5sp"
+                android:textColor="#8A84A0" />
         </LinearLayout>
 
+        <!-- ② 唯一的大字：课程名 / 今天没有课 -->
         <TextView
             android:id="@+id/widget_head"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:maxLines="2"
+            android:layout_marginTop="7dp"
+            android:maxLines="1"
             android:ellipsize="end"
-            android:textSize="14sp"
-            android:textColor="#EAE7F4" />
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:textColor="#F2EFFB" />
 
+        <!-- ③ 时间 · 地点 -->
+        <TextView
+            android:id="@+id/widget_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#B3ACC6" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="9dp"
+            android:background="#1FFFFFFF" />
+
+        <!-- ④ 后几节 -->
         <TextView
             android:id="@+id/widget_row1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#C8C2D8" />
+
+        <TextView
+            android:id="@+id/widget_row2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:singleLine="true"
             android:ellipsize="end"
             android:textSize="11.5sp"
-            android:textColor="#A49DBD" />
-
-        <TextView
-            android:id="@+id/widget_row2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:singleLine="true"
-            android:ellipsize="end"
-            android:textSize="11.5sp"
-            android:textColor="#A49DBD" />
+            android:textColor="#C8C2D8" />
 
         <TextView
             android:id="@+id/widget_row3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
+            android:layout_marginTop="5dp"
             android:singleLine="true"
             android:ellipsize="end"
             android:textSize="11.5sp"
-            android:textColor="#A49DBD" />
+            android:textColor="#C8C2D8" />
+
+        <Space
+            android:layout_width="1dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <TextView
             android:id="@+id/widget_foot"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
             android:singleLine="true"
-            android:ellipsize="end"
             android:textSize="10sp"
-            android:textColor="#6F6889" />
+            android:textColor="#7E7793" />
     </LinearLayout>
 </FrameLayout>

@@ -26,8 +26,10 @@ data class WidgetTheme(
     val name: String,
     /** 圆角底图资源；0 表示"运行时装颜色"（DIY 用） */
     val bgRes: Int = 0,
-    /** DIY 时的底色 */
+    /** 底色：渐变底图从它画起（预置与 DIY 都用它） */
     val bgColor: Int = 0xF70B0910.toInt(),
+    /** 浅色主题：描边/柔光的算法与深色相反（浅底要暗描边，不然看不见） */
+    val light: Boolean = false,
     val headColor: Int = 0xFFEAE7F4.toInt(),
     val bodyColor: Int = 0xFFA49DBD.toInt(),
     val dimColor: Int = 0xFF6F6889.toInt(),
@@ -53,19 +55,24 @@ object WidgetThemes {
     private const val IMG_BODY = 0xFFD9D3E8.toInt()
     private const val IMG_DIM = 0xFFB5AECB.toInt()
 
+    /**
+     * 纯色预置。注意 `bgColor` 现在是**渐变底图的起点色**（见 WidgetArt）：
+     * 2026-10-18 起不再用固定 drawable 当底 —— 一块死纯色在桌面上就是一条黑边，
+     * 用户原话"太简陋了"。每个预置的底色取自原来那批 drawable，观感不变、质感上去。
+     */
     val presets: List<WidgetTheme> = listOf(
-        WidgetTheme("default", "默认深紫", bgRes = R.drawable.widget_bg, accentColor = 0xFFA06BFF.toInt()),
-        WidgetTheme("black", "纯黑", bgRes = R.drawable.widget_bg_black, accentColor = 0xFFA06BFF.toInt()),
-        WidgetTheme("navy", "深蓝", bgRes = R.drawable.widget_bg_navy, accentColor = 0xFF4FE3D0.toInt()),
-        WidgetTheme("plum", "梅紫", bgRes = R.drawable.widget_bg_plum, accentColor = 0xFFA06BFF.toInt()),
-        WidgetTheme("forest", "墨绿", bgRes = R.drawable.widget_bg_forest, accentColor = 0xFF57D98A.toInt()),
-        WidgetTheme("sand", "暖沙", bgRes = R.drawable.widget_bg_sand, accentColor = 0xFFFFB454.toInt()),
+        WidgetTheme("default", "默认深紫", bgColor = 0xF70B0910.toInt(), accentColor = 0xFFA06BFF.toInt()),
+        WidgetTheme("black", "纯黑", bgColor = 0xF2000000.toInt(), accentColor = 0xFFA06BFF.toInt()),
+        WidgetTheme("navy", "深蓝", bgColor = 0xF70E1626.toInt(), accentColor = 0xFF4FE3D0.toInt()),
+        WidgetTheme("plum", "梅紫", bgColor = 0xF71A1024.toInt(), accentColor = 0xFFC08BFF.toInt()),
+        WidgetTheme("forest", "墨绿", bgColor = 0xF70C1A14.toInt(), accentColor = 0xFF57D98A.toInt()),
+        WidgetTheme("sand", "暖沙", bgColor = 0xF71F1913.toInt(), accentColor = 0xFFFFB454.toInt()),
         WidgetTheme(
-            "light", "浅色", bgRes = R.drawable.widget_bg_light,
+            "light", "浅色", bgColor = 0xF7F7F6FB.toInt(), light = true,
             headColor = 0xFF1A1626.toInt(), bodyColor = 0xFF4A4460.toInt(),
             dimColor = 0xFF6E6788.toInt(), accentColor = 0xFF6D28D9.toInt(),
         ),
-        WidgetTheme("glass", "半透明", bgRes = R.drawable.widget_bg_glass, accentColor = 0xFFA06BFF.toInt()),
+        WidgetTheme("glass", "半透明", bgColor = 0x660B0910, accentColor = 0xFFA06BFF.toInt()),
     )
 
     /** 随包的图片主题（图在 res/drawable-nodpi/）。 */
@@ -137,7 +144,7 @@ object WidgetThemes {
             )
         } else {
             WidgetTheme(
-                id = "diy", name = "自定义", bgColor = (hsv(h, 0.10f, 0.97f) or 0xF7000000.toInt()),
+                id = "diy", name = "自定义", bgColor = (hsv(h, 0.10f, 0.97f) or 0xF7000000.toInt()), light = true,
                 headColor = 0xFF1A1626.toInt(), bodyColor = 0xFF4A4460.toInt(),
                 dimColor = 0xFF6E6788.toInt(), accentColor = hsv(h, 0.62f, 0.55f),
             )
