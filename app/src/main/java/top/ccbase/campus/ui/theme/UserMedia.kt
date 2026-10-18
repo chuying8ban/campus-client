@@ -42,6 +42,17 @@ object UserMedia {
         VIDEO("video", "视频"),
     }
 
+    /**
+     * 媒体**分槽存**（2026-10-18 用户："小部件的视频变成主题的了"）。
+     *
+     * 之前 App 背景和桌面小组件共用同一个 `theme_media.<ext>`：给小组件换一个视频，
+     * App 的背景也跟着变，反过来也一样 —— 用户看到的就是"乱"。现在两套各存各的。
+     */
+    enum class Slot(val key: String) {
+        APP("app"),
+        WIDGET("widget"),
+    }
+
     data class Media(val kind: Kind, val file: File)
 
     fun parse(spec: String): Kind? {
@@ -54,10 +65,20 @@ object UserMedia {
 
     private fun dir(ctx: Context) = File(ctx.filesDir, DIR).apply { mkdirs() }
 
-    /** 当前这套媒体主题；文件被删了就当没设过 */
-    fun current(ctx: Context): Media? {
+    private fun fileOf(ctx: Context, slot: Slot): File? {
         val d = dir(ctx)
-        val f = d.listFiles()?.firstOrNull { it.name.startsWith("theme_media.") } ?: return null
+        val hit = d.listFiles()?.firstOrNull { it.name.startsWith("theme_media_${slot.key}.") }
+        if (hit != null) return hit
+        // 旧版本只存了一份 `theme_media.<ext>`：把它认成 App 的，用户不至于升级后背景凭空消失
+        if (slot == Slot.APP) {
+            return d.listFiles()?.firstOrNull { it.name.startsWith("theme_media.") }
+        }
+        return null
+    }
+
+    /** 当前这套媒体主题；文件被删了就当没设过 */
+    fun current(ctx: Context, slot: Slot = Slot.APP): Media? {
+        val f = fileOf(ctx, slot) ?: return null
         if (!f.exists() || f.length() == 0L) return null
         val kind = when (f.extension.lowercase()) {
             "gif" -> Kind.GIF
@@ -67,8 +88,12 @@ object UserMedia {
         return Media(kind, f)
     }
 
-    fun clear(ctx: Context) {
-        dir(ctx).listFiles()?.filter { it.name.startsWith("theme_media.") }?.forEach { runCatching { it.delete() } }
+    fun clear(ctx: Context, slot: Slot? = null) {
+        dir(ctx).listFiles()
+            ?.filter { f ->
+                if (slot == null) f.name.startsWith("theme_media") else f.name.startsWith("theme_media_${slot.key}.")
+            }
+            ?.forEach { runCatching { it.delete() } }
     }
 
     /**
@@ -76,7 +101,7 @@ object UserMedia {
      *
      * @return 落盘后的类型；格式不支持/太大/读不出来返回 null（调用方给"换一个"的提示）
      */
-    fun save(ctx: Context, uri: Uri): Kind? = runCatching {
+    fun save(ctx: Context, uri: Uri, slot: Slot = Slot.APP): Kind? = runCatching {
         val cr = ctx.contentResolver
         val mime = (cr.getType(uri) ?: "").lowercase()
         val name = (uri.lastPathSegment ?: "").substringAfterLast('/').lowercase()
@@ -87,8 +112,8 @@ object UserMedia {
             else -> return null
         }
         val bytes = cr.openInputStream(uri) ?: return null
-        clear(ctx)
-        val out = File(dir(ctx), "theme_media.$ext")
+        clear(ctx, slot)
+        val out = File(dir(ctx), "theme_media_${slot.key}.$ext")
         bytes.use { input ->
             out.outputStream().use { o ->
                 var total = 0L
@@ -118,13 +143,13 @@ object UserMedia {
      *
      * 图库返回的是 mp4/webm；不认 mime 就按魔数判：`ftyp` 在 offset 4 = MP4，`1A 45 DF A3` = WebM。
      */
-    fun saveBytes(ctx: Context, bytes: ByteArray): Kind? = runCatching {
+    fun saveBytes(ctx: Context, bytes: ByteArray, slot: Slot = Slot.APP): Kind? = runCatching {
         val isMp4 = bytes.size > 12 && String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp"
         val isWebm = bytes.size > 4 && bytes[0] == 0x1A.toByte() && bytes[1] == 0x45.toByte() &&
             bytes[2] == 0xDF.toByte() && bytes[3] == 0xA3.toByte()
         if (!isMp4 && !isWebm) return null
-        clear(ctx)
-        val out = File(dir(ctx), if (isWebm) "theme_media.webm" else "theme_media.mp4")
+        clear(ctx, slot)
+        val out = File(dir(ctx), "theme_media_${slot.key}." + if (isWebm) "webm" else "mp4")
         out.outputStream().use { it.write(bytes) }
         if (out.length() == 0L) {
             out.delete()
@@ -133,9 +158,16 @@ object UserMedia {
         Kind.VIDEO
     }.getOrNull()
 
+    /** 把一个槽的媒体复制到另一个槽（"小组件也用 App 那段视频"） */
+    fun copyTo(ctx: Context, from: Slot, to: Slot): Kind? = runCatching {
+        val src = fileOf(ctx, from) ?: return null
+        val bytes = src.readBytes()
+        saveBytes(ctx, bytes, to)
+    }.getOrNull()
+
     /** 抽一帧/一张：给不做动画的地方（比如预览缩略图）用 */
-    fun stillBitmap(ctx: Context, maxSide: Int = 720): Bitmap? {
-        val m = current(ctx) ?: return null
+    fun stillBitmap(ctx: Context, slot: Slot = Slot.APP, maxSide: Int = 720): Bitmap? {
+        val m = current(ctx, slot) ?: return null
         return runCatching {
             when (m.kind) {
                 Kind.GIF -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

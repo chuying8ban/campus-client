@@ -240,7 +240,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
 
         // 角标说明：静态/动态混排，不解释一句，用户以为是"加载失败"或"点了没动"
         Text(
-            "▶ 动 = 会动的画面，点了直接当动态壁纸（不用再找视频）",
+            "▶ 动 = 会动的画面，点了直接当动态壁纸（要下整段原片，比静态图慢几秒）",
             color = C.txt3, fontSize = 10.5.sp,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
         )
@@ -331,13 +331,24 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                         onClick = {
                             if (busyId != null) return@ArtCard
                             busyId = item.id
-                            msg = null
+                            // 动态要点下载整段视频（1~10MB），不给一句话用户会以为卡死
+                            msg = if (item.animated) {
+                                "正在下载这段动图…选中的是高画质原片，请耐心等几秒"
+                            } else {
+                                null
+                            }
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) {
                                     // 动态：整段视频存下来当"动态壁纸"（解码成 Bitmap 就只剩一帧）
                                     if (item.animated) {
                                         val bytes = ArtRepo.bytes(item) ?: return@withContext false
-                                        val kind = UserMedia.saveBytes(ctx, bytes)
+                                        // 存到各自的槽：给桌面小组件换视频不能把 App 背景也换掉
+                                        val slot = if (target == "background") {
+                                            UserMedia.Slot.APP
+                                        } else {
+                                            UserMedia.Slot.WIDGET
+                                        }
+                                        val kind = UserMedia.saveBytes(ctx, bytes, slot)
                                             ?: return@withContext false
                                         if (target == "background") {
                                             BackgroundPhoto.clear(ctx)

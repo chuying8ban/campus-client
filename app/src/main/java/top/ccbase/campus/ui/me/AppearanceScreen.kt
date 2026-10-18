@@ -245,7 +245,7 @@ private fun AppThemePane(
         busy = true
         msg = null
         scope.launch {
-            val kind = withContext(Dispatchers.IO) { UserMedia.save(ctx, uri) }
+            val kind = withContext(Dispatchers.IO) { UserMedia.save(ctx, uri, UserMedia.Slot.APP) }
             busy = false
             if (kind == null) {
                 msg = "这个文件读不出来（只收 gif 和 mp4/webm 视频，80MB 以内）"
@@ -388,7 +388,7 @@ private fun AppThemePane(
             modifier = Modifier
                 .clickable {
                     BackgroundPhoto.clear(ctx)
-                    UserMedia.clear(ctx)
+                    UserMedia.clear(ctx, UserMedia.Slot.APP)
                     AppearanceStore.setBackground(ctx, AppearanceStore.BG_SOLID)
                 }
                 .padding(vertical = 8.dp, horizontal = 2.dp),

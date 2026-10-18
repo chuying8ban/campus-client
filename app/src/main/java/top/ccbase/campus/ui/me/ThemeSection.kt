@@ -259,7 +259,9 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
         // 预览也要"所见即所得"：gif/视频主题取一帧当封面，别退回成纯色渐变
         val art = remember(spec) {
             if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
-                top.ccbase.campus.ui.theme.UserMedia.stillBitmap(ctx)
+                top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
+                    ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+                )
             } else {
                 WidgetThemes.imageBitmap(ctx, theme)
             }
@@ -687,7 +689,14 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     }
     // App 里传的 gif / 视频，直接挪过来当小组件的动态背景（用户："小组件同理"）。
     // 桌面播不了视频，我们抽 12 帧轮播 —— 观感上还是"在动"，但不占后台。
-    val media = remember { top.ccbase.campus.ui.theme.UserMedia.current(ctx) }
+    val ownMedia = remember {
+        top.ccbase.campus.ui.theme.UserMedia.current(ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET)
+    }
+    val appMedia = remember {
+        top.ccbase.campus.ui.theme.UserMedia.current(ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.APP)
+    }
+    // 小组件自己没存过就用 App 那段（点了才复制过去，两边从此各管各的）
+    val media = ownMedia ?: appMedia
     if (media != null) {
         Spacer(Modifier.height(10.dp))
         Text(
@@ -702,6 +711,13 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 .clip(RoundedCornerShape(8.dp))
                 .background(C.card)
                 .clickable {
+                    if (ownMedia == null) {
+                        top.ccbase.campus.ui.theme.UserMedia.copyTo(
+                            ctx,
+                            top.ccbase.campus.ui.theme.UserMedia.Slot.APP,
+                            top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+                        )
+                    }
                     val next = top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)
                     wSpec = next
                     WidgetThemes.set(ctx, next)
@@ -726,7 +742,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（12 帧循环，不用 App 在后台跑）。",
+            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（6 帧循环，不用 App 在后台跑）。",
             fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
         )
     }

@@ -19,7 +19,7 @@ import org.robolectric.annotation.GraphicsMode
  * 小组件动态主题的帧生成（2026-10-18）。
  *
  * 用户先报「换动态就这样了（载入窗口小部件时出现问题）」，又要求「动态要像动态壁纸」。
- * 这组测试钉住两件事：① 帧能生成、有 12 张、四角是圆角透明的；
+ * 这组测试钉住两件事：① 帧能生成、有 6 张、四角是圆角透明的；
  * ② 帧和帧之间**真的不一样**（否则桌面上就是一张静止图，白折腾）。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -29,12 +29,37 @@ class WidgetFramesTest {
 
     private val ctx get() = ApplicationProvider.getApplicationContext<android.content.Context>()
 
+    /**
+     * 真机上「载入窗口小部件时出现问题」的元凶：一次性塞给桌面的位图太多。
+     * 钉一条硬预算：所有帧加起来 ≤ 8MB（ARGB_8888），超了桌面就会丢帧/崩。
+     */
     @Test
-    fun `纯动效主题生成12帧且四角透明`() {
+    fun `所有帧加起来不超过 8MB`() {
+        val spec = WidgetDyn.spec(DynPainter.Kind.PETALS, 0xFFFF7BC0.toInt())
+        val frames = requireNotNull(WidgetFrames.forSpec(ctx, spec, 1200, 600))
+        val bytes = frames.sumOf { it.width.toLong() * it.height * 4 }
+        assertTrue("帧太大：${bytes / 1024 / 1024}MB", bytes <= 8L * 1024 * 1024)
+    }
+
+    /** 帧要落盘：provider 被系统杀掉重建后不该重画一遍（换主题那几秒就是花在重画上） */
+    @Test
+    fun `帧会写进磁盘缓存`() {
+        val spec = WidgetDyn.spec(DynPainter.Kind.SNOW, 0xFF8FB8FF.toInt())
+        requireNotNull(WidgetFrames.forSpec(ctx, spec, 480, 240))
+        val dirs = java.io.File(ctx.cacheDir, "wframes").listFiles() ?: emptyArray()
+        assertTrue("没有落盘目录", dirs.isNotEmpty())
+        val files = dirs.flatMap { it.listFiles()?.toList() ?: emptyList() }
+            .filter { it.name.startsWith("f") && it.name.endsWith(".png") }
+        assertEquals("PNG 数量应等于帧数", WidgetFrames.FRAMES, files.size)
+        assertTrue("PNG 是空的", files.all { it.length() > 0 })
+    }
+
+    @Test
+    fun `纯动效主题生成固定帧数且四角透明`() {
         val spec = WidgetDyn.spec(DynPainter.Kind.PETALS, 0xFFFF7BC0.toInt())
         val frames = WidgetFrames.forSpec(ctx, spec, 480, 240)
         requireNotNull(frames)
-        assertEquals(12, frames.size)
+        assertEquals(WidgetFrames.FRAMES, frames.size)
         val f = frames[0]
         assertEquals(0, Color.alpha(f.getPixel(0, 0)))
         assertEquals(0, Color.alpha(f.getPixel(f.width - 1, f.height - 1)))
@@ -83,9 +108,9 @@ class WidgetFramesTest {
         val frames = WidgetFrames.forSpec(
             ctx, WidgetDyn.spec(DynPainter.Kind.SNOW, 0xFF6FA8FF.toInt()), 480, 240,
         )!!
-        val a = frames[0].sameAs(frames[4])
-        val b = frames[0].sameAs(frames[9])
-        assertTrue("第 0 帧和第 4/9 帧不该完全相同", !a || !b)
+        val a = frames[0].sameAs(frames[frames.size / 2])
+        val b = frames[0].sameAs(frames.last())
+        assertTrue("第 0 帧和中/末帧不该完全相同", !a || !b)
     }
 
     @Test
@@ -120,8 +145,8 @@ class WidgetFramesTest {
             ctx, WidgetDyn.imageSpec(WidgetFrames.ImgEffect.PETALS), 480, 240,
         )
         requireNotNull(frames)
-        assertEquals(12, frames.size)
+        assertEquals(WidgetFrames.FRAMES, frames.size)
         // 推近 + 粒子 ⇒ 首尾帧不应该一模一样
-        assertNotEquals(true, frames[0].sameAs(frames[6]))
+        assertNotEquals(true, frames[0].sameAs(frames.last()))
     }
 }

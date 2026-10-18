@@ -117,6 +117,26 @@ class TodayWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * 在 App 里**提前把帧算好**（后台线程调）。
+         *
+         * 用户换完主题马上回桌面，provider 那一下要是还在抽帧，他就得盯着"正在加载"。
+         * 这里用和 provider 完全相同的尺寸口径（[sizePx]）先把帧算出来并落盘缓存，
+         * provider 再进来就是读文件。算不出来也不影响 —— provider 自己还会再试。
+         */
+        fun warmFrames(ctx: Context) {
+            val mgr = AppWidgetManager.getInstance(ctx)
+            val ids = runCatching {
+                mgr.getAppWidgetIds(android.content.ComponentName(ctx, TodayWidgetProvider::class.java))
+            }.getOrDefault(IntArray(0))
+            if (ids.isEmpty()) return
+            val spec = WidgetThemes.spec(ctx)
+            ids.forEach { id ->
+                val (w, h) = sizePx(ctx, mgr, id)
+                runCatching { WidgetFrames.forSpec(ctx, spec, w, h) }
+            }
+        }
+
+        /**
          * 上色 + 铺底。**每次刷新都重新读一次主题**（不缓存）：
          * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
          */
@@ -132,10 +152,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
                 rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
                 rv.setViewVisibility(R.id.widget_scrim, View.GONE)
+                // 只灌实际生成的帧，多出来的 ImageView 直接 GONE：
+                // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
                 FRAME_IDS.forEachIndexed { i, id ->
-                    rv.setImageViewBitmap(id, frames[i % frames.size])
+                    if (i < frames.size) {
+                        rv.setImageViewBitmap(id, frames[i])
+                        rv.setViewVisibility(id, View.VISIBLE)
+                    } else {
+                        rv.setImageViewBitmap(id, null)
+                        rv.setViewVisibility(id, View.GONE)
+                    }
                 }
-                rv.setInt(R.id.widget_flip, "setFlipInterval", 120)
+                rv.setInt(
+                    R.id.widget_flip, "setFlipInterval",
+                    (WidgetFrames.STEP_SEC * 1000).toInt(),
+                )
                 rv.setBoolean(R.id.widget_flip, "setAutoStart", true)
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
@@ -145,6 +176,27 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             if (dyn != null) {
                 // 已经用帧轮播铺底了，不要再盖静态图
+            } else if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
+                // 媒体主题但帧没生成出来（抽帧失败/内存吃紧）：至少给**一张真实画面**，
+                // 不能掉回纯色主题色 —— 用户看到的就是"我的视频变成主题色了"。
+                val still = top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
+                    ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+                )
+                if (still != null) {
+                    rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                    rv.setImageViewBitmap(
+                        R.id.widget_bg_img,
+                        WidgetArt.roundedWithScrim(
+                            scaleToFill(still, wPx, hPx),
+                            WidgetArt.radiusFor(hPx, density),
+                            topAlpha = 0x55000000.toInt(),
+                            bottomAlpha = 0x99000000.toInt(),
+                        ),
+                    )
+                } else {
+                    rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                }
+                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
             } else if (art != null) {
                 // 图片主题：图缩放铺满 + 压一层暗蒙版，保证字读得清
                 rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
@@ -206,6 +258,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
         /** 课表导入成功后 / App 打开时调一次：小组件立刻跟着变，不用等 30 分钟。 */
         fun refresh(ctx: Context) {
+            // 先在后台把帧备好（换主题的那几秒就是花在这儿），再让 provider 刷新：
+            // provider 进来时帧已经在内存/磁盘里，桌面立刻就是新画面。
+            CoroutineScope(Dispatchers.IO).launch { runCatching { warmFrames(ctx) } }
             val intent = Intent(ctx, TodayWidgetProvider::class.java).setAction(ACTION_REFRESH)
             runCatching { ctx.sendBroadcast(intent) }
         }

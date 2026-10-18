@@ -32,8 +32,16 @@ import kotlin.math.sin
  */
 object WidgetFrames {
 
-    const val FRAMES = 12
-    const val STEP_SEC = 0.12f
+    /**
+     * 帧数从 12 降到 **6**（2026-10-18 用户："小部件仍然不支持动图…出现了混乱"）。
+     *
+     * 真机反馈是桌面直接弹「载入窗口小部件时出现问题」—— 那是 launcher 施加 RemoteViews 时炸的。
+     * 12 张接近整卡尺寸的位图 + 抽帧时中间副本，峰值能到几十 MB，既可能把 provider 撑爆 OOM，
+     * 也超过 RemoteViews 愿意接收的位图总量。6 帧 × 240ms 仍然是一个 1.44 秒的循环，
+     * 慢镜头素材看不出差别，代价只是一半的流量和内存。
+     */
+    const val FRAMES = 6
+    const val STEP_SEC = 0.24f
 
     /** 叠在插画上的"动态效果" */
     enum class ImgEffect(val id: String, val label: String, val hint: String) {
@@ -50,14 +58,16 @@ object WidgetFrames {
         }
     }
 
-    private val cache = LruCache<String, List<Bitmap>>(4)
+    // 只留一份：一屏小组件只会用一种 spec，存 4 份等于白占 4 倍内存
+    private val cache = LruCache<String, List<Bitmap>>(1)
 
-    /** 按 spec 生成 12 帧；返回 null = 不是动态 spec（调用方走静态分支）。 */
+    /** 按 spec 生成 [FRAMES] 帧；返回 null = 不是动态 spec（调用方走静态分支）。 */
     fun forSpec(ctx: Context, spec: String, wPx: Int, hPx: Int): List<Bitmap>? {
         WidgetDyn.parse(spec)?.let { (kind, accent) ->
             val key = "p|${kind.id}|$accent|$wPx|$hPx"
             cache.get(key)?.let { return it }
-            return render(key, wPx, hPx) { c, fw, fh, t ->
+            diskLoad(ctx, key)?.let { cache.put(key, it); return it }
+            return render(ctx, key, wPx, hPx) { c, fw, fh, t ->
                 DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
             }
         }
@@ -67,18 +77,22 @@ object WidgetFrames {
             val src = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
             val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx"
             cache.get(key)?.let { return it }
+            diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
-            return render(key, wPx, hPx) { c, fw, fh, t ->
+            return render(ctx, key, wPx, hPx) { c, fw, fh, t ->
                 drawCinemagraph(c, src, effect, t, fw.toFloat(), fh.toFloat(), accent)
             }
         }
         // 用户自己传的 gif / 视频（2026-10-18）：桌面放不了视频，就抽 12 帧轮播。
         // 视频取前 ~1.4 秒里的 12 个时间点；gif 按总时长均分 —— 两者都按"整张卡片"裁切填满。
         top.ccbase.campus.ui.theme.UserMedia.parse(spec)?.let { kind ->
-            val media = top.ccbase.campus.ui.theme.UserMedia.current(ctx) ?: return null
+            val media = top.ccbase.campus.ui.theme.UserMedia.current(
+                ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+            ) ?: return null
             if (media.kind != kind) return null
             val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx"
             cache.get(key)?.let { return it }
+            diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             return renderMedia(ctx, key, media, wPx, hPx)
         }
         return null
@@ -94,12 +108,49 @@ object WidgetFrames {
      * 现在：帧尺寸 = 视图尺寸（或等比缩小后的同比例），ImageView 改成 `fitXY`，
      * 1:1 铺进去，四个角都画在画内。
      */
+    /**
+     * 帧的**磁盘缓存**：换主题慢的主因不是下载，是"抽帧 + 画 6 张 + 过一遍圆角"。
+     *
+     * 每次桌面刷新都重算一遍，用户看到的就是转圈几秒；而且 provider 会被系统随时杀掉重建，
+     * 光靠内存缓存等于没有。落成 PNG（必须 PNG：圆角是透明的，JPEG 会把角填黑），
+     * 下次直接读文件，几十毫秒。目录名用 key 的哈希，key 里已经带了视频的修改时间，
+     * 换了素材自然就换目录，不会读到旧帧。
+     */
+    private fun frameDir(ctx: Context, key: String): java.io.File =
+        java.io.File(ctx.cacheDir, "wframes/" + Integer.toHexString(key.hashCode()))
+
+    private fun diskLoad(ctx: Context, key: String): List<Bitmap>? = runCatching {
+        val dir = frameDir(ctx, key)
+        if (!dir.isDirectory) return null
+        val out = ArrayList<Bitmap>(FRAMES)
+        for (i in 0 until FRAMES) {
+            val f = java.io.File(dir, "f$i.png")
+            if (!f.isFile || f.length() == 0L) return null
+            out += BitmapFactory.decodeFile(f.absolutePath) ?: return null
+        }
+        out
+    }.getOrNull()
+
+    private fun diskSave(ctx: Context, key: String, frames: List<Bitmap>) = runCatching {
+        val dir = frameDir(ctx, key)
+        dir.mkdirs()
+        // 只保留当前这份，别的 spec 的旧帧清掉（桌面只会用一种）
+        dir.parentFile?.listFiles()?.forEach { if (it.absolutePath != dir.absolutePath) it.deleteRecursively() }
+        frames.forEachIndexed { i, b ->
+            java.io.FileOutputStream(java.io.File(dir, "f$i.png")).use {
+                b.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        }
+    }
+
     private fun frameSize(wPx: Int, hPx: Int): Triple<Int, Int, Float> {
-        // 12 帧同时驻留内存，别按满尺寸画：0.7 倍 + fitXY 放大肉眼看不出（画面本来就是柔焦的图/光），
-        // 内存从 ~34MB 降到 ~17MB。**缩小不会切掉圆角** —— fitXY 只拉伸不裁切，这正是这次修法的关键。
-        val cap = 700_000L
+        // 别按满尺寸画：fitXY 放大肉眼看不出（画面本来就是柔焦的图/光）。**缩小不会切掉圆角** ——
+        // fitXY 只拉伸不裁切，这正是 3.2.1 那次修法的关键。
+        // 每帧像素预算：6 帧 × 17 万像素 ≈ 4MB（ARGB_8888）。压到这条线以下，
+        // 塞进 RemoteViews 才不会被桌面丢掉/炸掉。
+        val perFrame = 170_000f
         val px = wPx.toLong() * hPx
-        val scale = minOf(0.7f, sqrt(cap.toFloat() / px.toFloat())).coerceAtLeast(0.35f)
+        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.32f)
         val fw = max(120, (wPx * scale).toInt())
         val fh = max(80, (hPx * scale).toInt())
         return Triple(fw, fh, scale)
@@ -175,8 +226,9 @@ object WidgetFrames {
             }
         }
         if (out.isEmpty()) return null
-        while (out.size < FRAMES) out += out.last()   // 不足 12 帧就重复填补
+        while (out.size < FRAMES) out += out.last()   // 不足 6 帧就重复填补
         cache.put(key, out)
+        diskSave(ctx, key, out)
         return out
     }
 
@@ -184,7 +236,7 @@ object WidgetFrames {
      * 渲染 N 帧并统一裁圆角（RemoteViews 没有圆角属性，只能画进位图）。
      * 帧按视图实际大小渲染（超大时整体等比缩小），配 `fitXY` 1:1 铺满 —— 见 [frameSize]。
      */
-    private fun render(key: String, wPx: Int, hPx: Int, draw: (Canvas, Int, Int, Float) -> Unit): List<Bitmap> {
+    private fun render(ctx: Context, key: String, wPx: Int, hPx: Int, draw: (Canvas, Int, Int, Float) -> Unit): List<Bitmap> {
         val (fw, fh, scale) = frameSize(wPx, hPx)
         val radius = WidgetArt.radiusFor(hPx, 1f) * scale
         val out = ArrayList<Bitmap>(FRAMES)
@@ -192,9 +244,13 @@ object WidgetFrames {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
             val c = Canvas(bmp)
             draw(c, fw, fh, i * STEP_SEC)
-            out += WidgetArt.rounded(bmp, radius)
+            val rounded = WidgetArt.rounded(bmp, radius)
+            // 中间那张原始帧立刻回收：6 张一起留就是双倍峰值（真机上这一下最容易 OOM）
+            if (rounded !== bmp) bmp.recycle()
+            out += rounded
         }
         cache.put(key, out)
+        diskSave(ctx, key, out)
         return out
     }
 

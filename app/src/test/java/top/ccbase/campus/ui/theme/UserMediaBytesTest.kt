@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -47,13 +48,33 @@ class UserMediaBytesTest {
         assertNull("空字节", UserMedia.saveBytes(ctx, ByteArray(0)))
     }
 
+    /** 2026-10-18 用户："小部件的视频变成主题的了" —— 两套媒体必须互不覆盖 */
+    @Test
+    fun `App 和小组件各存各的_互不覆盖`() {
+        UserMedia.clear(ctx)
+        val a = ByteArray(4096) { 1 }
+        val b = ByteArray(4096) { 2 }
+        a[4] = 'f'.code.toByte(); a[5] = 't'.code.toByte(); a[6] = 'y'.code.toByte(); a[7] = 'p'.code.toByte()
+        b[4] = 'f'.code.toByte(); b[5] = 't'.code.toByte(); b[6] = 'y'.code.toByte(); b[7] = 'p'.code.toByte()
+        assertNotNull(UserMedia.saveBytes(ctx, a, UserMedia.Slot.APP))
+        assertNotNull(UserMedia.saveBytes(ctx, b, UserMedia.Slot.WIDGET))
+        val app = UserMedia.current(ctx, UserMedia.Slot.APP)
+        val wid = UserMedia.current(ctx, UserMedia.Slot.WIDGET)
+        assertNotNull(app); assertNotNull(wid)
+        assertTrue("两个槽指到了同一个文件", app!!.file.absolutePath != wid!!.file.absolutePath)
+        // 只清 App 的，小组件那份要留着
+        UserMedia.clear(ctx, UserMedia.Slot.APP)
+        assertNull(UserMedia.current(ctx, UserMedia.Slot.APP))
+        assertNotNull(UserMedia.current(ctx, UserMedia.Slot.WIDGET))
+    }
+
     @Test
     fun `换新的会清掉旧的_只留一份`() {
         UserMedia.clear(ctx)
         UserMedia.saveBytes(ctx, mp4Bytes())
         UserMedia.saveBytes(ctx, mp4Bytes())
         val dir = java.io.File(ctx.filesDir, "appearance")
-        val files = dir.listFiles()?.filter { it.name.startsWith("theme_media.") } ?: emptyList()
+        val files = dir.listFiles()?.filter { it.name.startsWith("theme_media") } ?: emptyList()
         assertEquals("旧文件没清掉，会越攒越大", 1, files.size)
     }
 }
