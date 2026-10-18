@@ -1,11 +1,11 @@
 {
-  "version_code": 124,
-  "version_name": "3.4.5",
-  "url": "/updates/campus-3.4.5.apk",
-  "sha256": "b01f3201e068d3dfac379921b13631820050e76e8e6ff1cb043c0b12848ae606",
-  "size": 7895171,
+  "version_code": 125,
+  "version_name": "3.4.6",
+  "url": "/updates/campus-3.4.6.apk",
+  "sha256": "face10f5844127b1b4fdba71843f3d4c4d31373a79ce0c56e4a58c2b54eecc0f",
+  "size": 7895271,
   "notes": [
-    "小组件底图再瘦一半，桌面更容易显示出来",
-    "新增「小组件自检」：能看到桌面实际收到的那张画面"
+    "修好小控件主题不显示：高分屏上不再按桌面报的超大尺寸画图",
+    "换完主题立刻重画，不用等系统自己刷新"
   ]
 }

@@ -149,8 +149,9 @@ object WidgetFrames {
         // RemoteViews 把像素一起塞进 binder 事务，总量超过 ~1MB 桌面就会整块丢掉。
         val perFrame = 40_000f
         val px = wPx.toLong() * hPx
-        // 下限 0.24：1200×600 的极端格子也要压进预算（0.32 时 4 帧仍会到 1.1MB）
-        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.24f)
+        // 不设下限：预算优先。1200×600 的格子 scale≈0.24 刚好；2475×1375 的格子要 0.108，
+        // 原来那个 0.24 下限会让 4 帧加起来 3MB，超了 binder 上限 → 桌面整块丢掉（画质换可见）。
+        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.04f)
         val fw = max(120, (wPx * scale).toInt())
         val fh = max(80, (hPx * scale).toInt())
         return Triple(fw, fh, scale)

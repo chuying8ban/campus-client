@@ -110,9 +110,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val wDp = opt?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, FALLBACK_W_DP) ?: FALLBACK_W_DP
             val hDp = opt?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, FALLBACK_H_DP) ?: FALLBACK_H_DP
             val d = ctx.resources.displayMetrics.density
-            // 兜底：某些 launcher 给 0 或荒谬值，夹一下免得画出 1px 或 8K 位图
-            val w = (wDp.coerceIn(120, 900) * d).toInt().coerceAtLeast(200)
-            val h = (hDp.coerceIn(60, 500) * d).toInt().coerceAtLeast(120)
+            // 兜底：某些 launcher 给 0 或荒谬值，夹一下免得画出 1px 或 8K 位图。
+            // **必须夹像素、不能只夹 dp**：MIUI 的 opt 常报 900dp，×2.75 密度 = 2475×1375
+            // ≈ 13.6MB 一张位图 —— 就是"主题显示不上"的真凶（2026-10-19）。
+            val w = (wDp.coerceIn(120, 900) * d).toInt().coerceIn(200, 1200)
+            val h = (hDp.coerceIn(60, 500) * d).toInt().coerceIn(120, 600)
             return w to h
         }
 
@@ -218,20 +220,25 @@ class TodayWidgetProvider : AppWidgetProvider() {
         internal fun backgroundBitmapFor(ctx: Context, spec: String, wPx: Int, hPx: Int): android.graphics.Bitmap? {
             val theme = WidgetThemes.of(spec)
             val density = ctx.resources.displayMetrics.density
+            // 先按预算把画布尺寸定好（等比例），别"先画 340 万像素再缩"——
+            // 峰值内存 13MB 在广播里就是 OOM，OOM 的后果是整张卡退化成纯色。
+            val fitted = fitTo(BG_MAX_PX.toLong(), wPx, hPx)
+            val bw = fitted.first
+            val bh = fitted.second
             runCatching {
                 if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
                     val still = top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
                         ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
                     )
-                    if (still != null) return bgBitmap(still, wPx, hPx, density, 0x55000000.toInt(), 0x99000000.toInt())
+                    if (still != null) return bgBitmap(still, bw, bh, density, 0x55000000.toInt(), 0x99000000.toInt())
                 }
                 val art = WidgetThemes.imageBitmap(ctx, theme)
-                if (art != null) return bgBitmap(art, wPx, hPx, density, 0x66000000.toInt(), 0x99000000.toInt())
+                if (art != null) return bgBitmap(art, bw, bh, density, 0x66000000.toInt(), 0x99000000.toInt())
             }
             val bmp = runCatching {
                 WidgetArt.background(
-                    w = wPx,
-                    h = hPx,
+                    w = bw,
+                    h = bh,
                     base = theme.bgColor,
                     accent = theme.accentColor,
                     light = theme.light,
@@ -239,6 +246,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 )
             }.getOrNull()
             return bmp?.let { capPixels(it) }
+        }
+
+        /** 等比例装进预算：返回不超过 px 个像素的 (w, h)。 */
+        internal fun fitTo(px: Long, w: Int, h: Int): Pair<Int, Int> {
+            val cur = w.toLong() * h
+            if (cur <= px || cur <= 0L) return w to h
+            val s = kotlin.math.sqrt(px.toFloat() / cur)
+            return kotlin.math.max(1, (w * s).toInt()) to kotlin.math.max(1, (h * s).toInt())
         }
 
         /** 位图预算：RemoteViews 走 binder，位图一大 MIUI 会静默丢掉整张图（卡片只剩文字）。
@@ -317,7 +332,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
         fun refresh(ctx: Context) {
             // 先在后台把帧备好（换主题的那几秒就是花在这儿），再让 provider 刷新：
             // provider 进来时帧已经在内存/磁盘里，桌面立刻就是新画面。
-            CoroutineScope(Dispatchers.IO).launch { runCatching { warmFrames(ctx) } }
+            // ① 当前进程里直接把新卡片推给桌面（不赌广播：MIUI 会拦自家后台广播，
+            //    用户看到的就是"换了主题没有反应"）；
+            // ② 广播再发一次，兜住"进程刚好被系统拉起"的情况。
+            CoroutineScope(Dispatchers.IO).launch {
+                runCatching { warmFrames(ctx) }
+                runCatching {
+                    val mgr = AppWidgetManager.getInstance(ctx)
+                    val ids = mgr.getAppWidgetIds(ComponentName(ctx, TodayWidgetProvider::class.java))
+                    if (ids.isNotEmpty()) render(ctx, ids, null)
+                }
+            }
             val intent = Intent(ctx, TodayWidgetProvider::class.java).setAction(ACTION_REFRESH)
             runCatching { ctx.sendBroadcast(intent) }
         }
