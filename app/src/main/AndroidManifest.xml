@@ -92,7 +92,7 @@
         <receiver
             android:name=".widget.TodayWidgetProvider"
             android:exported="true"
-            android:label="@string/widget_desc">
+            android:label="@string/widget_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="top.ccbase.campus.WIDGET_REFRESH" />

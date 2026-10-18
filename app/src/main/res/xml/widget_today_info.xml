@@ -19,4 +19,5 @@
     android:widgetCategory="home_screen"
     android:description="@string/widget_desc"
     android:initialLayout="@layout/widget_today"
-    android:previewLayout="@layout/widget_today" />
+    android:previewLayout="@layout/widget_today"
+    android:previewImage="@drawable/widget_preview" />
