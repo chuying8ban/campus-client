@@ -57,6 +57,11 @@ import top.ccbase.campus.ui.theme.BackgroundPhoto
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.widget.ArtItem
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import top.ccbase.campus.widget.ArtRepo
 import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.ui.theme.UserMedia
@@ -74,6 +79,8 @@ import top.ccbase.campus.widget.WidgetThemes
  */
 @Composable
 fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
+    // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
+    androidx.activity.compose.BackHandler { onClose() }
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val portrait = kind == "portrait"
@@ -98,6 +105,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
     val grid = rememberLazyGridState()
+    // 翻到第二行以后就算"在往下看"：收起搜索栏，给图片腾地方
+    val scrolled by remember { derivedStateOf { grid.firstVisibleItemIndex > 2 } }
 
     // 首屏：服务器上预先挑好的那批（10 分钟本机缓存，断网退回旧缓存）
     LaunchedEffect(Unit) {
@@ -212,10 +221,17 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             )
         }
 
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        // 往下翻就把搜索栏收起来（用户 2026-10-18："图库往下翻时要隐藏搜索栏"）。
+        // 只收搜索框和说明文字，标题行的「关闭」和板块切换都留着 —— 那两样是随时要用的。
+        AnimatedVisibility(
+            visible = !scrolled,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
         ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             Box(
                 Modifier
                     .weight(1f)
@@ -256,14 +272,15 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             ) {
                 Text("搜索", color = C.violet, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
-        }
+            }
 
-        // 角标说明：静态/动态混排，不解释一句，用户以为是"加载失败"或"点了没动"
-        Text(
-            "▶ 动 = 会动的画面，点了直接当动态壁纸（要下整段原片，比静态图慢几秒）",
-            color = C.txt3, fontSize = 10.5.sp,
-            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
-        )
+            // 角标说明：静态/动态混排，不解释一句，用户以为是"加载失败"或"点了没动"
+            Text(
+                "▶ 动 = 会动的画面，点了直接当动态壁纸（要下整段原片，比静态图慢几秒）",
+                color = C.txt3, fontSize = 10.5.sp,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
+            )
+        }
 
         // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
         // 所以 App 背景和桌面小组件都自动有这个板块。

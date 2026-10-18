@@ -58,6 +58,8 @@ private val WD = listOf("", "一", "二", "三", "四", "五", "六", "日")
 
 @Composable
 fun CourseDetailPanel(db: CampusDb, course: Course, onClose: () -> Unit) {
+    // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
+    androidx.activity.compose.BackHandler { onClose() }
     val ctx = LocalContext.current
     var slots by remember(course.id) { mutableStateOf<List<Slot>>(emptyList()) }
     var tasks by remember(course.id) { mutableStateOf<List<Task>>(emptyList()) }

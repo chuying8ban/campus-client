@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,14 +50,21 @@ fun ScheduleScreen(db: CampusDb, onUpdate: () -> Unit = {}, onEdit: () -> Unit =
     // 外层必须是 Box：详情面板要靠它做浮层。
     // 教训：把浮层塞进别处的 Box（比如"加载中"那个）会变成"点了没反应"。
     var pickedCourse by remember { mutableStateOf<Course?>(null) }
+    // 滚动状态提到这一层：往下翻要能把这两颗按钮收起来（用户 2026-10-18 要求）
+    val scroll = rememberScrollState()
+    val collapsed by remember { derivedStateOf { scroll.value > 220 } }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp)) {
-                androidx.compose.material3.TextButton(onClick = onUpdate) { Text("更新课表") }
-                Spacer(Modifier.weight(1f))
-                androidx.compose.material3.TextButton(onClick = onEdit) { Text("编辑课表") }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !collapsed,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+            ) {
+                ScheduleQuickActions(onUpdate = onUpdate, onEdit = onEdit)
             }
-            Box(Modifier.weight(1f)) { ScheduleBody(db = db, onPickCourse = { pickedCourse = it }) }
+            Box(Modifier.weight(1f)) {
+                ScheduleBody(db = db, scroll = scroll, onPickCourse = { pickedCourse = it })
+            }
         }
         pickedCourse?.let { picked ->
             CourseDetailPanel(db = db, course = picked, onClose = { pickedCourse = null })
@@ -62,8 +72,88 @@ fun ScheduleScreen(db: CampusDb, onUpdate: () -> Unit = {}, onEdit: () -> Unit =
     }
 }
 
+/**
+ * 课表页的两颗主操作（2026-10-18 用户："把这俩按钮重做一下，做好看一点"）。
+ *
+ * 旧版是 Material 的 TextButton —— 纯文字、无边界、挤在左上角，看起来像"两个可点的字"，
+ * 和整页卡片风格也不搭。现在做成两颗等宽胶囊：主操作用紫色渐变+图标，次操作用卡片描边，
+ * 一眼能分出主次；高度 42dp，两个按钮之间留 10dp，手指不会点错。
+ */
 @Composable
-private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
+private fun ScheduleQuickActions(onUpdate: () -> Unit, onEdit: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        QuickPill(
+            icon = Icons.Filled.Refresh,
+            label = "更新课表",
+            primary = true,
+            modifier = Modifier.weight(1f),
+            onClick = onUpdate,
+        )
+        QuickPill(
+            icon = Icons.Filled.Edit,
+            label = "编辑课表",
+            primary = false,
+            modifier = Modifier.weight(1f),
+            onClick = onEdit,
+        )
+    }
+}
+
+@Composable
+private fun QuickPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    primary: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Row(
+        modifier
+            .height(42.dp)
+            .clip(shape)
+            .background(
+                if (primary) {
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        listOf(C.violet.copy(alpha = 0.26f), C.cyan.copy(alpha = 0.16f)),
+                    )
+                } else {
+                    androidx.compose.ui.graphics.SolidColor(C.card)
+                },
+            )
+            .border(1.dp, if (primary) C.violet.copy(alpha = 0.50f) else C.line, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        androidx.compose.material3.Icon(
+            icon,
+            contentDescription = null,
+            tint = if (primary) C.violet else C.txt2,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(7.dp))
+        Text(
+            label,
+            color = if (primary) C.violet else C.txt2,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun ScheduleBody(
+    db: CampusDb,
+    scroll: androidx.compose.foundation.ScrollState,
+    onPickCourse: (Course) -> Unit,
+) {
     val ctx = LocalContext.current
     var slots by remember { mutableStateOf<List<Slot>>(emptyList()) }
     var courses by remember { mutableStateOf<List<Course>>(emptyList()) }
@@ -94,7 +184,7 @@ private fun ScheduleBody(db: CampusDb, onPickCourse: (Course) -> Unit) {
     // 横屏可用高度只有三百多 dp：表头一钉住，靠 weight(1f) 的课表格子就被挤成 0 高，
     // 看起来"横屏什么都没有"。所以外层整体可滚 —— 高度不够时滚一下就能看到课表。
     val land = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
         // -------- 顶部：周次切换 --------
         Column(Modifier.padding(start = 22.dp, end = 22.dp, top = if (land) 8.dp else 30.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

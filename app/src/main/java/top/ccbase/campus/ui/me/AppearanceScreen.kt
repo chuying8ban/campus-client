@@ -683,6 +683,7 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
  */
 @Composable
 private fun BgPresetBoard(onClose: () -> Unit, onOpenDyn: () -> Unit = {}) {
+    androidx.activity.compose.BackHandler { onClose() }
     val ctx = LocalContext.current
     val bgChoice = AppearanceStore.background.value
     val dark = C.bg.luminance() <= 0.5f

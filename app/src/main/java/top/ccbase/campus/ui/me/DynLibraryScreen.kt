@@ -62,6 +62,8 @@ import top.ccbase.campus.widget.WidgetThemes
  */
 @Composable
 fun DynLibraryScreen(target: String, onClose: () -> Unit) {
+    // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
+    androidx.activity.compose.BackHandler { onClose() }
     val ctx = LocalContext.current
     var q by remember { mutableStateOf("") }
     var applied by remember { mutableStateOf<String?>(null) }

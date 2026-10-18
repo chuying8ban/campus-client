@@ -155,6 +155,8 @@ private fun PlanRow(p: PlanEvent, dao: () -> top.ccbase.campus.data.local.Campus
 /** 全部日程：按天分组，新建/删除都在这儿。 */
 @Composable
 fun DayAgendaScreen(db: CampusDb, onClose: () -> Unit, startWithEditor: Boolean = false) {
+    // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
+    androidx.activity.compose.BackHandler { onClose() }
     var editing by remember { mutableStateOf<PlanEvent?>(null) }
     // 从「＋ 加一条」进来的直接开编辑层，少一次点击
     var showEditor by remember { mutableStateOf(startWithEditor) }

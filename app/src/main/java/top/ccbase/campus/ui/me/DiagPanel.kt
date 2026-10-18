@@ -63,6 +63,8 @@ fun DiagOverlay(
     /** 握手探测的实现。默认真握手；UI 测试注入假的（不能真去连服务器） */
     handshake: (SelfCheck.Variant, String) -> String = SelfCheck.realHandshake,
 ) {
+    // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
+    androidx.activity.compose.BackHandler { onClose() }
     var steps by remember { mutableStateOf<List<CheckStep>>(emptyList()) }
     var running by remember { mutableStateOf(false) }
     var copied by remember { mutableStateOf(false) }

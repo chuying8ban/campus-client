@@ -320,6 +320,10 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
         Box(Modifier.fillMaxSize().alpha(k)) {
             DynamicBackground(kind, Color(argb), Modifier.fillMaxSize())
         }
+        // 浓淡做**双层**（用户 2026-10-18："动图的画面浓淡调整不太明显"）：
+        // 只改图层 alpha 时，动效本来就偏暗、底色也暗，50% 和 100% 几乎看不出来。
+        // 再叠一层 (1-k) 的底色，两条一起变 —— 同样一档差距肉眼立刻能分辨。
+        Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.75f)))
         // 淡了以后字更容易读，但顶栏/底部导航还是要一条压暗带（和照片同一套形状）
         val mid = (0.06f + 0.16f * k).coerceAtMost(0.24f)
         val edge = (mid + 0.26f).coerceAtMost(0.60f)
@@ -355,6 +359,12 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 Box(Modifier.fillMaxSize().alpha(AppearanceStore.bgAlpha.value)) {
                     UserMediaBackground(media, Modifier.fillMaxSize())
                 }
+                // 同上：视频/gif 也是"深色画面 + 深色底色"，单靠 alpha 调不出差别
+                Box(
+                    Modifier.fillMaxSize().background(
+                        p.bg.copy(alpha = (1f - AppearanceStore.bgAlpha.value) * 0.75f),
+                    ),
+                )
                 // 视频/gif 拿不到"明暗极值"，遮罩跟着"浓淡"走：调淡了画面本来就暗，
                 // 再压一层厚遮罩会变成一块灰板。浓 → 遮罩厚，淡 → 遮罩薄。
                 val k = AppearanceStore.bgAlpha.value
@@ -559,11 +569,27 @@ object AppearanceStore {
      * 切到 `photo:` 时调用方负责先把图存好（`BackgroundPhoto.save`）。
      */
     fun setBackground(ctx: Context, value: String) {
+        val prev = background.value
         prefs(ctx).edit().putString(K_BG, value).apply()
         // 动态图片（animphoto:）用的还是同一张 bg.jpg，别把它删了
         if (!value.startsWith(BG_PHOTO) && !value.startsWith(ANIMPHOTO_PREFIX)) BackgroundPhoto.clear(ctx)
         bound = true
         background.value = value
+        // 换了一类背景（预设 ↔ 照片 ↔ 动图/视频 ↔ 动态）就把浓淡拉回 **50%**（用户 2026-10-18：
+        // "浓淡默认为 50"）。上一张图调过 15% 的话，新背景一上来就淡到看不清，用户以为是"没生效"。
+        if (prev != value && kindOf(prev) != kindOf(value)) {
+            prefs(ctx).edit().putFloat(K_BG_ALPHA, 0.5f).apply()
+            bgAlpha.value = 0.5f
+        }
+    }
+
+    /** 背景的"类别"：同类别之间来回换不动浓淡，跨类别才重置 */
+    private fun kindOf(v: String): String = when {
+        v.startsWith(ANIM_PREFIX) -> "anim"
+        v.startsWith(UserMedia.PREFIX) -> "media"
+        v.startsWith(BG_PHOTO) || v.startsWith(ANIMPHOTO_PREFIX) -> "photo"
+        v.startsWith(BG_PRESET_PREFIX) -> "preset"
+        else -> v
     }
 
     /** 档位名 → 界面上的中文（三档写在一处，免得两个页面写法不一致） */

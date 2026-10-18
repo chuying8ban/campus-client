@@ -156,6 +156,11 @@ class BoardBackTest {
         back()
         assertTrue("前提：第一次返回要出提示", exitHintShown())
         rule.mainClock.advanceTimeBy(EXIT_ARMED_MS + 500)
+        // 全套跑的时候这条偶发红（单跑必绿）：手动 clock 推进后必须把 autoAdvance 打开再 waitForIdle，
+        // 否则那次延迟的 LaunchedEffect 可能还没被调度，断言就抢在前面了。
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(100)
         rule.waitForIdle()
         assertFalse("提示条超时后应该自己消失", exitHintShown())
         back()
