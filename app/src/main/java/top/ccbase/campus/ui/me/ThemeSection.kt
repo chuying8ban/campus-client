@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.domain.loadToday
@@ -480,6 +482,10 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
     // 自动添加是否被挡住（小米/HyperOS 常见）；决定"手动步骤"要不要默认摊开
     var showManual by remember { mutableStateOf(!WidgetPin.supported(ctx)) }
+    // 添加结果提示：系统确认框点「添加」后，我们等实例真的出现再报一句"成了"，
+    // 而不是按按钮就假装成功（用户明确要求：加完要有添加成功的提示）。
+    var pinMsg by remember { mutableStateOf<String?>(null) }
+    val pinScope = rememberCoroutineScope()
     val darkBase = palette.bg.luminance() <= 0.5f
 
     // 回到前台时重算"桌面上已有几个"（用户可能刚去桌面加完回来）
@@ -507,9 +513,32 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             Modifier.background(C.violet.copy(alpha = 0.16f), RoundedCornerShape(9.dp))
                 .clickable {
                     // 系统不支持 / 被 ROM 挡掉时，直接把手动步骤摊开，别留一个点了没反应的按钮
+                    val before = WidgetPin.placedCount(ctx)
                     val ok = WidgetPin.requestPin(ctx)
-                    placed = WidgetPin.placedCount(ctx)
-                    if (!ok) showManual = true
+                    placed = before
+                    pinMsg = null
+                    if (!ok) {
+                        showManual = true
+                        pinMsg = "这台手机的桌面不让 App 直接添加，按下面 3 步手动加"
+                    } else {
+                        // 系统弹框 → 用户点「添加」→ 桌面真的多了一个实例，这中间有延迟，
+                        // 所以轮询几次确认，确认到了才提示成功
+                        pinScope.launch {
+                            var waited = 0
+                            while (waited < 6000) {
+                                kotlinx.coroutines.delay(600)
+                                waited += 600
+                                val now = WidgetPin.placedCount(ctx)
+                                if (now > before) {
+                                    placed = now
+                                    pinMsg = "已添加到桌面 ✓"
+                                    return@launch
+                                }
+                            }
+                            placed = WidgetPin.placedCount(ctx)
+                            pinMsg = "没检测到新卡片；如果是你自己取消了，可再点一次"
+                        }
+                    }
                 }
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         ) { Text("添加到桌面", fontSize = 12.sp, color = C.violet) }
@@ -518,6 +547,32 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             if (placed > 0) "桌面上已有 $placed 个" else "桌面上还没有",
             fontSize = 10.5.sp, color = C.txt3,
         )
+    }
+    pinMsg?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(it, fontSize = 11.sp, color = if (it.endsWith("✓")) C.violet else C.amber)
+    }
+    // 小米/HyperOS 需要「桌面快捷方式」权限，否则连小部件列表里都可能找不到入口
+    if (WidgetPin.needsShortcutPermission()) {
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(C.card, RoundedCornerShape(10.dp))
+                .border(1.dp, C.line, RoundedCornerShape(10.dp))
+                .clickable {
+                    if (!WidgetPin.openShortcutPermission(ctx)) {
+                        pinMsg = "没找到权限页，去「设置 → 应用设置 → 校园助手 → 权限管理」允许桌面快捷方式"
+                    }
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("允许「桌面快捷方式」", fontSize = 12.sp, color = C.violet, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(8.dp))
+            Text("小米/HyperOS 需要，点一下去打开开关", fontSize = 10.sp, color = C.txt3, modifier = Modifier.weight(1f))
+            Text("›", fontSize = 15.sp, color = C.txt3)
+        }
     }
     Spacer(Modifier.height(12.dp))
     // 自动加到桌面在国产 ROM 上经常被挡（小米/HyperOS 尤其），所以这里不假设一定成功：

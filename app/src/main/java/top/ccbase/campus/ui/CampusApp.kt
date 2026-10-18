@@ -220,6 +220,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showArtGallery by remember { mutableStateOf(false) }
     // 日程规划：null=不显示；false=列表；true=列表+直接开编辑层（从"＋ 加一条"进来）
     var showPlan by remember { mutableStateOf<Boolean?>(null) }
+    // 动态主题库：null = 不显示；"app" / "widget" = 给谁挑
+    var dynTarget by remember { mutableStateOf<String?>(null) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
     var artKind by remember { mutableStateOf("landscape") }
     var artTarget by remember { mutableStateOf("widget") }
@@ -476,6 +478,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     onClose = {},
                     initialTab = appearanceTab,
                     embedded = true,
+                    onOpenDynLibrary = { dynTarget = it },
                     onOpenGallery = { kind, target ->
                         artKind = kind
                         artTarget = target
@@ -553,6 +556,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onClose = { showPlan = null },
             startWithEditor = withEditor,
         )
+    }
+    dynTarget?.let { t ->
+        top.ccbase.campus.ui.me.DynLibraryScreen(target = t, onClose = { dynTarget = null })
     }
     if (showArtGallery) {
         top.ccbase.campus.ui.me.ArtGalleryScreen(

@@ -61,6 +61,8 @@ import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
 import top.ccbase.campus.ui.theme.DynKind
 import top.ccbase.campus.ui.theme.ANIM_PREFIX
+import top.ccbase.campus.ui.theme.parseAnim
+import top.ccbase.campus.ui.theme.hint
 import top.ccbase.campus.ui.theme.DynamicBackground
 import top.ccbase.campus.ui.theme.presetById
 import top.ccbase.campus.widget.ArtRepo
@@ -94,6 +96,8 @@ fun AppearanceScreen(
     initialTab: Int = 0,
     // (kind, target)：kind = photo/illustration，target = background/widget
     onOpenGallery: (String, String) -> Unit = { _, _ -> },
+    /** 打开动态主题库；参数 = "app" / "widget" */
+    onOpenDynLibrary: (String) -> Unit = {},
     /** 作为底部导航的一格时传 true：不画标题和「关闭」（那两样只在整屏浮层里有意义） */
     embedded: Boolean = false,
 ) {
@@ -146,9 +150,13 @@ fun AppearanceScreen(
                 .padding(top = 18.dp, bottom = 28.dp),
         ) {
             if (tab == 0) {
-                AppThemePane(onOpenGallery, onOpenPresets = { showPresetBoard = true })
+                AppThemePane(
+                    onOpenGallery = onOpenGallery,
+                    onOpenPresets = { showPresetBoard = true },
+                    onOpenDyn = { onOpenDynLibrary("app") },
+                )
             } else {
-                WidgetPane(onOpenGallery)
+                WidgetPane(onOpenGallery, onOpenDyn = { onOpenDynLibrary("widget") })
             }
         }
     }
@@ -188,6 +196,7 @@ private fun PaneTab(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun AppThemePane(
     onOpenGallery: (String, String) -> Unit,
     onOpenPresets: () -> Unit = {},
+    onOpenDyn: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -262,6 +271,22 @@ private fun AppThemePane(
             }
         }
         Spacer(Modifier.height(10.dp))
+    }
+
+    // 库里 72 款（12 种动效 × 6 个色系），能搜 —— 上面四张只是"最常见的几种"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .clickable { onOpenDyn() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("动态主题库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(8.dp))
+        Text("72 款 · 可搜（雪/雨/星/粉…）", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+        Text("›", color = C.txt3, fontSize = 16.sp)
     }
 
     // 图片浓淡：用户会嫌背景图太抢眼、字不好读。只作用于自选照片，不动内置渐变。
@@ -349,11 +374,28 @@ private fun AppThemePane(
 // ────────────────────────────── 桌面小组件 ──────────────────────────────
 
 @Composable
-private fun WidgetPane(onOpenGallery: (String, String) -> Unit) {
+private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () -> Unit = {}) {
     Text(
         "这里改的只是桌面上那张卡的配色。App 里看到什么颜色跟它无关 —— 两边各存各的。",
         color = C.txt2, fontSize = 12.sp, lineHeight = 18.sp,
     )
+    // 小组件的动态主题：真·会动（帧轮播，见 WidgetFrameService），和 App 那边同一套画面
+    Spacer(Modifier.height(12.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .clickable { onOpenDyn() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("动态主题库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(8.dp))
+        Text("72 款会动的小组件背景", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+        Text("›", color = C.txt3, fontSize = 16.sp)
+    }
+
     Spacer(Modifier.height(16.dp))
     WidgetSection(onOpenGallery = { onOpenGallery("landscape", "widget") })
 }
@@ -542,10 +584,10 @@ private fun PhotoEntryCard(
 @Composable
 private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
     val preset = if (bg.startsWith(BG_PRESET_PREFIX)) presetById(bg.removePrefix(BG_PRESET_PREFIX)) else null
-    val anim = if (bg.startsWith(ANIM_PREFIX)) DynKind.of(bg.removePrefix(ANIM_PREFIX)) else null
+    val anim = parseAnim(bg)
     val name = when {
         preset != null -> preset.name
-        anim != null -> "${anim.label}（动态）"
+        anim != null -> "${anim.first.label}（动态）"
         bg.startsWith(AppearanceStore.BG_PHOTO) -> "自选图片"
         else -> "纯色"
     }
@@ -566,7 +608,7 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
                 .border(1.dp, C.lineHi, RoundedCornerShape(9.dp)),
         ) {
             if (anim != null) {
-                DynamicBackground(anim, C.violet, Modifier.fillMaxSize())
+                DynamicBackground(anim.first, Color(anim.second), Modifier.fillMaxSize())
             } else if (preset != null) {
                 BgPresetSurface(preset, dark, Modifier.fillMaxSize())
             } else {

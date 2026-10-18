@@ -35,13 +35,40 @@ object WidgetPin {
     fun requestPin(ctx: Context): Boolean {
         if (!supported(ctx)) return false
         return runCatching {
-            @Suppress("DEPRECATION")
             val success = PendingIntent.getBroadcast(
-                ctx, 0, android.content.Intent(ctx, TodayWidgetProvider::class.java),
+                ctx, 1,
+                android.content.Intent(ctx, TodayWidgetProvider::class.java).setAction(TodayWidgetProvider.ACTION_PINNED),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             AppWidgetManager.getInstance(ctx)
                 .requestPinAppWidget(component(ctx), null, success)
         }.getOrDefault(false)
+    }
+
+    /**
+     * 国产 ROM 的"桌面快捷方式/创建桌面快捷方式"权限页。小米（含 Redmi/POCO）是 MIUI 自己那一套，
+     * 不去系统设置里翻，直接把那个页面拉到面前 —— 用户只要点一下开关。
+     *
+     * 返回 false = 这台手机没有这个页面，调用方应该退到"应用信息"。
+     */
+    fun needsShortcutPermission(): Boolean {
+        val maker = Build.MANUFACTURER.lowercase()
+        return maker.contains("xiaomi") || maker.contains("redmi") || maker.contains("poco")
+    }
+
+    fun openShortcutPermission(ctx: Context): Boolean {
+        val maker = Build.MANUFACTURER.lowercase()
+        if (!maker.contains("xiaomi") && !maker.contains("redmi") && !maker.contains("poco")) {
+            return false
+        }
+        val intent = android.content.Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+            setClassName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.PermissionsEditorActivity",
+            )
+            putExtra("extra_pkgname", ctx.packageName)
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return runCatching { ctx.startActivity(intent); true }.getOrDefault(false)
     }
 }

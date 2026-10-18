@@ -57,6 +57,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        // 用户通过系统弹框把卡片钉到桌面成功：给他一句明确的"成了"，并立刻渲染一次
+        // （刚钉上去的实例还没被 onUpdate 覆盖到，会短暂显示默认样式）。
+        if (intent.action == ACTION_PINNED) {
+            android.widget.Toast
+                .makeText(context, "小组件已添加到桌面", android.widget.Toast.LENGTH_SHORT)
+                .show()
+            refresh(context)
+        }
         if (intent.action == ACTION_REFRESH) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, TodayWidgetProvider::class.java))
@@ -69,6 +77,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "top.ccbase.campus.WIDGET_REFRESH"
+
+        /** requestPinAppWidget 的 successCallback 走这个 action（钉到桌面成功那一刻） */
+        const val ACTION_PINNED = "top.ccbase.campus.WIDGET_PINNED"
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250
         private const val FALLBACK_H_DP = 110
@@ -104,11 +115,44 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
          */
         private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int) {
-            val theme = WidgetThemes.of(WidgetThemes.spec(ctx))
+            val spec = WidgetThemes.spec(ctx)
+            val theme = WidgetThemes.of(spec)
+
+            // 动态主题：帧轮播铺在最底层，静态底图让位（两者只显示一个，别叠着）
+            val dyn = WidgetDyn.parse(spec)
+            if (dyn != null) {
+                runCatching {
+                    rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
+                    rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                    rv.setViewVisibility(R.id.widget_scrim, View.GONE)
+                    val fi = Intent(ctx, WidgetFrameService::class.java)
+                        .putExtra("kind", dyn.first.id)
+                        .putExtra("accent", dyn.second)
+                        .putExtra("w", wPx)
+                        .putExtra("h", hPx)
+                    rv.setRemoteAdapter(R.id.widget_flip, fi)
+                    rv.setInt(R.id.widget_flip, "setFlipInterval", 90)
+                    rv.setBoolean(R.id.widget_flip, "setAutoStart", true)
+                }.onFailure {
+                    // 某些桌面不认 flipper：退回一张静态帧，至少不是空卡
+                    android.util.Log.w("TodayWidget", "动态主题加载失败，退回静态", it)
+                    val bmp = WidgetArt.background(
+                        wPx, hPx, 0xFF0B0913.toInt(), dyn.second, false,
+                        WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density),
+                    )
+                    rv.setViewVisibility(R.id.widget_flip, View.GONE)
+                    rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                    rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
+                }
+            } else {
+                rv.setViewVisibility(R.id.widget_flip, View.GONE)
+            }
             val art = WidgetThemes.imageBitmap(ctx, theme)
             val density = ctx.resources.displayMetrics.density
 
-            if (art != null) {
+            if (dyn != null) {
+                // 已经用帧轮播铺底了，不要再盖静态图
+            } else if (art != null) {
                 // 图片主题：图缩放铺满 + 压一层暗蒙版，保证字读得清
                 rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
                 rv.setImageViewBitmap(R.id.widget_bg_img, scaleToFill(art, wPx, hPx))

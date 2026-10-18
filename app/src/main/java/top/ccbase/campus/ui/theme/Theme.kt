@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -311,8 +312,9 @@ fun CampusTheme(content: @Composable () -> Unit) {
 internal fun BackgroundLayer(bg: String, p: CampusPalette) {
     // 动态主题先拦一道：它是"自己会动的画面"，不走预设/照片那两套静态逻辑
     if (bg.startsWith(ANIM_PREFIX)) {
-        val kind = DynKind.of(bg.removePrefix(ANIM_PREFIX)) ?: DynKind.AURORA
-        DynamicBackground(kind, p.violet, Modifier.fillMaxSize())
+        // spec 里带着色：同一动效可以配不同色系，光看 kind 不够
+        val (kind, argb) = parseAnim(bg) ?: (DynKind.AURORA to p.violet.toArgb())
+        DynamicBackground(kind, Color(argb), Modifier.fillMaxSize())
         return
     }
     when {
@@ -449,7 +451,7 @@ object AppearanceStore {
      * 背景图的不透明度（0.15~1.0）。用户会想把图调淡一点、字更好读 —— 这是"自由调"。
      * 只作用于背景图那一层，不影响渐变预设。
      */
-    val bgAlpha = mutableStateOf(1f)
+    val bgAlpha = mutableStateOf(0.5f)
 
     /** 主题/强调色规格（`default` / `preset:<id>` / `diy:<hue>:<tint>` / `wallpaper`） */
     val accent = mutableStateOf(AccentSpec.DEFAULT)
@@ -466,7 +468,8 @@ object AppearanceStore {
         bgAlpha.value = bgAlphaOf(ctx)
     }
 
-    fun bgAlphaOf(ctx: Context): Float = prefs(ctx).getFloat(K_BG_ALPHA, 1f).coerceIn(0.15f, 1f)
+    // 默认 50%（2026-10-18 用户："图片浓淡默认改成百分之五十"）：满图的字太糊，太淡又白设了
+    fun bgAlphaOf(ctx: Context): Float = prefs(ctx).getFloat(K_BG_ALPHA, 0.5f).coerceIn(0.15f, 1f)
 
     fun setBgAlpha(ctx: Context, v: Float) {
         val a = v.coerceIn(0.15f, 1f)

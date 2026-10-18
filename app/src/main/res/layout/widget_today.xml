@@ -9,6 +9,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- 动态主题的帧轮播（RemoteViews 里唯一能自己动的东西就是 AdapterViewFlipper）。
+         静态主题时它是 gone，底图走下面的 ImageView。 -->
+    <AdapterViewFlipper
+        android:id="@+id/widget_flip"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:autoStart="true"
+        android:flipInterval="90"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/widget_bg_img"
         android:layout_width="match_parent"
