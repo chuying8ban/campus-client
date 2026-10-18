@@ -127,6 +127,9 @@ fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}) {
 
         item { Head(v) }
 
+        // 邀请卡放最上面：用户两次反馈"App 里没有那个提示"，页尾等于没放（2026-10-18）
+        item { WidgetInviteTop() }
+
         item { SectionTitle("今天", "${v.classes.size} 节课 · ${v.selfstudy.size} 项自习") }
 
         // 晚自习被假期规则拿掉时要**说出来**，别让它静默消失 —— 那看着像 bug。
@@ -150,7 +153,7 @@ fun TodayScreen(db: CampusDb, onOpenExam: () -> Unit = {}) {
 
         // 页尾两块：考试倒计时（有才出现）、把小组件放上桌面的邀请（桌面上还没有才出现）
         item { ExamStrip(db, onOpenExam) }
-        item { WidgetInvite() }
+        item { WidgetInviteBottom() }
 
 
     }

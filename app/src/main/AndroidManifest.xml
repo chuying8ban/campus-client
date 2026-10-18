@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <!-- 勿扰/模式访问：只声明权限是不够的。系统那份「模式访问权限」列表里**只显示
+         声明了 BIND_NOTIFICATION_POLICY_ACCESS_SERVICE 服务的应用** ——
+         少了下面那段 <service>，用户点「去授权」看到的列表里根本没有校园助手
+         （2026-10-18 用户实测截图：模式访问权限里找不到校园助手 → 自动静音永远不生效）。 -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- 电池白名单：声明了它才能用 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 直接弹
@@ -35,6 +40,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- 【勿扰（模式）访问】系统「模式访问权限」列表靠这个服务把应用列出来。
+             permission + intent-filter 两个都必须有；服务本身不做事，只作为"声明存在"。
+             没有它：用户进列表找不到校园助手，自动静音永远显示"缺：勿扰访问"。 -->
+        <service
+            android:name=".alarm.PolicyAccessService"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_POLICY_ACCESS_SERVICE">
+            <intent-filter>
+                <action android:name="android.app.action.NOTIFICATION_POLICY_ACCESS_GRANTED_CHANGED" />
+            </intent-filter>
+        </service>
+
         <!-- 闹钟到点由系统唤醒，无需 App 在运行 -->
         <receiver
             android:name=".alarm.NudgeReceiver"

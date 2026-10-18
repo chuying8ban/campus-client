@@ -79,36 +79,61 @@ fun ExamStrip(db: CampusDb, onOpen: () -> Unit) {
  * 点了直接弹系统的"添加到主屏幕"，而不是教用户长按桌面去找。
  * 系统不支持时改成文字说明（国产 ROM 常关掉这个能力），按钮不出现 —— 不给点了没反应的按钮。
  */
+/**
+ * 顶部邀请卡：**只在桌面上还没有小组件时出现**，放在今天页最上面（核对细带下面），
+ * 不用滚到底就能看见 —— 2026-10-18 用户两次反馈"App 里没有那个提示"，
+ * 说明放在页尾等于没有。
+ */
 @Composable
-fun WidgetInvite() {
+fun WidgetInviteTop() {
     val ctx = LocalContext.current
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
-    var pinned by remember { mutableStateOf(false) }
-    var hint by remember { mutableStateOf<String?>(null) }
-    val supported = remember { WidgetPin.supported(ctx) }
-
-    // 从桌面回来 / 系统确认框回来后重算：用户可能已经加上了
     LifecycleResumeEffect(Unit) {
         placed = WidgetPin.placedCount(ctx)
         onPauseOrDispose { }
     }
-    // 2026-10-18：以前"桌面上已有实例就整张卡片不出现"，结果 MIUI 上实例加进去了但渲染成空白时，
-    // 用户既看不到小组件、也找不到这张邀请卡 —— 两头空。现在卡片**始终在**，只改文案和按钮。
+    if (placed > 0) return
+    WidgetInviteCard(placed = 0, // 0 = 还没加过
+        onPinned = { placed = WidgetPin.placedCount(ctx) })
+}
+
+/** 页尾状态行：已经加过时只留一句"桌面上已有 N 个"，不重复发邀请。 */
+@Composable
+fun WidgetInviteBottom() {
+    val ctx = LocalContext.current
+    var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
+    LifecycleResumeEffect(Unit) {
+        placed = WidgetPin.placedCount(ctx)
+        onPauseOrDispose { }
+    }
+    if (placed == 0) return
+    Row(
+        Modifier.fillMaxWidth().padding(top = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("桌面上的「今日课表」已有 $placed 个", fontSize = 11.sp, color = C.txt3)
+        Spacer(Modifier.weight(1f))
+        Text("换配色 ›", fontSize = 11.sp, color = C.amber)
+    }
+}
+
+@Composable
+private fun WidgetInviteCard(placed: Int, onPinned: () -> Unit) {
+    val ctx = LocalContext.current
+    var pinned by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf<String?>(null) }
+    val supported = remember { WidgetPin.supported(ctx) }
 
     Column(
-        Modifier.fillMaxWidth().padding(top = 14.dp)
+        Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp)
             .border(1.dp, C.line, RoundedCornerShape(14.dp))
             .background(C.bgSoft, RoundedCornerShape(14.dp))
             .padding(14.dp),
     ) {
-        Text(
-            if (placed > 0) "桌面上的「今日课表」" else "把「今天的课」放到桌面",
-            fontSize = 13.sp, fontWeight = FontWeight.Medium, color = C.txt,
-        )
+        Text("把「今天的课」放到桌面", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = C.txt)
         Spacer(Modifier.height(5.dp))
         Text(
-            if (placed > 0) "已经有 $placed 个。想换颜色/换成图片背景，去「我的 → 外观 → 桌面小组件」。"
-            else "不用打开 App：桌面上那张小卡片直接显示正在上 / 下一节课和教室，每半小时自己刷新。",
+            "不用打开 App：桌面上那张小卡片直接显示正在上 / 下一节课和教室，每半小时自己刷新。",
             fontSize = 11.sp, lineHeight = 18.sp, color = C.txt3,
         )
         Spacer(Modifier.height(12.dp))
@@ -119,7 +144,8 @@ fun WidgetInvite() {
                     .clickable {
                         val ok = WidgetPin.requestPin(ctx)
                         pinned = ok
-                        hint = if (ok) "系统会让你点一下「添加」——加完就一直在桌面了。" else null
+                        onPinned()
+                        hint = if (ok) "系统会让你点一下「添加」；没弹出来就长按桌面空白处手动加。" else null
                     },
                 contentAlignment = Alignment.Center,
             ) {
