@@ -41,6 +41,43 @@ class WidgetFramesTest {
         assertEquals(255, Color.alpha(f.getPixel(f.width / 2, f.height / 2)))
     }
 
+    /**
+     * 2026-10-18 用户截图"没有做到完全圆角"：真机上左边大圆角、右边直角竖切。
+     * 那是 `centerCrop` 放大后裁掉的；这里先钉住**位图本身四个角都是透明的**，
+     * 再配合 XML 的 fitXY + 按视图尺寸渲染，保证 1:1 铺进去不会被裁。
+     */
+    @Test
+    fun `四个角都必须透明_一个直角都不许有`() {
+        val frames = WidgetFrames.forSpec(
+            ctx, WidgetDyn.spec(DynPainter.Kind.BOKEH, 0xFFA06BFF.toInt()), 600, 300,
+        )!!
+        val f = frames[0]
+        val pts = listOf(
+            0 to 0,
+            f.width - 1 to 0,
+            0 to f.height - 1,
+            f.width - 1 to f.height - 1,
+        )
+        pts.forEach { (x, y) ->
+            assertEquals("角($x,$y)不是透明的，桌面上会露出直角", 0, Color.alpha(f.getPixel(x, y)))
+        }
+    }
+
+    @Test
+    fun `照片蒙版画在圆角里面_不会把角重新填成直角`() {
+        val src = Bitmap.createBitmap(400, 200, Bitmap.Config.ARGB_8888)
+        Canvas(src).drawColor(Color.rgb(90, 60, 120))
+        val out = WidgetArt.roundedWithScrim(src, 40f, 0x66000000.toInt(), 0x99000000.toInt())
+        assertEquals(0, Color.alpha(out.getPixel(0, 0)))
+        assertEquals(0, Color.alpha(out.getPixel(out.width - 1, out.height - 1)))
+        // 中心得压暗，但没到全黑
+        val center = Color.alpha(out.getPixel(out.width / 2, out.height / 2))
+        assertEquals(255, center)
+        val orig = 90 * 0x10000 + 60 * 0x100 + 120
+        val now = out.getPixel(out.width / 2, out.height / 2) and 0xFFFFFF
+        assertTrue("蒙版没压上去：$now", now < orig)
+    }
+
     @Test
     fun `每帧都不一样_否则桌面上是静止图`() {
         val frames = WidgetFrames.forSpec(

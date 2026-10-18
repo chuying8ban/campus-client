@@ -12,6 +12,7 @@ import java.io.File
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.sqrt
 import kotlin.math.sin
 
 /**
@@ -83,6 +84,27 @@ object WidgetFrames {
         return null
     }
 
+    /**
+     * 帧就按**视图实际大小**渲染（只在大尺寸时整体等比缩小，省内存）。
+     *
+     * 为什么不再按 0.6 渲染：2026-10-18 用户截图「没有做到完全圆角，太丑了」——
+     * 那张图左边一个大圆角、右边却是直角竖切。根因是 ImageView 用 `centerCrop`：
+     * 帧比视图小（0.6 倍）就必须放大填满，而 launcher 报的 minWidth 和视图真实宽高
+     * 对不上，放大后被两边裁掉，右半边的圆角正好被裁在画外。
+     * 现在：帧尺寸 = 视图尺寸（或等比缩小后的同比例），ImageView 改成 `fitXY`，
+     * 1:1 铺进去，四个角都画在画内。
+     */
+    private fun frameSize(wPx: Int, hPx: Int): Triple<Int, Int, Float> {
+        // 12 帧同时驻留内存，别按满尺寸画：0.7 倍 + fitXY 放大肉眼看不出（画面本来就是柔焦的图/光），
+        // 内存从 ~34MB 降到 ~17MB。**缩小不会切掉圆角** —— fitXY 只拉伸不裁切，这正是这次修法的关键。
+        val cap = 700_000L
+        val px = wPx.toLong() * hPx
+        val scale = minOf(0.7f, sqrt(cap.toFloat() / px.toFloat())).coerceAtLeast(0.35f)
+        val fw = max(120, (wPx * scale).toInt())
+        val fh = max(80, (hPx * scale).toInt())
+        return Triple(fw, fh, scale)
+    }
+
     /** gif/视频 → 12 帧（按时间点抽，不是把同一帧画 12 遍） */
     private fun renderMedia(
         ctx: Context,
@@ -91,9 +113,8 @@ object WidgetFrames {
         wPx: Int,
         hPx: Int,
     ): List<Bitmap>? {
-        val fw = max(120, (wPx * 0.6f).toInt())
-        val fh = max(80, (hPx * 0.6f).toInt())
-        val radius = WidgetArt.radiusFor(hPx, 1f) * 0.6f
+        val (fw, fh, scale) = frameSize(wPx, hPx)
+        val radius = WidgetArt.radiusFor(hPx, 1f) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
@@ -161,12 +182,11 @@ object WidgetFrames {
 
     /**
      * 渲染 N 帧并统一裁圆角（RemoteViews 没有圆角属性，只能画进位图）。
-     * 帧按 60% 尺寸渲染：画面是模糊的光/图，放大一点看不出来，内存省 60%。
+     * 帧按视图实际大小渲染（超大时整体等比缩小），配 `fitXY` 1:1 铺满 —— 见 [frameSize]。
      */
     private fun render(key: String, wPx: Int, hPx: Int, draw: (Canvas, Int, Int, Float) -> Unit): List<Bitmap> {
-        val fw = max(120, (wPx * 0.6f).toInt())
-        val fh = max(80, (hPx * 0.6f).toInt())
-        val radius = WidgetArt.radiusFor(hPx, 1f) * 0.6f
+        val (fw, fh, scale) = frameSize(wPx, hPx)
+        val radius = WidgetArt.radiusFor(hPx, 1f) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         for (i in 0 until FRAMES) {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)

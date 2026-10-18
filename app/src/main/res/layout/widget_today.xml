@@ -27,73 +27,73 @@
             android:id="@+id/f0"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f1"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f2"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f3"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f4"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f5"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f6"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f7"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f8"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f9"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f10"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
         <ImageView
             android:id="@+id/f11"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scaleType="centerCrop"
+            android:scaleType="fitXY"
             android:contentDescription="@null" />
     </ViewFlipper>
 
@@ -101,7 +101,7 @@
         android:id="@+id/widget_bg_img"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerCrop"
+        android:scaleType="fitXY"
         android:contentDescription="@null" />
 
     <ImageView

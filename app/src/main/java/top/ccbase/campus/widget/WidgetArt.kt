@@ -92,7 +92,30 @@ object WidgetArt {
      * 为什么必须做：桌面上的小组件是 `RemoteViews` + `ImageView`，没有任何"圆角"属性可用
      * （`clipToOutline` / `ShapeableImageView` 都不在允许列表里）。所以圆角只能**画进位图**里，
      * 位图四角必须是透明的 —— 否则桌面上就是一块直角矩形（2026-10-18 用户截图就是这个）。
+     *
+     * 圆角位图 + **压在里面的暗蒙版**（照片主题用）。
+     *
+     * 蒙版不能交给布局里那层 `widget_scrim`：那是一整块矩形 View，盖上去正好把四个圆角
+     * 重新填成直角（2026-10-18 用户："没有做到完全圆角"）。所以画进位图、跟着圆角一起裁。
      */
+    fun roundedWithScrim(src: Bitmap, radiusPx: Float, topAlpha: Int, bottomAlpha: Int): Bitmap {
+        val out = rounded(src, radiusPx)
+        val c = Canvas(out)
+        val path = android.graphics.Path().apply {
+            addRoundRect(RectF(0f, 0f, out.width.toFloat(), out.height.toFloat()), radiusPx, radiusPx, android.graphics.Path.Direction.CW)
+        }
+        c.save()
+        c.clipPath(path)
+        val paint = Paint()
+        paint.shader = LinearGradient(
+            0f, 0f, 0f, out.height.toFloat(),
+            intArrayOf(topAlpha, bottomAlpha), null, Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, out.width.toFloat(), out.height.toFloat(), paint)
+        c.restore()
+        return out
+    }
+
     fun rounded(src: Bitmap, radiusPx: Float): Bitmap {
         if (radiusPx <= 0f) return src
         val key = "r" + System.identityHashCode(src) + radiusPx.toInt()

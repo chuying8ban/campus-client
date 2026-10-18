@@ -149,11 +149,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 图片主题：图缩放铺满 + 压一层暗蒙版，保证字读得清
                 rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
                 // 圆角必须画进位图：RemoteViews 里的 ImageView 没有圆角属性（用户截图：直角）
+                // 蒙版直接画进圆角位图：布局里那层矩形 scrim 会盖住圆角（2026-10-18 "没有做到完全圆角"）
                 rv.setImageViewBitmap(
                     R.id.widget_bg_img,
-                    WidgetArt.rounded(scaleToFill(art, wPx, hPx), WidgetArt.radiusFor(hPx, density)),
+                    WidgetArt.roundedWithScrim(
+                        scaleToFill(art, wPx, hPx),
+                        WidgetArt.radiusFor(hPx, density),
+                        topAlpha = 0x66000000.toInt(),
+                        bottomAlpha = 0x99000000.toInt(),
+                    ),
                 )
-                rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
+                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
             } else {
                 // 纯色 / DIY：现画一张渐变底，比原来的"一整块纯色"有质感得多
                 val bmp = WidgetArt.background(
