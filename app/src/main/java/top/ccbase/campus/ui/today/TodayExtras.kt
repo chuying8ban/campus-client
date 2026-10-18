@@ -92,7 +92,8 @@ fun WidgetInvite() {
         placed = WidgetPin.placedCount(ctx)
         onPauseOrDispose { }
     }
-    if (placed > 0) return
+    // 2026-10-18：以前"桌面上已有实例就整张卡片不出现"，结果 MIUI 上实例加进去了但渲染成空白时，
+    // 用户既看不到小组件、也找不到这张邀请卡 —— 两头空。现在卡片**始终在**，只改文案和按钮。
 
     Column(
         Modifier.fillMaxWidth().padding(top = 14.dp)
@@ -100,10 +101,14 @@ fun WidgetInvite() {
             .background(C.bgSoft, RoundedCornerShape(14.dp))
             .padding(14.dp),
     ) {
-        Text("把「今天的课」放到桌面", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = C.txt)
+        Text(
+            if (placed > 0) "桌面上的「今日课表」" else "把「今天的课」放到桌面",
+            fontSize = 13.sp, fontWeight = FontWeight.Medium, color = C.txt,
+        )
         Spacer(Modifier.height(5.dp))
         Text(
-            "不用打开 App：桌面上那张小卡片直接显示正在上 / 下一节课和教室，每半小时自己刷新。",
+            if (placed > 0) "已经有 $placed 个。想换颜色/换成图片背景，去「我的 → 外观 → 桌面小组件」。"
+            else "不用打开 App：桌面上那张小卡片直接显示正在上 / 下一节课和教室，每半小时自己刷新。",
             fontSize = 11.sp, lineHeight = 18.sp, color = C.txt3,
         )
         Spacer(Modifier.height(12.dp))
@@ -119,7 +124,7 @@ fun WidgetInvite() {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    if (pinned) "已发送添加请求 · 再点一次可再加一个" else "添加到主屏幕",
+                    if (pinned) "已发送 · 没看到就长按桌面手动加" else "添加到主屏幕",
                     fontSize = 13.sp, color = C.amber,
                 )
             }

@@ -60,10 +60,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
          */
         private fun applyTheme(ctx: Context, rv: RemoteViews) {
             val theme = WidgetThemes.of(WidgetThemes.spec(ctx))
-            if (theme.bgRes != 0) {
-                rv.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
+            val art = WidgetThemes.imageBitmap(ctx, theme)
+            if (art != null) {
+                // 图片主题：图铺满 + 压一层暗蒙版，文字用偏亮的固定色（见 WidgetThemes 里的 IMG_*）
+                rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                rv.setImageViewBitmap(R.id.widget_bg_img, art)
+                rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
+                rv.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg)
             } else {
-                rv.setInt(R.id.widget_root, "setBackgroundColor", theme.bgColor)
+                rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
+                if (theme.bgRes != 0) {
+                    rv.setInt(R.id.widget_root, "setBackgroundResource", theme.bgRes)
+                } else {
+                    rv.setInt(R.id.widget_root, "setBackgroundColor", theme.bgColor)
+                }
             }
             rv.setTextColor(R.id.widget_head, theme.headColor)
             rv.setTextColor(R.id.widget_date, theme.dimColor)

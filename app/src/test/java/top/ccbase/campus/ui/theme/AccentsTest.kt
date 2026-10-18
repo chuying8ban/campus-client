@@ -51,13 +51,6 @@ class AccentsTest {
     }
 
     @Test
-    fun `壁纸没有色相时退回底板`() {
-        assertTrue(paletteWithAccent(DarkPalette, AccentSpec.WALLPAPER, null) === DarkPalette)
-        val withHue = paletteWithAccent(DarkPalette, AccentSpec.WALLPAPER, 200f)
-        assertNotEquals(DarkPalette.cyan.toArgb(), withHue.cyan.toArgb())
-    }
-
-    @Test
     fun `转色相不改明度`() {
         val c = Color(0xFFA06BFF)
         val r = rotateHue(c, 120f)

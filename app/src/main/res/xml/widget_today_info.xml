@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 4×2 起步，可横向/纵向拉伸；半小时自动刷一次（系统下限就是 30 分钟）。
-     课表导入成功后另有一次即时刷新，见 TodayWidgetProvider.refresh()。 -->
+     课表导入成功后另有一次即时刷新，见 TodayWidgetProvider.refresh()。
+
+     2026-10-18 用户反馈「小控件没显示出来」后加固：minWidth/minHeight 从 250×120 降到 200×100
+     —— MIUI 按 dp/70 算格子，120dp 是两格半，桌面没有连续空位时添加会**静默失败**；
+     另补 minResize/maxResize，部分 launcher 缺这些字段会拒绝实例化。 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="120dp"
+    android:minWidth="200dp"
+    android:minHeight="100dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="70dp"
+    android:maxResizeWidth="400dp"
+    android:maxResizeHeight="240dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="1800000"

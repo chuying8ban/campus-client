@@ -31,6 +31,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         askNotificationsOnce()
+        // 每次打开 App 顺手把桌面小组件重画一次：一是换了主题/图片要立刻生效，
+        // 二是 MIUI 上出现过"实例在、但内容空白"的情况，进一次 App 就能自愈。
+        runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(this) }
         setContent {
             // 系统栏（状态栏/导航栏）跟着主题走 —— 三档的解析只在 resolvePalette 一处，
             // 这里读同一个值，免得"内容浅色、状态栏还是深色"这种两套判断走偏的观感。

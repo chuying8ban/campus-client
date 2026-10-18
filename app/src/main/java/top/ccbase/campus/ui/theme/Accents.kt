@@ -43,7 +43,6 @@ fun accentPreset(id: String): AccentPreset? = ACCENT_PRESETS.firstOrNull { it.id
 /** 主题规格的字符串形式，存在 SharedPreferences 里（`AppearanceStore` 负责读写）。 */
 object AccentSpec {
     const val DEFAULT = "default"
-    const val WALLPAPER = "wallpaper"
 
     fun preset(id: String) = "preset:$id"
     fun diy(hue: Float, tint: Float) = "diy:${hue.toInt()}:${tint.coerceIn(0f, 1f)}"
@@ -106,15 +105,14 @@ fun tintedBg(bg: Color, hue: Float, amount: Float, dark: Boolean): Color {
 }
 
 /**
- * 把"主题规格"落成一套色板。`wallpaperHue` 只在 spec=wallpaper 时用得上。
+ * 把"主题规格"落成一套色板。
  * 规格里出现不认识的 id（老版本存下的、或手工写坏）→ 退回默认，**绝不抛异常**
  * —— 外观设置崩了会让整个 App 起不来。
  */
-fun paletteWithAccent(base: CampusPalette, spec: String, wallpaperHue: Float? = null): CampusPalette {
+fun paletteWithAccent(base: CampusPalette, spec: String): CampusPalette {
     val dark = base.bg.luminance() <= 0.5f
     val (hue, tint) = when {
         spec == AccentSpec.DEFAULT || spec.isBlank() -> return base
-        spec == AccentSpec.WALLPAPER -> (wallpaperHue ?: return base) to 1f
         AccentSpec.isDiy(spec) -> (AccentSpec.diyHue(spec) ?: return base) to AccentSpec.diyTint(spec)
         AccentSpec.presetId(spec) != null -> {
             val p = accentPreset(AccentSpec.presetId(spec)!!) ?: return base
@@ -132,27 +130,4 @@ fun paletteWithAccent(base: CampusPalette, spec: String, wallpaperHue: Float? = 
         red = rotateHue(base.red, hue),
         green = rotateHue(base.green, hue),
     )
-}
-
-/**
- * 从手机壁纸里取一个色相。
- *
- * 只能取到**颜色**，取不到壁纸图片本身（读图片要存储权限，而且那是用户隐私）——
- * 但这已经够了：Material You 走的是同一套东西，它也只是拿壁纸推一套调色板。
- * API 27 以下、或系统不给（部分 ROM）→ null，界面据此把「跟随壁纸」置灰。
- */
-object WallpaperAccent {
-    fun supported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
-
-    fun hueOf(ctx: Context): Float? {
-        if (!supported()) return null
-        return runCatching {
-            val wm = androidx.core.content.ContextCompat.getSystemService(ctx, android.app.WallpaperManager::class.java)
-            val colors = wm?.getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM) ?: return null
-            val primary = colors.primaryColor ?: return null
-            val hsv = FloatArray(3)
-            android.graphics.Color.colorToHSV(primary.toArgb(), hsv)
-            hsv[0]
-        }.getOrNull()
-    }
 }

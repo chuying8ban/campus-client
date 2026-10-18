@@ -20,6 +20,26 @@ class WidgetThemesTest {
     }
 
     @Test
+    fun `图片主题能被还原 且字色偏亮`() {
+        val t = WidgetThemes.of("img_aurora")
+        assertEquals("img_aurora", t.id)
+        assertTrue(t.hasImage)
+        assertEquals(0xFFF4F1FA.toInt(), t.headColor)
+        // 用户上传那张即使文件还没落盘，规格也要能还原成"图片主题"
+        val u = WidgetThemes.of(WidgetThemes.USER_IMAGE_SPEC)
+        assertTrue(u.userImage)
+    }
+
+    @Test
+    fun `没有图片文件时 imageBitmap 返回 null 而不是崩`() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        WidgetThemes.userImageFile(ctx).delete()
+        assertEquals(null, WidgetThemes.imageBitmap(ctx, WidgetThemes.of(WidgetThemes.USER_IMAGE_SPEC)))
+        // 纯色主题永远没有图
+        assertEquals(null, WidgetThemes.imageBitmap(ctx, WidgetThemes.of("default")))
+    }
+
+    @Test
     fun `预置 id 能被还原`() {
         assertEquals("light", WidgetThemes.of("light").id)
         assertEquals("sand", WidgetThemes.of("sand").id)
