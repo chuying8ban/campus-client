@@ -473,18 +473,26 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () ->
 /**
  * 小组件自检（2026-10-19 用户："桌面小控件依旧不能正常显示主题，你好好修一修"）。
  *
- * 桌面那张卡是 launcher 画的，我们在 App 里看不到它**实际收到的画面**；光看桌面截图
- * 分不清是"我们没画出来"还是"launcher 把它丢了"。这里把**同一份 RemoteViews** 在 App 里
- * apply 一遍给你看：图在这儿有、桌面没有 ⇒ launcher 丢的；这儿也没有 ⇒ 我的锅。
- * 顺便把规格和底图尺寸写出来，一眼能对。
+ * 桌面那张卡是 launcher 画的，App 里看不到它**实际收到的画面**；光看桌面截图分不清
+ * "我们没画出来"还是"launcher 把它丢了"。这里把**同一份 RemoteViews** 在 App 里 apply 一遍。
+ *
+ * 2026-10-19 第二版：自检里那张底图也是黑的，说明问题在我们这边（不是 launcher 丢图）。
+ * 于是加了三颗"换规格试一下"的胶囊（纯色 / 随包图片 / 我的图）和一行文件诊断 ——
+ * 点一下就能看出到底是哪一类规格画不出来，不用再猜。
  */
 @Composable
 private fun WidgetSelfCheck() {
     val ctx = LocalContext.current
     var open by remember { mutableStateOf(false) }
-    val spec = WidgetThemes.spec(ctx)
+    // null = 用当前实际主题；非 null = 只在自检里试这个规格（不写回设置）
+    var trySpec by remember { mutableStateOf<String?>(null) }
+    val savedSpec = WidgetThemes.spec(ctx)
+    val spec = trySpec ?: savedSpec
     val bmp = remember(spec) {
         runCatching { TodayWidgetProvider.backgroundBitmapFor(ctx, spec, 900, 400) }.getOrNull()
+    }
+    val center = remember(bmp) {
+        bmp?.let { Integer.toHexString(it.getPixel(it.width / 2, it.height / 2)) } ?: "-"
     }
 
     Row(
@@ -510,16 +518,44 @@ private fun WidgetSelfCheck() {
     if (open) {
         Spacer(Modifier.height(8.dp))
         Text(
-            "下面这张和桌面拿到的是同一份 RemoteViews。如果这里有图、桌面没有，" +
-                "就是桌面（launcher）把它丢了，删掉小组件重加一次；这里也没图就是我的锅。",
+            "下面这张和桌面拿到的是同一份 RemoteViews。这里有图、桌面没有 ⇒ 桌面把它丢了，" +
+                "删掉小组件重加；这里也是黑的 ⇒ 我这边画错了，把这张截图发我。",
             color = C.txt3, fontSize = 10.sp, lineHeight = 15.sp,
         )
         Spacer(Modifier.height(8.dp))
+
+        // 三颗试穿胶囊：把"哪一类规格画不出来"一次问清
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf(
+                null to "当前",
+                "default" to "纯色",
+                "img_aurora" to "随包图片",
+                WidgetThemes.USER_IMAGE_SPEC to "我的图",
+            ).forEach { (s, label) ->
+                val on = trySpec == s
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (on) C.violet.copy(alpha = 0.22f) else C.card)
+                        .border(1.dp, if (on) C.violet.copy(alpha = 0.6f) else C.line, RoundedCornerShape(20.dp))
+                        .clickable { trySpec = s }
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
+                ) { Text(label, color = if (on) C.violet else C.txt3, fontSize = 10.5.sp) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            WidgetThemes.userImageInfo(ctx) + " · 中心像素 #$center",
+            color = C.txt3, fontSize = 10.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        androidx.compose.runtime.key(spec) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { c ->
                 android.widget.FrameLayout(c).apply {
                     runCatching {
-                        val view = TodayWidgetProvider.themeViews(c, 900, 400).apply(c, this)
+                        val view = TodayWidgetProvider.themeViews(c, 900, 400, spec).apply(c, this)
                         addView(
                             view,
                             android.widget.FrameLayout.LayoutParams(
@@ -537,8 +573,10 @@ private fun WidgetSelfCheck() {
                     }
                 }
             },
+            update = { _ -> },
             modifier = Modifier.fillMaxWidth().height(150.dp),
         )
+        }
     }
 }
 

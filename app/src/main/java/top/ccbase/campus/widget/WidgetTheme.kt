@@ -96,6 +96,17 @@ object WidgetThemes {
 
     fun hasUserImage(ctx: Context): Boolean = userImageFile(ctx).exists()
 
+    /** 给「小组件自检」用的一句话诊断：文件在不在、多大、能不能解码。 */
+    fun userImageInfo(ctx: Context): String {
+        val f = userImageFile(ctx)
+        if (!f.isFile) return "我的图：文件不存在"
+        if (f.length() == 0L) return "我的图：文件是空的"
+        val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(f.absolutePath, opts)
+        if (opts.outWidth <= 0) return "我的图：${f.length() / 1024}KB，解不出来"
+        return "我的图：${f.length() / 1024}KB ${opts.outWidth}×${opts.outHeight}"
+    }
+
     fun userImageFile(ctx: Context): File = File(ctx.filesDir, USER_FILE)
 
     /**
@@ -192,9 +203,17 @@ object WidgetThemes {
         if (!theme.hasImage) return null
         return runCatching {
             val src = if (theme.userImage) {
+                // 用户那张图（filesDir/widget_theme.jpg）。文件可能被清理工具删掉、也可能当初压缩失败，
+                // 这时**别直接退回深色渐变**（用户看到的就是"主题换了没反应、卡片一片黑"）：
+                // 依次退到小组件槽 / App 槽里存的原图，只要有一份能解码就用它。
                 val f = userImageFile(ctx)
-                if (!f.exists()) return null
-                BitmapFactory.decodeFile(f.absolutePath)
+                (if (f.isFile && f.length() > 0) BitmapFactory.decodeFile(f.absolutePath) else null)
+                    ?: top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
+                        ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
+                    )
+                    ?: top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
+                        ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.APP,
+                    )
             } else {
                 BitmapFactory.decodeResource(ctx.resources, theme.imageRes)
             } ?: return null

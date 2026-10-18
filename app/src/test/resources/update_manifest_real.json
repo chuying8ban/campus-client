@@ -1,12 +1,12 @@
 {
-  "version_code": 126,
-  "version_name": "3.4.7",
-  "url": "/updates/campus-3.4.7.apk",
-  "sha256": "4d9bc1a6f29e00449a2ced33222c12f6c946b0c720ad47606fbd3b8be85ad2cd",
-  "size": 7895375,
+  "version_code": 127,
+  "version_name": "3.4.8",
+  "url": "/updates/campus-3.4.8.apk",
+  "sha256": "48f208ad79fcedd41c895e520dc0bc78d708a69537a5cfbf0f6a28e485bc8b3b",
+  "size": 7895491,
   "notes": [
-    "修好更新说明弹窗半透明、文字压在一起",
-    "新增静默下载：进 App 会自动把新版本下好，底部浮一条「点一下安装」",
-    "「我的 → 自动下载新版本」可以关掉"
+    "图库搜索框文字不再叠在一起",
+    "下滑时标签栏跟搜索栏一起收起",
+    "小组件自检可以一键试三种规格，换主题没反应时用它定位"
   ]
 }

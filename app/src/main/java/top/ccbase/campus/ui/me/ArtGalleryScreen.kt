@@ -233,6 +233,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically(),
         ) {
+            // ⚠️ AnimatedVisibility 的内容不是 Column：它按 Box 语义把多个子项叠在同一位置。
+            // 上一版"搜索行"和"▶ 动 = …"说明是两个并列子项 → 文字直接压成一团（用户 2026-10-19 截图）。
+            Column {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -285,6 +288,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 color = C.txt3, fontSize = 10.5.sp,
                 modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
             )
+            }
         }
 
         // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
@@ -320,6 +324,11 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         } else {
             listOf("原神", "风景", "城市", "夜景", "海", "赛博", "天空", "机甲")
         }
+        AnimatedVisibility(
+            visible = !scrolled,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -346,6 +355,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                     Text(w, color = if (query.trim() == w) C.violet else C.txt2, fontSize = 12.sp)
                 }
             }
+        }
         }
 
         if (query.isBlank() && !animOnly) {

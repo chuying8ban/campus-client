@@ -142,9 +142,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 测试钩子：只按主题拼一张 RemoteViews（不查课表、不依赖 launcher）。
          * 用来验证"主题到底有没有铺上去"——真机上看不到的画面，测试里能一项项断言。
          */
-        internal fun themeViews(ctx: Context, wPx: Int, hPx: Int): RemoteViews {
+        internal fun themeViews(ctx: Context, wPx: Int, hPx: Int, specOverride: String? = null): RemoteViews {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
-            applyTheme(ctx, rv, wPx, hPx)
+            applyTheme(ctx, rv, wPx, hPx, specOverride)
             return rv
         }
 
@@ -152,8 +152,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 上色 + 铺底。**每次刷新都重新读一次主题**（不缓存）：
          * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
          */
-        private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int) {
-            val spec = WidgetThemes.spec(ctx)
+        private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int, specOverride: String? = null) {
+            val spec = specOverride ?: WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
             // 先垫一层不透明底色：万一 launcher 把位图丢了（MIUI 对大位图会静默丢），
             // 卡片至少还是一张深色卡，而不是"只剩文字的透明块"（用户 2026-10-19 截图）。
