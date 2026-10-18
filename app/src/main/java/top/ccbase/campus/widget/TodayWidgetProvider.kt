@@ -142,7 +142,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     )
                     rv.setViewVisibility(R.id.widget_flip, View.GONE)
                     rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                    rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
+                    rv.setImageViewBitmap(
+                        R.id.widget_bg_img,
+                        WidgetArt.rounded(bmp, WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density)),
+                    )
                 }
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
@@ -155,7 +158,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             } else if (art != null) {
                 // 图片主题：图缩放铺满 + 压一层暗蒙版，保证字读得清
                 rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                rv.setImageViewBitmap(R.id.widget_bg_img, scaleToFill(art, wPx, hPx))
+                // 圆角必须画进位图：RemoteViews 里的 ImageView 没有圆角属性（用户截图：直角）
+                rv.setImageViewBitmap(
+                    R.id.widget_bg_img,
+                    WidgetArt.rounded(scaleToFill(art, wPx, hPx), WidgetArt.radiusFor(hPx, density)),
+                )
                 rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
             } else {
                 // 纯色 / DIY：现画一张渐变底，比原来的"一整块纯色"有质感得多

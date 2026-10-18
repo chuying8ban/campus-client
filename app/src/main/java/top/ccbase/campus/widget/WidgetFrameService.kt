@@ -41,12 +41,15 @@ private object FrameCache {
     private fun render(ctx: Context, kind: DynPainter.Kind, accent: Int, w: Int, h: Int): List<Bitmap> {
         val fw = max(120, (w * 0.6f).toInt())
         val fh = max(80, (h * 0.6f).toInt())
+        // 帧是按 60% 缩小渲染的，圆角要按**整卡**算再同比例缩 —— 否则桌面上比静态主题更"方"
+        val radius = WidgetArt.radiusFor(h, 1f) * 0.6f
         val out = ArrayList<Bitmap>(FRAMES)
         for (i in 0 until FRAMES) {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
             val c = android.graphics.Canvas(bmp)
             DynPainter.frame(c, kind, i * STEP_SEC, fw.toFloat(), fh.toFloat(), accent)
-            out += bmp
+            // 帧也要圆角，否则动态主题在桌面上是直角的（静态主题走 WidgetArt.background 已带圆角）
+            out += WidgetArt.rounded(bmp, radius)
         }
         return out
     }

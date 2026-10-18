@@ -78,10 +78,35 @@ object WidgetArt {
      *
      * 原来是短边 13%、夹 16~34dp —— 4×2 的卡在小米桌面上算出来才 20dp 出头，配上导出位图后
      * 看起来接近直角。现在取短边 20%、夹 22~46dp，和系统图标组的圆角一个量级。
+     *
+     * 注意：这个值只对"画布的圆角"有意义；图片主题/动态帧是**位图**，必须再走 [rounded]。
      */
     fun radiusFor(h: Int, density: Float): Float {
         val byHeight = h * 0.20f
         return byHeight.coerceIn(22f * density, 46f * density)
+    }
+
+    /**
+     * 把一张**矩形**位图裁成圆角（图片主题、动态主题的帧都用它）。
+     *
+     * 为什么必须做：桌面上的小组件是 `RemoteViews` + `ImageView`，没有任何"圆角"属性可用
+     * （`clipToOutline` / `ShapeableImageView` 都不在允许列表里）。所以圆角只能**画进位图**里，
+     * 位图四角必须是透明的 —— 否则桌面上就是一块直角矩形（2026-10-18 用户截图就是这个）。
+     */
+    fun rounded(src: Bitmap, radiusPx: Float): Bitmap {
+        if (radiusPx <= 0f) return src
+        val key = "r" + System.identityHashCode(src) + radiusPx.toInt()
+        cache.get(key)?.let { return it }
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        paint.shader = android.graphics.BitmapShader(src, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        c.drawRoundRect(
+            RectF(0f, 0f, src.width.toFloat(), src.height.toFloat()),
+            radiusPx, radiusPx, paint,
+        )
+        cache.put(key, out)
+        return out
     }
 
     private fun withAlpha(color: Int, alpha: Float): Int {
