@@ -1,11 +1,12 @@
 {
-  "version_code": 98,
-  "version_name": "2.3.1",
-  "url": "/updates/campus-2.3.1.apk",
-  "sha256": "c08d702979af8df0b251ade3475c1f16d5f58d55f2d73514362663cbaa736cd4",
-  "size": 7700581,
+  "version_code": 99,
+  "version_name": "2.3.2",
+  "url": "/updates/campus-2.3.2.apk",
+  "sha256": "8ac1584b54a233df9cca05f6576acf6f432346cf0cf52a45fa6ab950716ab442",
+  "size": 7700573,
   "notes": [
-    "没课时不画那条空横线（看着像没加载完）",
-    "其余同 2.3.0：小组件渐变底/柔光/描边，信息分四级，按格子大小自适应"
+    "修桌面小组件显示「载入窗口小部件时出现问题」",
+    "根因：布局里用了 RemoteViews 不允许的控件，桌面充气失败",
+    "加了一条单测，以后这种错在发版前就会被拦住"
   ]
 }

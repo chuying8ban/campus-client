@@ -16,11 +16,12 @@
         android:scaleType="centerCrop"
         android:contentDescription="@null" />
 
-    <View
+    <ImageView
         android:id="@+id/widget_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#7A000000"
+        android:contentDescription="@null"
         android:visibility="gone" />
 
     <LinearLayout
@@ -40,11 +41,12 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <View
+            <ImageView
                 android:id="@+id/widget_dot"
                 android:layout_width="6dp"
                 android:layout_height="6dp"
-                android:background="@drawable/widget_dot" />
+                android:src="@drawable/widget_dot"
+                android:contentDescription="@null" />
 
             <TextView
                 android:id="@+id/widget_status"
@@ -55,10 +57,13 @@
                 android:textSize="11sp"
                 android:textColor="#A06BFF" />
 
-            <Space
+            <!-- 必须是 View：android.widget.Space 没有 @RemoteView 注解，
+                 RemoteViews 充气时会被拒，桌面直接显示「载入窗口小部件时出现问题」。 -->
+            <ImageView
                 android:layout_width="0dp"
                 android:layout_height="1dp"
-                android:layout_weight="1" />
+                android:layout_weight="1"
+                android:contentDescription="@null" />
 
             <TextView
                 android:id="@+id/widget_date"
@@ -101,12 +106,13 @@
             android:textSize="11.5sp"
             android:textColor="#B3ACC6" />
 
-        <View
+        <ImageView
             android:id="@+id/widget_divider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
             android:layout_marginTop="9dp"
-            android:background="#1FFFFFFF" />
+            android:background="#1FFFFFFF"
+            android:contentDescription="@null" />
 
         <!-- ④ 后几节 -->
         <TextView
@@ -139,10 +145,11 @@
             android:textSize="11.5sp"
             android:textColor="#C8C2D8" />
 
-        <Space
+        <ImageView
             android:layout_width="1dp"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:contentDescription="@null" />
 
         <TextView
             android:id="@+id/widget_foot"
