@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2 起步，可横向/纵向拉伸；半小时自动刷一次（系统下限就是 30 分钟）。
+     课表导入成功后另有一次即时刷新，见 TodayWidgetProvider.refresh()。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="120dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_desc"
+    android:initialLayout="@layout/widget_today"
+    android:previewLayout="@layout/widget_today" />

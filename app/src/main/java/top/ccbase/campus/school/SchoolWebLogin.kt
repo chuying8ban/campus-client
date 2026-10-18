@@ -22,12 +22,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -92,6 +95,55 @@ object SchoolCookie {
         }
     }
 
+    /**
+     * 这一刻是否已登录：教务把会话挂在 `SESSION` / `__pstsid__` 上，读到非空值就算登录了。
+     *
+     * 只读 Cookie 头，不碰页面内容、不读输入框、不读密码 —— 界面用它决定「读取课表」按钮
+     * 出不出现：没登录时那个按钮一定导不出东西，摆着只会让人点了以为坏了。
+     */
+    fun hasSession(profile: SchoolProfile = SchoolRegistry.cupk): Boolean {
+        val cm = CookieManager.getInstance() ?: return false
+        val h = profile.host
+        return KNOWN_PATHS.any { path ->
+            SchoolCookieRules.hasSession(cm.getCookie("https://$h$path"))
+        }
+    }
+
+    /**
+     * 把当前会话 cookie 改写成持久 cookie（默认 30 天）。
+     *
+     * 这是「登录过一次，以后进内置浏览器都自动登录」的全部机制：WebView 默认把会话 Cookie
+     * 当临时物件，App 进程一死就没了，用户又回到登录页。补上过期时间后，只要学校那边的会话
+     * 还没过期，进来就已经是登录态 —— 不保存密码，也不上传 Cookie。
+     *
+     * @return 至少改写成功一条才算 true
+     */
+    fun persistSession(profile: SchoolProfile = SchoolRegistry.cupk, days: Long = 30): Boolean {
+        var done = false
+        onMain {
+            val cm = CookieManager.getInstance() ?: return@onMain
+            val h = profile.host
+            val maxAge = (days * 86_400L).toInt()
+            val expires = java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC).plusDays(days),
+            )
+            for (path in KNOWN_PATHS) {
+                val probe = "https://$h$path"
+                val header = cm.getCookie(probe).orEmpty()
+                for (name in SchoolCookieRules.SESSION_NAMES) {
+                    val value = SchoolCookieRules.valueOf(header, name) ?: continue
+                    cm.setCookie(
+                        probe,
+                        SchoolCookieRules.persistent("$name=$value", path, maxAge, expires),
+                    )
+                    done = true
+                }
+            }
+            if (done) cm.flush()
+        }
+        return done
+    }
+
     /** 清掉当前页面源（务必是教务 origin）的 localStorage/sessionStorage。 */
     fun clearWebStorage(wv: WebView, profile: SchoolProfile = SchoolRegistry.cupk) {
         onMain {
@@ -141,8 +193,17 @@ fun SchoolWebLogin(
     onCancel: () -> Unit,
     profile: SchoolProfile = SchoolRegistry.cupk,
 ) {
+    val ctx = LocalContext.current
     var webView by remember { mutableStateOf<WebView?>(null) }
     var busy by remember { mutableStateOf(false) }
+    /**
+     * 「正在进入教务系统」：从点进来到第一个页面真正上屏之间有一段空白 ——
+     * 冷启动要初始化内核、做一次完整 TLS 握手、再等首屏渲染，这段能到好几秒。
+     * 不提示的话，用户看到的就是"卡住了"（用户原话：进入登录页面前会卡一会）。
+     */
+    var entering by remember { mutableStateOf(true) }
+    /** 登录态：没登录时「读取课表」一定读不到，那个按钮就不该出现在下面。 */
+    var loggedIn by remember { mutableStateOf(SchoolCookie.hasSession(profile)) }
     var step by remember { mutableStateOf("") }
     var desktop by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0) }
@@ -153,6 +214,27 @@ fun SchoolWebLogin(
     var readError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val pageGate = remember { PageGate() }
+
+    // 兜底：即使首屏迟迟不上屏（弱网），15 秒后也把"正在进入"收掉，免得盖成一块死板。
+    LaunchedEffect(Unit) {
+        delay(15_000)
+        entering = false
+    }
+    // 登录态轮询：教务把会话挂在 Cookie 上，读到它就是已登录。
+    // 一检测到登录，并且用户同意在本机记住登录，就把会话 cookie 改写成持久 cookie ——
+    // 下一次进内置浏览器直接就是登录态（不保存密码，只保留会话）。
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(700)
+            val has = SchoolCookie.hasSession(profile)
+            if (has && !loggedIn) {
+                if (SchoolSession.remembered(ctx, profile)) SchoolCookie.persistSession(profile)
+                loggedIn = true
+            } else if (!has && loggedIn) {
+                loggedIn = false
+            }
+        }
+    }
 
     androidx.activity.compose.BackHandler {
         if (!busy) {
@@ -234,10 +316,14 @@ fun SchoolWebLogin(
                 factory = { ctx ->
                     WebView(ctx).apply {
                         webView = this
-                        configureSecureWebView(this, pageGate, profile=profile, onDiagnostic = {
-                            diagnostic = it
-                            if (it.startsWith("资源") && firstScriptError.isEmpty()) firstScriptError = it
-                        }) { fail(it) }
+                        configureSecureWebView(
+                            this, pageGate, profile = profile,
+                            onFirstPaint = { entering = false },
+                            onDiagnostic = {
+                                diagnostic = it
+                                if (it.startsWith("资源") && firstScriptError.isEmpty()) firstScriptError = it
+                            },
+                        ) { fail(it) }
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
@@ -261,6 +347,21 @@ fun SchoolWebLogin(
                 },
                 update = {},
             )
+            // 首屏没上屏之前盖一层"正在进入"，别让人对着空白页等
+            if (entering) {
+                Box(
+                    Modifier.fillMaxSize().background(C.bg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(Modifier.height(22.dp).width(22.dp), strokeWidth = 2.dp, color = C.violet)
+                        Spacer(Modifier.height(14.dp))
+                        Text("正在进入教务系统…", fontSize = 14.sp, color = C.txt)
+                        Spacer(Modifier.height(6.dp))
+                        Text("正在连接 ${profile.host}", fontSize = 12.sp, color = C.txt2)
+                    }
+                }
+            }
         }
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             readError?.let { Text(it, color = C.red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp)) }
@@ -271,43 +372,56 @@ fun SchoolWebLogin(
                     Text(step.ifBlank { "正在从教务读取课表…" }, fontSize = 12.sp, color = C.txt2)
                 }
             }
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
-                    .clickable(enabled = !busy) {
-                        val wv = webView
-                        if (wv == null) {
-                            readError = "网页还没加载好，请稍等后重试"
-                            return@clickable
-                        }
-                        busy = true
-                        readError = null
-                        step = "正在从教务读取课表…"
-                        scope.launch {
-                            try {
-                                val result = wv.extractTimetableJson(pageGate,profile)
-                                if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clearAll(wv,profile) else SchoolSession.flush()
-                                onTimetableJson(result)
-                            } catch (e: Exception) {
-                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                readError = "暂未读到课表。若学校会话已过期，请在官方页面重新登录后重试；原课表未改变。"
-                                if (top.ccbase.campus.BuildConfig.DEBUG) diagnostic = "读取阶段：" + when {
-                                    e.message.orEmpty().contains("学期") -> "学期标识未就绪"
-                                    e.message.orEmpty().contains("加载超时") -> "目标课表页未完成加载"
-                                    e.message.orEmpty().contains("HTTP") -> "课表请求返回错误状态"
-                                    else -> "课表数据未就绪"
+            if (loggedIn) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                        .clickable(enabled = !busy) {
+                            val wv = webView
+                            if (wv == null) {
+                                readError = "网页还没加载好，请稍等后重试"
+                                return@clickable
+                            }
+                            busy = true
+                            readError = null
+                            step = "正在从教务读取课表…"
+                            scope.launch {
+                                try {
+                                    val result = wv.extractTimetableJson(pageGate,profile)
+                                    if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clearAll(wv,profile) else SchoolSession.flush()
+                                    onTimetableJson(result)
+                                } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    readError = "暂未读到课表。若学校会话已过期，请在官方页面重新登录后重试；原课表未改变。"
+                                    if (top.ccbase.campus.BuildConfig.DEBUG) diagnostic = "读取阶段：" + when {
+                                        e.message.orEmpty().contains("学期") -> "学期标识未就绪"
+                                        e.message.orEmpty().contains("加载超时") -> "目标课表页未完成加载"
+                                        e.message.orEmpty().contains("HTTP") -> "课表请求返回错误状态"
+                                        else -> "课表数据未就绪"
+                                    }
+                                } finally {
+                                    busy = false
+                                    step = ""
                                 }
-                            } finally {
-                                busy = false
-                                step = ""
                             }
                         }
-                    }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("登录完成，读取课表", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("登录完成，读取课表", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
+                }
+            } else {
+                // 没登录就一定导不出课表 —— 按钮先不出现，只说明"登录后才会出现"，
+                // 免得用户点了之后以为功能坏了（用户原话：没登录时是一定导不了的）。
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp, color = C.txt3)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "已进入学校登录页 —— 登录成功后，这里才会出现「登录完成，读取课表」",
+                        fontSize = 12.sp, lineHeight = 18.sp, color = C.txt2,
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             Text(
@@ -323,6 +437,7 @@ private fun configureSecureWebView(
     wv: WebView,
     gate: PageGate,
     profile: SchoolProfile = SchoolRegistry.cupk,
+    onFirstPaint: () -> Unit = {},
     onDiagnostic: (String) -> Unit = {},
     onError: (String) -> Unit,
 ) {
@@ -371,7 +486,13 @@ private fun configureSecureWebView(
             }
         }
 
+        /** 首个页面真正上屏（API 23+）：这时才把"正在进入"的覆盖层收掉。 */
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            onFirstPaint()
+        }
+
         override fun onPageFinished(view: WebView, url: String) {
+            onFirstPaint()
             // 让“导航到课表页并等它加载完”有据可依（见 extractTimetableJson）。
             gate.finishedTick += 1
             gate.finishedUrl = url

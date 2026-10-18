@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">校园</string>
+    <!-- 桌面小组件在"添加小组件"列表里显示的名字 -->
+    <string name="widget_desc">今日课表</string>
 </resources>

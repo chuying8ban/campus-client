@@ -20,5 +20,11 @@ object SchoolSession {
   SchoolCookie.clear(profile.host)
   WebStorage.getInstance().deleteOrigin(profile.origin)
  }
+ /** 用户是否已经就「本机记住登录」做过选择（没选过 = 新装/老版本升级上来）。 */
+ fun asked(ctx: Context, profile: SchoolProfile = SchoolRegistry.cupk): Boolean =
+  prefs(ctx).getBoolean("asked_${profile.id}", false)
+ fun markAsked(ctx: Context, profile: SchoolProfile = SchoolRegistry.cupk) {
+  prefs(ctx).edit().putBoolean("asked_${profile.id}", true).commit()
+ }
  fun flush() { CookieManager.getInstance().flush() }
 }

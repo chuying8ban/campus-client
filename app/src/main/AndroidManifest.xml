@@ -59,6 +59,21 @@
 
 
 
+        <!-- 桌面「今日课表」小组件：4×2 起，系统每 30 分钟刷一次，
+             课表导入成功后由 TodayWidgetProvider.refresh() 另外推一次 -->
+        <receiver
+            android:name=".widget.TodayWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="top.ccbase.campus.WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
         <!-- 自动更新：把 cacheDir/update/*.apk 交给系统安装器（Android 7 起必须走 FileProvider） -->
         <provider
             android:name="androidx.core.content.FileProvider"

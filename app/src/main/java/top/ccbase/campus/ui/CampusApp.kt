@@ -88,6 +88,7 @@ import top.ccbase.campus.update.Updater
 import top.ccbase.campus.ui.update.UpdateOverlay
 import top.ccbase.campus.ui.update.UpdateUi
 import top.ccbase.campus.CampusApplication
+import top.ccbase.campus.ui.schedule.DailyCheckBanner
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.ui.me.MeScreen
@@ -421,7 +422,11 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             }
         },
     ) { pad ->
-        Box(Modifier.fillMaxSize().padding(pad)) {
+        // 每日课表核对：**常驻在最上方的一条细提示**（用户口径：不要弹窗、无感常驻、不挡操作）。
+        // 它不是子页、不是对话框：就占一条 34dp 的细带，滚页面、点按钮都不受影响。
+        Column(Modifier.fillMaxSize().padding(pad)) {
+            DailyCheckBanner(appCtx) { showCrawl = true }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             val app = LocalContext.current.applicationContext as CampusApplication
             // tabs 的长度会变（监控那一格随 can_grab 进出），而 idx 是记下来的旧下标
             // （rememberSaveable：转屏/进程重建后还留着）—— 越界就是崩，所以先夹回合法范围。
@@ -474,6 +479,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 }
             }
         }
+        }
     }
 
     // 更新浮层盖在**最外层**：底部导航也一起盖住 —— 强制更新时不能还让人点走
@@ -504,9 +510,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             // 登录过期时，抓课表页上的「重新登录」直接落到登录页（不用用户自己回「我的」找）
             onRelogin = { showCrawl = false; onLogin() },
         )
-    }
-    if (!showCrawl && !showScheduleEditor) {
-        top.ccbase.campus.ui.schedule.DailyCheckPrompt(appCtx) { showCrawl = true }
     }
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }

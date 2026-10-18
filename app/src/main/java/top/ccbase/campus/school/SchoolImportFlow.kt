@@ -73,6 +73,10 @@ fun SchoolImportFlow(
             rows.forEach {e->val o=e as kotlinx.serialization.json.JsonObject;val start=java.time.LocalTime.parse((o.getValue("startTime") as kotlinx.serialization.json.JsonPrimitive).content);val end=java.time.LocalTime.parse((o.getValue("endTime") as kotlinx.serialization.json.JsonPrimitive).content);require(start<end){"学校时间不合法，原课表未改变"}}
             val result=withContext(Dispatchers.IO){EamsLocalImport.import(db,raw,true)}
             check(result.imported){"没有可保存课程，原课表未改变"}
+            withContext(Dispatchers.Main) {
+                top.ccbase.campus.alarm.DailyTimetableCheck.markUpdated(ctx)
+                top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx)
+            }
             attemptMessage="已保存 ${result.counts["courses"] ?: 0} 门课。请核对周次、时间和地点。"
         } catch(e:Exception){attemptMessage=e.message ?: "读取失败，原课表未改变"}
     }}
@@ -85,7 +89,11 @@ fun SchoolImportFlow(
     var cloudMessage by remember { mutableStateOf<String?>(null) }
     var cloudSynced by remember { mutableStateOf(false) }
     var showCloudTerms by remember { mutableStateOf(false) }
-    var rememberLogin by remember { mutableStateOf(SchoolSession.remembered(ctx)) }
+    // 默认开启：用户口径是「登录过一次，以后进内置浏览器就该自动登录」。
+    // 只保留**会话**（Cookie），不保存密码；从没选过的人（新装/老版本升级上来）默认按开启处理。
+    var rememberLogin by remember {
+        mutableStateOf(SchoolSession.remembered(ctx) || !SchoolSession.asked(ctx))
+    }
     var confirmRemember by remember { mutableStateOf(false) }
     var forgetNotice by remember { mutableStateOf(false) }
     var keepManual by remember { mutableStateOf(true) }
@@ -105,6 +113,9 @@ fun SchoolImportFlow(
                 imported = result.first
                 cleanedActivities = result.second
                 cloudMessage = null
+                // 真的导进来了才算"今天已更新"：顶部横幅与桌面小组件都靠这一下翻状态
+                top.ccbase.campus.alarm.DailyTimetableCheck.markUpdated(ctx)
+                top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx)
                 stage = Stage.Summary
             } catch (e: Exception) {
                 err = e.message ?: "本地导入失败"
@@ -158,7 +169,7 @@ fun SchoolImportFlow(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Checkbox(checked=rememberLogin,onCheckedChange={if(it)confirmRemember=true else {SchoolSession.setRemembered(ctx,false,school);rememberLogin=false;forgetNotice=true}})
-                Text("在本机记住学校登录（不保存密码）",color=C.txt2,fontSize=13.sp)
+                Text("登录一次，以后进入自动登录\n只在本机保留登录会话，不保存密码",color=C.txt2,fontSize=13.sp)
             }
             if(rememberLogin) {
                 Text("有效会话会复用，过期需重新登录；不保证永久在线。",color=C.txt2,fontSize=12.sp)
@@ -167,7 +178,13 @@ fun SchoolImportFlow(
             Spacer(Modifier.height(24.dp))
             Box(
                 Modifier.fillMaxWidth().background(C.violet, RoundedCornerShape(10.dp))
-                    .clickable { stage = Stage.Web }
+                    .clickable {
+                        // 进官方页之前把"记住登录"落定：WebView 那边要靠它决定
+                        // 结束后是保留会话还是清掉，以及要不要把会话改写成持久 cookie。
+                        SchoolSession.markAsked(ctx, school)
+                        SchoolSession.setRemembered(ctx, rememberLogin, school)
+                        stage = Stage.Web
+                    }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
             ) { Text("打开官方教务登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
