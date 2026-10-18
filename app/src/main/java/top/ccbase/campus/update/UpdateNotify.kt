@@ -28,6 +28,9 @@ object UpdateNotify {
     /** 固定 id：同一条通知反复更新即可（避开课前静音的时间戳 id 和抢课提醒的 20000+） */
     private const val ID = 30_001
 
+    /** 「已下好」那条的 id（和 ID 分开：两条讲的不是一件事） */
+    private const val ID_READY = 30_002
+
     private fun ensureChannel(ctx: Context) {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (nm.getNotificationChannel(CHANNEL) != null) return
@@ -76,8 +79,43 @@ object UpdateNotify {
         }
     }
 
+    /**
+     * 「已经下好了」的那条通知（静默下载的收尾）。
+     *
+     * 和 [post] 的区别只在文案和 id：这条说的是"你不用等了，点一下装"，
+     * 所以走同一个渠道但不覆盖上面那条"有新版本"。
+     */
+    fun postReady(ctx: Context, m: UpdateManifest): Boolean {
+        ensureChannel(ctx)
+        if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return false
+        val open = PendingIntent.getActivity(
+            ctx, 1,
+            Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val body = "v${m.versionName} 已经在后台下好并校验过。打开 App 一下就装上了。"
+        val n = NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("校园助手 v${m.versionName} 已下好")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        return try {
+            NotificationManagerCompat.from(ctx).notify(ID_READY, n)
+            true
+        } catch (e: SecurityException) {
+            Log.w(TAG, "没有通知权限", e)
+            false
+        }
+    }
+
     /** 更新成功后把提醒撤掉，别让过期信息一直躺在通知栏 */
     fun clear(ctx: Context) {
         runCatching { NotificationManagerCompat.from(ctx).cancel(ID) }
+        runCatching { NotificationManagerCompat.from(ctx).cancel(ID_READY) }
     }
 }

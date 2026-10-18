@@ -44,6 +44,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -396,6 +398,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 放在里面（Scaffold content 里）就会变成"点了底部 tab 没反应，像卡住"。
     var extra by remember { mutableStateOf<CampusTab?>(null) }
 
+    // 静默下载开关（「我的」页那行要读它；声明必须在 Scaffold 之前）
+    var autoDownload by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.enabled(appCtx)) }
+
     // 系统返回键 · 子页：退回上一页，而不是把整个 App 关掉
     androidx.activity.compose.BackHandler(enabled = extra != null) { extra = null }
 
@@ -503,6 +508,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         UpdatePrefs.availableCode(appCtx), UpdatePrefs.availableName(appCtx),
                     ),
                     onCheckUpdate = { checkUpdate(force = true) },
+                    autoDownload = autoDownload,
+                    onToggleAutoDownload = {
+                        val next = !autoDownload
+                        top.ccbase.campus.update.SilentUpdate.setEnabled(appCtx, next)
+                        autoDownload = next
+                    },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
                     onOpenAppearance = {
@@ -581,6 +592,54 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }
     }
+    // 静默下载（用户 2026-10-19："另外加一个静默下载功能"）：
+    // 进 App 就在后台查 + 下，全程不弹界面；下好了这里浮一条"点一下安装"。
+    var readyApk by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)) }
+    LaunchedEffect(Unit) {
+        top.ccbase.campus.update.SilentUpdate.kick(appCtx, versionCode, version)
+        // 后台下完是异步的：前台每 8 秒看一次就绪状态，够了，不做推送
+        while (true) {
+            delay(8_000)
+            readyApk = top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)
+        }
+    }
+    readyApk?.let { apk ->
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 92.dp),
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(C.cardHi)
+                    .border(1.dp, C.line, RoundedCornerShape(14.dp))
+                    .clickable { top.ccbase.campus.update.SilentUpdate.installReady(appCtx) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("新版本已下好", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    UpdatePrefs.availableName(appCtx)?.let { "v$it · 点这里安装" } ?: "点这里安装",
+                    color = C.violet, fontSize = 12.sp, modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "稍后",
+                    color = C.txt3, fontSize = 11.sp,
+                    modifier = Modifier.clickable {
+                        // 用户明确不要这一版：清掉包，别一直躺在那儿占 7MB
+                        runCatching { apk.delete() }
+                        top.ccbase.campus.update.SilentUpdate.clearReady(appCtx)
+                        readyApk = null
+                    }.padding(start = 10.dp),
+                )
+            }
+        }
+    }
+
     // 更新说明：装完新版第一次进 App 直接弹（用户 2026-10-19："新版本内容通知要在 app 内出现"）
     var updateNotes by remember { mutableStateOf(top.ccbase.campus.update.UpdateNotice.pendingInApp(appCtx)) }
     updateNotes?.let { (v, body) ->

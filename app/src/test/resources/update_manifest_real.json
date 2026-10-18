@@ -1,11 +1,12 @@
 {
-  "version_code": 125,
-  "version_name": "3.4.6",
-  "url": "/updates/campus-3.4.6.apk",
-  "sha256": "face10f5844127b1b4fdba71843f3d4c4d31373a79ce0c56e4a58c2b54eecc0f",
-  "size": 7895271,
+  "version_code": 126,
+  "version_name": "3.4.7",
+  "url": "/updates/campus-3.4.7.apk",
+  "sha256": "4d9bc1a6f29e00449a2ced33222c12f6c946b0c720ad47606fbd3b8be85ad2cd",
+  "size": 7895375,
   "notes": [
-    "修好小控件主题不显示：高分屏上不再按桌面报的超大尺寸画图",
-    "换完主题立刻重画，不用等系统自己刷新"
+    "修好更新说明弹窗半透明、文字压在一起",
+    "新增静默下载：进 App 会自动把新版本下好，底部浮一条「点一下安装」",
+    "「我的 → 自动下载新版本」可以关掉"
   ]
 }
