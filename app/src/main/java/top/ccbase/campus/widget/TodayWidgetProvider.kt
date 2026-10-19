@@ -232,7 +232,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 小组件文字幕：只在"他自己挑过字色"且和底板撞色时才压一层，
             // 深浅跟 App 那套用同一个算法（深字压白幕 / 浅字压黑幕）。
             // 他的选择永远优先，可读性由这一层补 —— 不偷偷改字色。
-            val wScrim = TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor)
+            // 只有"图片/动图"这类底板内容不受我们控制的主题才压幕；
+            // 纯色主题上压幕 = 把用户挑的主题色盖掉（用户会说"我改字色怎么背景变了"）。
+            val imgTheme = dyn || spec.startsWith("photo") || spec.startsWith("media") ||
+                spec.startsWith("animphoto")
+            val wScrim = if (imgTheme)
+                TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor) else 0
             if (wScrim != 0) {
                 rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
                 rv.setInt(R.id.widget_scrim, "setBackgroundColor", wScrim)

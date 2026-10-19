@@ -301,10 +301,17 @@ fun CampusTheme(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         // 背景层在最底下（纯色时这一层什么都不画，行为与没有背景图时一致）
         BackgroundLayer(bg, p)
-        // 文字幕（2026-10-19 用户："为什么我改成黑色里面的文字还是白色"）：
-        // 用户挑的字色**原样生效**（不再偷偷换成白色），可读性由这一层补 ——
-        // 黑字压一层白幕、白字压一层黑幕；字与底板同向时幕更厚。
-        val scrim = TextTint.scrimArgb(p.bg.toArgb())
+        // 文字幕：**只在背景是图片/动图时才压**。
+        //
+        // 2026-10-19 用户："我点击文字颜色，为什么改的是背景颜色" —— 上一版在纯色主题上也压幕：
+        // 挑个黑字，整页被刷成一层白（深底黑字=最糟情况 → 55% 白幕），看起来就是"背景被改了"。
+        // 纯色主题的底板是自己配好的，字看不看得清由他自己选；只有照片/动图这类
+        // **底板内容不受我们控制**的时候，才需要这一层保证下限。
+        val hasImage = bg.startsWith(AppearanceStore.BG_PHOTO) ||
+            bg.startsWith(ANIMPHOTO_PREFIX) ||
+            bg.startsWith(ANIM_PREFIX) ||
+            bg.startsWith(top.ccbase.campus.ui.theme.UserMedia.PREFIX)
+        val scrim = if (hasImage) TextTint.scrimArgb(p.bg.toArgb()) else 0
         if (scrim != 0) {
             Box(Modifier.fillMaxSize().background(Color(scrim)))
         }

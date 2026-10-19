@@ -84,6 +84,18 @@ fun TextTintPicker(
         }
     }
     Spacer(Modifier.height(4.dp))
+    // 撞色提示：不拦着他选，只把后果说清楚（2026-10-19：他挑黑字后以为"背景被改了"，
+    // 其实是上一版压幕太狠；现在不压纯色底板，那就有必要提前说一句）
+    val chosen = TextTint.parse(current)
+    val lowContrast = chosen != null && TextTint.contrast(chosen, C.bg) < 2.0f
+    if (lowContrast) {
+        Text(
+            if (widget) "这个颜色在现在的卡片底色上会很淡 —— 换个颜色或换个主题更清楚"
+            else "这个颜色在现在的主题底色上会很淡 —— 换个颜色或换个主题更清楚",
+            fontSize = 10.sp, color = C.amber, lineHeight = 15.sp,
+        )
+        Spacer(Modifier.height(3.dp))
+    }
     Text(
         if (widget) {
             "只改桌面卡片上的字，不影响 App 里的文字。字看不清时先来这里换一个。"

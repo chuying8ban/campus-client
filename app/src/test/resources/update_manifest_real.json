@@ -1,12 +1,12 @@
 {
-  "version_code": 157,
-  "version_name": "3.4.38",
-  "url": "/updates/campus-3.4.38.apk",
-  "sha256": "a2b8133fab03c15f7caab425adb5004a6dcbadd316457d16346cd9f565ae84c6",
-  "size": 8396095,
+  "version_code": 158,
+  "version_name": "3.4.39",
+  "url": "/updates/campus-3.4.39.apk",
+  "sha256": "b553e1d48f8d8507fd8d4f4782a6bc8d211a0cc282453506b70602a9d76898b4",
+  "size": 8396159,
   "notes": [
-    "文字颜色分成两套：App 主题页的只改 App 里的字",
-    "小组件页的只改桌面卡片上的字，互不影响",
-    "小组件字色和底板撞色时自动压一层幕，看得清"
+    "改文字颜色不再动背景：纯色主题不压幕了",
+    "只有照片/动图背景才压一层可读性遮罩",
+    "选到看不清的颜色会在下面提示一句"
   ]
 }
