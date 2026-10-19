@@ -307,13 +307,25 @@ object UpdatePrefs {
      * 用户 2026-10-19："静默更新时加一个弹窗提示用户已在后台静默更新" —— 但只该弹一次，
      * 不然每次回前台都糊他一脸。
      */
+    @Deprecated("静默更新已取消（3.4.40），只留手动更新")
     fun silentPrompted(ctx: Context): Int =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getInt(K_SILENT_PROMPTED, 0)
 
-    fun markSilentPrompted(ctx: Context, code: Int) {
-        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
-            .putInt(K_SILENT_PROMPTED, code).apply()
+    /**
+     * 清掉静默更新留下的残渣（2026-10-19 用户：「静默更新和用户手动更新总是冲突…取消了吧」）。
+     *
+     * 只删"后台自己下好、用户还没装"的那只包和它的记账键：
+     * 半包/续传数据一概不动 —— 手动下载要接着用的就是它们。
+     */
+    fun purgeSilentArtifacts(ctx: Context) {
+        val sp = ctx.getSharedPreferences("campus_update", Context.MODE_PRIVATE)
+        sp.getString("ready_path", null)?.let { p -> runCatching { File(p).delete() } }
+        sp.edit()
+            .remove("ready_path").remove("ready_code")
+            .remove("auto_download").remove("auto_attempt_at")
+            .apply()
     }
+
 
     /** 已经为哪个版本发过通知栏提醒（同一个版本不重复打扰） */
     fun notified(ctx: Context): Int =

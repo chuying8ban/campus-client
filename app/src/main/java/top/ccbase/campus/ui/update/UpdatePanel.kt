@@ -67,13 +67,11 @@ fun UpdateOverlay(
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onOpenPermission: () -> Unit = {},
-    /** 下载中把进度条收起来（不打断下载）：用户 2026-10-19「现在更新时不能使用app」 */
-    onHideProgress: () -> Unit = {},
 ) {
     // 下载中绝不能用全屏遮罩：那等于把 App 锁死几十秒。
     // 单独走一条"底部细条"，不碰任何触摸区域，用户照常看课表。
     if (state is UpdateUi.Progress) {
-        DownloadBar(state, onHideProgress)
+        DownloadBar(state)
         return
     }
     Box(
@@ -226,7 +224,7 @@ private fun Btn(text: String, primary: Boolean, onClick: () -> Unit) {
  * 7.9MB 在校园网要几十秒，那几十秒里 App 完全不能碰。
  */
 @Composable
-private fun DownloadBar(state: UpdateUi.Progress, onHide: () -> Unit) {
+private fun DownloadBar(state: UpdateUi.Progress) {
     val d = state.detail
     val retrying = (d?.retryInMs ?: 0L) > 0L
     val p = if (state.pct < 0f) 0.02f else state.pct.coerceIn(0f, 1f)
@@ -254,12 +252,7 @@ private fun DownloadBar(state: UpdateUi.Progress, onHide: () -> Unit) {
                     if (state.pct < 0f) "…" else "${(state.pct * 100).toInt()}%",
                     color = C.txt2, fontSize = 11.5.sp,
                 )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "隐藏",
-                    color = C.txt3, fontSize = 11.sp,
-                    modifier = Modifier.clickable { onHide() }.padding(vertical = 6.dp, horizontal = 4.dp),
-                )
+
             }
             Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth().height(3.dp).background(C.line, RoundedCornerShape(2.dp))) {
@@ -267,7 +260,7 @@ private fun DownloadBar(state: UpdateUi.Progress, onHide: () -> Unit) {
             }
             Spacer(Modifier.height(7.dp))
             Text(
-                "可以继续用 App；点「隐藏」不会中断下载，下好会再提示。",
+                "可以继续用 App；这条条不挡操作，下好会再提示。",
                 color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
             )
         }

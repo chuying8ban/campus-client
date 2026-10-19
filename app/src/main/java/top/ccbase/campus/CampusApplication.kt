@@ -38,6 +38,8 @@ open class CampusApplication : Application() {
         super.onCreate()
         // 崩溃上报：先装，保证后面 init 里出问题也能看到堆栈
         runCatching { top.ccbase.campus.crash.CrashReporter.install(this) }
+        // 只留手动更新（3.4.40）：把上一版静默下载留下的残包和记账键清掉
+        runCatching { top.ccbase.campus.update.UpdatePrefs.purgeSilentArtifacts(this) }
         // 屏幕亮着时让桌面小组件的动态主题真的走帧（熄屏即停，见 WidgetTicker）
         runCatching { top.ccbase.campus.widget.ScreenWatcher.register(this) }
         db = CampusDb.get(this)

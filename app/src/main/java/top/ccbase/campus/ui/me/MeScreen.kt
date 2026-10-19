@@ -117,8 +117,6 @@ fun MeScreen(
     /** 点「检查更新」。默认空实现，方便单测单独渲染本页 */
     onCheckUpdate: () -> Unit = {},
     /** 静默下载：开着就进 App 自动在后台下新包（用户 2026-10-19 要求的新功能） */
-    autoDownload: Boolean = true,
-    onToggleAutoDownload: () -> Unit = {},
     /** 点「网络自检」：连不上服务器时用来定位断在哪一层 */
     onOpenDiag: () -> Unit = {},
     onOpenSafety: () -> Unit = {},
@@ -346,17 +344,6 @@ fun MeScreen(
             if (!updCheck.isNullOrBlank()) {
                 KV("更新检查", updCheck + fmtCheckedAt(updCheckAt))
             }
-            // 3.4.21：已经下好的包摆在这儿。
-            // 底部那条浮条点了「稍后」就不该再拦着人，但包不能丢 —— 想装的时候有地方点。
-            val readyName = top.ccbase.campus.update.SilentUpdate.readyVersion(ctx)
-            if (readyName != null) {
-                Spacer(Modifier.height(8.dp))
-                Action(
-                    "安装 v$readyName（已经下好）",
-                    "不用再等下载；点一下走系统安装，装完回到原来那一页",
-                    onClick = { top.ccbase.campus.update.SilentUpdate.installReady(ctx) },
-                )
-            }
             Spacer(Modifier.height(10.dp))
             if (busy) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -463,17 +450,6 @@ fun MeScreen(
             text = "检查更新",
             hint = updateHint ?: "当前版本 $version · 发现新版本时会提示",
             onClick = onCheckUpdate,
-        )
-        // 静默下载：勾着的时候进 App 就在后台把新包下完，用户只需点一下安装。
-        // 放在「检查更新」正下方 —— 同一件事的两个档位，不另开一节。
-        Action(
-            text = if (autoDownload) "自动下载新版本 · 已开" else "自动下载新版本 · 已关",
-            hint = if (autoDownload) {
-                "进 App 时在后台静默下好新包，不打断你；下好了在底部浮一条「点一下安装」"
-            } else {
-                "关掉后只在手动点「检查更新」时下载"
-            },
-            onClick = onToggleAutoDownload,
         )
         KV("数据来源", "你本人的教务系统")
         // 「给 App 提建议」2026-09-30 搬到前面的「建议与外观」那一节了（用户口径：

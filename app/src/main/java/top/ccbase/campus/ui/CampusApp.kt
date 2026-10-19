@@ -219,9 +219,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     val scope = rememberCoroutineScope()
     val versionCode = top.ccbase.campus.BuildConfig.VERSION_CODE
     var update by remember { mutableStateOf<UpdateUi?>(null) }
-    // 浮条被「隐藏」之后要**记住**：原来 onHideProgress 只是把 update 置空，而下载协程
-    // 每次进度回调又把 update 塞回 Progress，浮条立刻又冒出来 —— 用户说"点了没用"。
-    var barHidden by remember { mutableStateOf(false) }
     var updHint by remember { mutableStateOf<String?>(null) }
     // 网络自检浮层：连不上服务器时用户自己跑一次，把「断在哪一层」摆出来
     var showDiag by remember { mutableStateOf(false) }
@@ -256,7 +253,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             update = UpdateUi.AskPermission(m, forced)
             return
         }
-        barHidden = false
         update = UpdateUi.Progress(m, -1f)
         var lastPct = -2
         scope.launch {
@@ -267,13 +263,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     if (pct != lastPct) {
                         lastPct = pct
                         UpdateNotify.progress(appCtx, m.versionName, pct)   // 状态栏那条常驻通知
-                        // 用户点了「隐藏」就**不要再把浮条写回来**（双保险：渲染那边也拦住）
-                        scope.launch { if (!barHidden) update = UpdateUi.Progress(m, p) }
+                        scope.launch { update = UpdateUi.Progress(m, p) }
                     }
                 }, onState = { st ->
                     // 断流重试 / 停滞断开这类"正在发生的事"要立刻反映到界面上：
                     // 退避等待时不刷新的话，用户看到的就是一条不动的进度条（等于静默）
-                    scope.launch { if (!barHidden) update = UpdateUi.Progress(m, st.fraction, st) }
+                    scope.launch { update = UpdateUi.Progress(m, st.fraction, st) }
                 })
             }
             UpdateNotify.clearProgress(appCtx)
@@ -412,9 +407,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 放在里面（Scaffold content 里）就会变成"点了底部 tab 没反应，像卡住"。
     var extra by remember { mutableStateOf<CampusTab?>(null) }
 
-    // 静默下载开关（「我的」页那行要读它；声明必须在 Scaffold 之前）
-    var autoDownload by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.enabled(appCtx)) }
-
     // 系统返回键 · 子页：退回上一页，而不是把整个 App 关掉
     androidx.activity.compose.BackHandler(enabled = extra != null) { extra = null }
 
@@ -474,7 +466,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(bottom = if (update is UpdateUi.Progress && !barHidden) 82.dp else 0.dp),
+                .padding(bottom = if (update is UpdateUi.Progress) 82.dp else 0.dp),
         ) {
             DailyCheckBanner(appCtx) { showCrawl = true }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -529,12 +521,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         UpdatePrefs.availableCode(appCtx), UpdatePrefs.availableName(appCtx),
                     ),
                     onCheckUpdate = { checkUpdate(force = true) },
-                    autoDownload = autoDownload,
-                    onToggleAutoDownload = {
-                        val next = !autoDownload
-                        top.ccbase.campus.update.SilentUpdate.setEnabled(appCtx, next)
-                        autoDownload = next
-                    },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
                     onOpenAppearance = {
@@ -613,15 +599,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     if (showScheduleEditor) {
         top.ccbase.campus.ui.me.ScheduleEditor(appCtx, (appCtx.applicationContext as CampusApplication).db) { showScheduleEditor = false }
     }
-    // 静默下载（用户 2026-10-19："另外加一个静默下载功能"）：
-    // 进 App 就在后台查 + 下，全程不弹界面；下好了这里浮一条"点一下安装"。
-    var readyApk by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)) }
-    // 「稍后」只隐藏这条浮条，**不删包**（用户 2026-10-19：更新时也要能正常用）。
-    // 包留在本地，「我的 → 安装 vX（已经下好）」随时能装，不用再下一次 8MB。
-    var barHidden by remember { mutableStateOf(false) }
+    // 背景自愈：设的是视频/gif 主题、但文件被清掉或下载被截断（放不出来）时，
+    // 别让用户对着整屏黑 —— 直接退回预设配色，并把坏文件删掉。
     LaunchedEffect(Unit) {
-        // 背景自愈：设的是视频/gif 主题、但文件被清掉或下载被截断（放不出来）时，
-        // 别让用户对着整屏黑 —— 直接退回预设配色，并把坏文件删掉。
         withContext(kotlinx.coroutines.Dispatchers.IO) {
             val bgv = top.ccbase.campus.ui.theme.AppearanceStore.background.value
             if (bgv.startsWith(top.ccbase.campus.ui.theme.UserMedia.PREFIX)) {
@@ -634,47 +614,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         )
                     }
                 }
-            }
-        }
-        top.ccbase.campus.update.SilentUpdate.kick(appCtx, versionCode, version)
-        // 后台下完是异步的：前台每 8 秒看一次就绪状态，够了，不做推送
-        while (true) {
-            delay(8_000)
-            readyApk = top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)
-        }
-    }
-    readyApk?.takeIf { !barHidden }?.let { apk ->
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 92.dp),
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(C.cardHi)
-                    .border(1.dp, C.line, RoundedCornerShape(14.dp))
-                    .clickable { top.ccbase.campus.update.SilentUpdate.installReady(appCtx) }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("新版本已下好", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    UpdatePrefs.availableName(appCtx)?.let { "v$it · 点这里安装，回来还在这一页" }
-                        ?: "点这里安装，回来还在这一页",
-                    color = C.violet, fontSize = 12.sp, modifier = Modifier.weight(1f),
-                )
-                Text(
-                    "稍后",
-                    color = C.txt3, fontSize = 11.sp,
-                    modifier = Modifier.clickable {
-                        // 只是"现在不想装"：收起浮条，包留着 —— 在「我的」里还能点安装。
-                        barHidden = true
-                    }.padding(start = 10.dp),
-                )
             }
         }
     }
@@ -730,52 +669,6 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 }
             }
         }
-    }
-
-    // 静默下好了 → 弹一次窗（2026-10-19 用户："静默更新时加一个弹窗提示用户已在后台静默更新"）。
-    // 只弹一次（按 versionCode 去重），也不拦人：不装照样能用。
-    var silentReadyCode by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        val rc = top.ccbase.campus.update.SilentUpdate.readyCode(appCtx)
-        if (rc > top.ccbase.campus.BuildConfig.VERSION_CODE &&
-            UpdatePrefs.silentPrompted(appCtx) != rc &&
-            top.ccbase.campus.update.SilentUpdate.readyApk(appCtx) != null
-        ) {
-            UpdatePrefs.markSilentPrompted(appCtx, rc)
-            silentReadyCode = rc
-        }
-    }
-    if (silentReadyCode > 0) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { silentReadyCode = 0 },
-            title = { Text("新版本已在后台下好", color = C.txt, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
-            text = {
-                Text(
-                    "v${top.ccbase.campus.update.SilentUpdate.readyVersion(appCtx) ?: silentReadyCode.toString()} " +
-                        "已经在你没注意的时候下完了。点「立即安装」装好；不装也不影响现在用。",
-                    color = C.txt2, fontSize = 13.sp,
-                )
-            },
-            confirmButton = {
-                Text(
-                    "立即安装",
-                    color = C.violet, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clickable {
-                        top.ccbase.campus.update.SilentUpdate.installReady(appCtx)
-                        silentReadyCode = 0
-                    }.padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            },
-            dismissButton = {
-                Text(
-                    "稍后",
-                    color = C.txt3, fontSize = 13.sp,
-                    modifier = Modifier.clickable { silentReadyCode = 0 }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                )
-            },
-            containerColor = C.bgSoft,
-        )
     }
 
     // 公告（2026-10-19 用户："给app加一个通知（或者叫公告）通道…支持链接，图片"）。
@@ -887,19 +780,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onClose = { showFeedback = false },
         )
     }
-    // 隐藏后不再画浮条：update 仍然是 Progress（下载在跑），但界面不显示
-    update?.takeIf { !(it is UpdateUi.Progress && barHidden) }?.let { st ->
+    update?.let { st ->
         UpdateOverlay(
             state = st,
             currentVersion = version,
             onStart = { (st as? UpdateUi.Offer)?.let { startDownload(it.m, it.forced) } },
             // 收起进度条：只把界面藏了，下载协程照跑（它在 CampusShell 的 scope 里）
-            onHideProgress = {
-                // 只收浮条，不动下载：协程还在跑，状态栏那条常驻通知接手显示进度
-                barHidden = true
-                val m = (update as? UpdateUi.Progress)?.m
-                if (m != null) UpdateNotify.progress(appCtx, m.versionName, -1)
-            },
             onInstall = {
                 val r = st as? UpdateUi.Ready
                 if (r != null) {

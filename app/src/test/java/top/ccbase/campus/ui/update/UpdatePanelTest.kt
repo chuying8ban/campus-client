@@ -179,12 +179,12 @@ class UpdatePanelTest {
     }
 
     @Test
-    fun `下载中提供隐藏出口，且写明不会中断`() {
-        // 点击在 Robolectric 里注不进去（底部细条贴着窗口下沿），这里守的是"入口在、话说明白"。
+    fun `下载中不再有隐藏按钮（只留单一路径）`() {
+        // 2026-10-19 用户："静默更新和用户手动更新总是冲突…取消了吧，另外更新时的隐藏按钮也取消了吧"。
+        // 隐藏按钮本身不致命，但它和静默那条路一起把"到底谁在下载"搞乱了 —— 现在只留一条。
         overlay(UpdateUi.Progress(manifest(), 0.3f))
-        // 精确匹配：底下一句说明里也含「隐藏」两个字，substring 会撞到两个节点
-        compose.onNodeWithText("隐藏").assertExists()
-        text("不会中断下载").assertExists()
+        assertEquals("下载条上不该再有「隐藏」", 0, compose.onAllNodesWithTextCount("隐藏"))
+        text("可以继续用 App").assertExists()
     }
 
     @Test
