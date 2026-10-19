@@ -698,13 +698,15 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // 小组件自己没存过就用 App 那段（点了才复制过去，两边从此各管各的）
     val media = ownMedia ?: appMedia
     if (media != null) {
-        Spacer(Modifier.height(10.dp))
+        val using = wSpec == top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)
+        // 2026-10-19 用户："这一块的功能指向不明"。原来只是一颗孤零零的胶囊，
+        // 既没说明它属于"背景素材"，也看不出点它会做什么。现在给小标题 + 一句动作说明。
+        Spacer(Modifier.height(14.dp))
+        Text("我传的素材", fontSize = 11.sp, color = C.txt3)
+        Spacer(Modifier.height(7.dp))
         Text(
-            if (wSpec == top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)) {
-                "✓ 正在用你传的${media.kind.label}"
-            } else {
-                "用你传的${media.kind.label}当背景"
-            },
+            if (using) "✓ 桌面正在用你传的${media.kind.label}"
+            else "点这里，把${media.kind.label}用到桌面这张卡",
             fontSize = 12.sp,
             color = if (wSpec == top.ccbase.campus.ui.theme.UserMedia.spec(media.kind)) C.violet else C.txt2,
             modifier = Modifier
@@ -732,9 +734,9 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
 
     // 让选中的那张图动起来（小组件也能动：12 帧轮播，见 WidgetFrames）
     val curTheme = remember(wSpec) { WidgetThemes.of(wSpec) }
-    if (curTheme.hasImage) {
+    if (curTheme.hasImage || media != null) {
         Spacer(Modifier.height(14.dp))
-        Text("让它动起来", fontSize = 11.sp, color = C.txt3)
+        Text("动效（作用在你选中的那张图上）", fontSize = 11.sp, color = C.txt3)
         Spacer(Modifier.height(7.dp))
         MotionChips(currentEffectId = WidgetDyn.parseImage(wSpec)?.id) { id ->
             val effect = WidgetFrames.ImgEffect.of(id)
@@ -746,8 +748,12 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             } else toast(ctx, err)
         }
         Spacer(Modifier.height(6.dp))
+        // 2026-10-19：原文案写"会自己动 / 4 帧循环"—— 那是做不到的（桌面不会翻页，
+        // ViewFlipper 的 setAutoStart 也不允许走 RemoteViews）。文案必须跟着选择变，且说实话。
+        val eff = WidgetDyn.parseImage(wSpec)
         Text(
-            "桌面上这张卡片会自己动：画面缓慢推近 + 一层飘落的粒子（4 帧循环，不用 App 在后台跑）。",
+            if (eff == null) "现在是静止的。选一种之后，桌面每次刷新会换一帧 —— 不动的时候最省电。"
+            else "「${eff.label}」${eff.hint}。桌面不会连续播放（系统限制），每次刷新换一帧。",
             fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
         )
     }
