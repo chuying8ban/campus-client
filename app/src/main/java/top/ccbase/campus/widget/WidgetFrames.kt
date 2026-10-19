@@ -78,7 +78,7 @@ object WidgetFrames {
             val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return render(ctx, key, wPx, hPx, fullRes) { c, fw, fh, t0 ->
+            return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
                 // 播放速度：把"时间轴"走快/走慢，不是简单抽帧 —— 慢放时粒子真的更慢
                 val t = t0 / speed.coerceAtLeast(0.2f)
                 DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
@@ -92,7 +92,7 @@ object WidgetFrames {
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
-            return render(ctx, key, wPx, hPx, fullRes) { c, fw, fh, t0 ->
+            return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
                 drawCinemagraph(c, src, effect, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
             }
         }
@@ -106,7 +106,7 @@ object WidgetFrames {
             val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return renderMedia(ctx, key, media, wPx, hPx, fullRes)
+            return renderMedia(ctx, key, media, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed))
         }
         return null
     }
@@ -121,6 +121,50 @@ object WidgetFrames {
      * 现在：帧尺寸 = 视图尺寸（或等比缩小后的同比例），ImageView 改成 `fitXY`，
      * 1:1 铺进去，四个角都画在画内。
      */
+    internal fun stamp(spec: String, wPx: Int, hPx: Int, speed: Float): String =
+        "$spec|$wPx|$hPx|s$speed"
+
+    /**
+     * 只查"帧文件在不在"，**不渲染**。桌面每次刷新都要调；渲染一帧 46 万像素在广播主线程上 = App 卡顿。
+     *
+     * 必须核对 `meta` 里的 stamp：`wframes/` 只留一份帧，换了主题/尺寸/速度之后旧文件还在，
+     * 不核对就会拿上一个主题的帧去铺（表现为"换了主题桌面不变"）。
+     */
+    fun existingFiles(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<File>? {
+        val dir = File(ctx.cacheDir, "wframes").listFiles()?.firstOrNull { it.isDirectory } ?: return null
+        val meta = runCatching { File(dir, "meta").readText() }.getOrNull() ?: return null
+        if (meta != stamp(spec, wPx, hPx, speed)) return null
+        val files = (0 until FRAMES).map { File(dir, "f$it.png") }
+        return if (files.all { it.isFile && it.length() > 0L }) files else null
+    }
+
+    /** 这个 spec 是不是"会动"的（动态预设 / 让图动起来 / 用户传的 gif·视频）。 */
+    fun isDynamic(spec: String): Boolean =
+        WidgetDyn.parse(spec) != null ||
+            WidgetDyn.parseImage(spec) != null ||
+            top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null
+
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "wframes").apply { isDaemon = true }
+    }
+    @Volatile private var pending: String? = null
+
+    /**
+     * 后台画高画质帧（46 万像素 × 4 帧 + PNG 编码 ≈ 几百毫秒）。
+     * 画完回主线程通知刷新 —— 绝不放在广播的调用线程上做（那正是"App 有明显卡顿"）。
+     */
+    fun ensureAsync(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float, onReady: () -> Unit) {
+        val app = ctx.applicationContext
+        val stamp = "$spec|$wPx|$hPx|$speed"
+        if (pending == stamp) return
+        pending = stamp
+        io.execute {
+            runCatching { frameFiles(app, spec, wPx, hPx, speed) }
+            pending = null
+            android.os.Handler(android.os.Looper.getMainLooper()).post { runCatching { onReady() } }
+        }
+    }
+
     /**
      * 高画质帧的**文件列表**（给 `setImageViewUri` 用：桌面自己按原分辨率解码，不经过 binder）。
      *
@@ -169,9 +213,12 @@ object WidgetFrames {
         out
     }.getOrNull()
 
-    private fun diskSave(ctx: Context, key: String, frames: List<Bitmap>) = runCatching {
+    private fun diskSave(ctx: Context, key: String, frames: List<Bitmap>, stamp: String = "") = runCatching {
         val dir = frameDir(ctx, key)
         dir.mkdirs()
+        // 这份帧是"给谁的"：existingFiles 靠它判断主题有没有换过。
+        // 没有这一行，换了主题之后 existingFiles 会把上一个主题的帧当成现任（桌面就一直显示旧主题）。
+        runCatching { java.io.File(dir, "meta").writeText(stamp) }
         // 只保留当前这份，别的 spec 的旧帧清掉（桌面只会用一种）
         dir.parentFile?.listFiles()?.forEach { if (it.absolutePath != dir.absolutePath) it.deleteRecursively() }
         frames.forEachIndexed { i, b ->
@@ -208,6 +255,7 @@ object WidgetFrames {
         wPx: Int,
         hPx: Int,
         fullRes: Boolean = false,
+        stamp: String = "",
     ): List<Bitmap>? {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
         val radius = WidgetArt.radiusFor(hPx, 1f) * scale
@@ -281,7 +329,7 @@ object WidgetFrames {
         if (out.isEmpty()) return null
         while (out.size < FRAMES) out += out.last()   // 不足 6 帧就重复填补
         cache.put(key, out)
-        diskSave(ctx, key, out)
+        diskSave(ctx, key, out, stamp)
         return out
     }
 
@@ -295,6 +343,7 @@ object WidgetFrames {
         wPx: Int,
         hPx: Int,
         fullRes: Boolean = false,
+        stamp: String = "",
         draw: (Canvas, Int, Int, Float) -> Unit,
     ): List<Bitmap> {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
@@ -310,7 +359,7 @@ object WidgetFrames {
             out += rounded
         }
         cache.put(key, out)
-        diskSave(ctx, key, out)
+        diskSave(ctx, key, out, stamp)
         return out
     }
 

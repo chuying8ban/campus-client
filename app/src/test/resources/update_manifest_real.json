@@ -1,11 +1,12 @@
 {
-  "version_code": 163,
-  "version_name": "3.4.44",
-  "url": "/updates/campus-3.4.44.apk",
-  "sha256": "8c61f1f671a92bf18adb0b325f5f857881c3cbbddba8f6f615c99332e964ed20",
-  "size": 8380083,
+  "version_code": 164,
+  "version_name": "3.4.45",
+  "url": "/updates/campus-3.4.45.apk",
+  "sha256": "01defe7af836b5d86d5afe760b2da96e547b4ca731b5a75075e4732a018de791",
+  "size": 8396495,
   "notes": [
-    "高画质帧补上显式授权：主动把帧文件的读权限授给桌面应用",
-    "读不到时仍会退回静态底图，不会只剩文字"
+    "小组件圆角只剩一层：撤掉多出来的那张底图",
+    "动态主题不再卡：帧只画一次，刷新只查文件",
+    "用 App 时不再给桌面推帧，推帧时长延长到 20 分钟"
   ]
 }

@@ -31,7 +31,9 @@ object WidgetTicker {
 
     // 一帧的步长默认 = WidgetFrames.STEP_SEC（约 0.32s），推得比这更稀就会跳帧
     private const val STEP_MS = 250L
-    private const val MAX_RUN_MS = 5 * 60 * 1000L
+    // 2026-10-19 用户："动图不动" —— 原来 5 分钟就停，之后要等下一次熄屏/亮屏才重新开始，
+    // 看起来就是"看着看着不动了"。抬到 20 分钟（熄屏仍然立即停，不常驻、不占唤醒锁）。
+    private const val MAX_RUN_MS = 20 * 60 * 1000L
 
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
@@ -42,6 +44,12 @@ object WidgetTicker {
             if (!running) return
             if (SystemClock.elapsedRealtime() - startedAt > MAX_RUN_MS) {
                 stop()
+                return
+            }
+            // 用户正在用 App 时桌面不可见，推帧纯属白烧（每秒 4 次主线程 + 跨进程）。
+            // 这不是"省电优化"，是他明确感受到的卡顿来源。
+            if (AppForeground.visible) {
+                handler.postDelayed(this, STEP_MS)
                 return
             }
             val ctx = appCtx ?: run { stop(); return }

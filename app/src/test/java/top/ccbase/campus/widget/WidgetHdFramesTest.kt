@@ -3,7 +3,9 @@ package top.ccbase.campus.widget
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +64,23 @@ class WidgetHdFramesTest {
             // 必须是 PNG：圆角靠透明角，JPEG 会把四角填黑
             assertTrue("第 $i 帧不是 PNG", f.name.endsWith(".png"))
         }
+    }
+
+    @Test
+    fun `换了主题就不许拿旧帧`() {
+        // wframes/ 只留一份帧。不核对 meta 就会拿上一个主题的帧去铺 —— 表现为"换了主题桌面不变"。
+        val a = WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF6C5CE7.toInt())
+        val b = WidgetDyn.spec(DynPainter.Kind.entries.last(), 0xFF39D3C0.toInt())
+        assertNotNull(WidgetFrames.frameFiles(ctx, a, 960, 480, 1f))
+        assertNotNull("同主题同尺寸应当命中", WidgetFrames.existingFiles(ctx, a, 960, 480, 1f))
+        assertNull("换了主题不该命中", WidgetFrames.existingFiles(ctx, b, 960, 480, 1f))
+        assertNull("换了尺寸不该命中", WidgetFrames.existingFiles(ctx, a, 640, 320, 1f))
+    }
+
+    @Test
+    fun `动态规格认得出来`() {
+        assertTrue(WidgetFrames.isDynamic(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF6C5CE7.toInt())))
+        assertFalse(WidgetFrames.isDynamic("solid:#FF0000"))
     }
 
     @Test

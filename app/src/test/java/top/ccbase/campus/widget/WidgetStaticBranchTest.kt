@@ -61,15 +61,15 @@ class WidgetStaticBranchTest {
     }
 
     @Test
-    fun `动态规格用帧，并且底下压一张兜底底图`() {
-        // 3.4.43 起：高画质帧走 setImageViewUri（桌面自己读文件）。binder 里只有一个字符串，
-        // 但万一某个桌面读不了 content URI，就会整块空白 —— 所以底下仍然垫一张静态底图兜底。
-        // 断言改的是"帧亮着 + 底图也亮着"，不是"底图必须藏起来"。
+    fun `动态规格只留一层（底图必须藏起来）`() {
+        // 2026-10-19 用户："圆角矩形的显示为什么有两个，只留内侧的那个"。
+        // 兜底底图是低分辨率渲染再拉伸，圆角弧度和帧对不上，就露出第二个圆角矩形 + 一圈灰边。
+        // URI 在真机上已验证能读到（他截图里那张清晰的二次元照片就是帧本身），兜底撤掉。
         val v = viewOf(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF39D3C0.toInt()))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.widget_flip).visibility)
         assertEquals(
-            "兜底底图应该可见（URI 读不到时不至于只剩文字）",
-            View.VISIBLE, v.findViewById<View>(R.id.widget_bg_img).visibility,
+            "底图必须藏起来，否则会有两层圆角",
+            View.GONE, v.findViewById<View>(R.id.widget_bg_img).visibility,
         )
     }
 }

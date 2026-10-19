@@ -221,19 +221,42 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
             // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
             val speed = runCatching { WidgetThemes.speed(ctx) }.getOrDefault(1f)
-            val frames = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
-            val dyn = frames != null
-
-            // 可读性幕：只在"图片/动图"这类底板内容不受我们控制的主题上，且用户挑过字色时才有值。
-            // 注意：**必须画进位图**（见 WidgetArt.veil），不能再用布局里那块矩形 scrim。
-            val imgTheme = dyn || spec.startsWith("photo") || spec.startsWith("media") ||
+            // 2026-10-19 用户："动图不动，而且 app 有明显卡顿"
+            // 两个根因：① 每次刷新都在**广播主线程**上渲染 4 帧 × 46 万像素高画质帧 + PNG 编码；
+            //           ② 高画质帧其实早在磁盘上，又重新算了一遍（还被当成"有没有动态主题"的判据）。
+            // 现在：先只查文件，文件在就直接走 URI（零渲染）；不在就先把这次的位图帧用上、
+            //       后台画好高画质再刷新一次。
+            val dynSpec = WidgetFrames.isDynamic(spec)
+            // 可读性幕要先算：它决定"这版能不能走 URI 高画质"（幕必须画进位图里）。
+            val imgTheme = dynSpec || spec.startsWith("photo") || spec.startsWith("media") ||
                 spec.startsWith("animphoto")
             val wScrim = if (imgTheme)
                 TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor) else 0
             val density = ctx.resources.displayMetrics.density
             val veilRadius = WidgetArt.radiusFor(hPx, density)
-            if (frames != null) {
+
+            val hdEnabled = runCatching { WidgetThemes.hdFrames(ctx) }.getOrDefault(true)
+            val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed) else null
+            // 高画质文件已就绪时，连位图帧都不生成（省掉最贵的一步）
+            val frames = if (dynSpec && hdFiles == null) {
+                runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
+            } else null
+            val dyn = dynSpec && (hdFiles != null || frames != null)
+            if (dynSpec && hdEnabled && wScrim == 0 && hdFiles == null) {
+                // 后台画，画完自己回来刷新；这次先用位图帧顶着，桌面不会空白
+                runCatching {
+                    WidgetFrames.ensureAsync(ctx, spec, wPx, hPx, speed) {
+                        runCatching { refresh(ctx) }
+                    }
+                }
+            }
+
+            if (dyn) {
                 rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
+                // 只留一层：底图必须藏起来。2026-10-19 用户："圆角矩形的显示为什么有两个，
+                // 只留内侧的那个" —— 高画质帧走 URI 之后，底下那张"兜底静态底图"是**低分辨率**
+                // 渲染再拉伸的，圆角弧度/裁切跟帧对不上，就露出第二个圆角矩形（还带一圈灰边）。
+                // URI 在真机上已验证能读到（那张二次元照片就是帧本身），兜底不再需要。
                 rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
                 // 只灌实际生成的帧，多出来的 ImageView 直接 GONE：
                 // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
@@ -242,21 +265,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 2026-10-19 用户："小控件的动态主题画质太糊了" —— 糊正是因为位图预算
                 // 把 880×443 的帧压到 300 多像素宽，桌面再放大 2~3 倍。
                 // 有可读性幕时必须走位图（幕要画进图里）；没幕才用 URI 高画质。
-                val hdFiles = if (wScrim == 0 &&
-                    runCatching { WidgetThemes.hdFrames(ctx) }.getOrDefault(true)
-                ) {
-                    runCatching { WidgetFrames.frameFiles(ctx, spec, wPx, hPx, speed) }.getOrNull()
-                } else null
                 val hdOk = hdFiles != null && hdFiles.size >= FRAME_IDS.size
                 if (hdOk) {
-                    // 兜底：万一某个桌面读不了 content URI，底下还压着一张静态底图，
-                    // 至少不会变成"只有文字、图没了"。
-                    runCatching {
-                        backgroundBitmapFor(ctx, spec, wPx, hPx)?.let { still ->
-                            rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(still, wAlpha))
-                            rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                        }
-                    }
                     val authority = ctx.packageName + ".fileprovider"
                     // 显式把读权限授给桌面（launcher）：`setImageViewUri` 的 URI 是**桌面进程**去读的，
                     // 而桌面对我们的 FileProvider 没有任何权限。系统在多数 ROM 上会替我们转授，
@@ -291,7 +301,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 } else {
                     FRAME_IDS.forEachIndexed { i, id ->
                         // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
-                        val fr = frames[i.coerceAtMost(frames.size - 1)]
+                        val fr = frames!![i.coerceAtMost(frames!!.size - 1)]
                         val veiled = if (wScrim != 0) {
                             WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
                         } else fr
@@ -310,7 +320,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 播放速度：帧序列不变，只是"多久轮到下一帧"按 speed 缩放
                 val stepMs = ((WidgetFrames.STEP_SEC * 1000) / speed.coerceAtLeast(0.2f)).toLong()
                     .coerceAtLeast(60L)
-                val idx = ((System.currentTimeMillis() / stepMs) % frames.size).toInt()
+                val frameCount = hdFiles?.size ?: frames!!.size
+                val idx = ((System.currentTimeMillis() / stepMs) % frameCount).toInt()
                 runCatching { rv.setInt(R.id.widget_flip, "setDisplayedChild", idx) }
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
