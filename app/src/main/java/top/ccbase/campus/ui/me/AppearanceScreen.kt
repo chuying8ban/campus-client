@@ -71,6 +71,8 @@ import top.ccbase.campus.ui.theme.presetById
 import top.ccbase.campus.ui.theme.UserMedia
 import top.ccbase.campus.ui.theme.animPhotoSpec
 import top.ccbase.campus.ui.theme.parseAnimPhoto
+import top.ccbase.campus.domain.loadToday
+import top.ccbase.campus.domain.toPlanNow
 import top.ccbase.campus.widget.ArtRepo
 import top.ccbase.campus.widget.WidgetFrames
 import androidx.compose.ui.graphics.asImageBitmap
@@ -489,6 +491,35 @@ private fun WidgetSelfCheck() {
     var trySpec by remember { mutableStateOf<String?>(null) }
     val savedSpec = WidgetThemes.spec(ctx)
     val spec = trySpec ?: savedSpec
+    // 真实课表数据（和桌面那条路同一个 builder）。自检里没有文字的话，就不是"同一份画面"。
+    var model by remember { mutableStateOf<top.ccbase.campus.widget.WidgetModel?>(null) }
+    LaunchedEffect(trySpec) {
+        model = runCatching {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val app = ctx.applicationContext as? top.ccbase.campus.CampusApplication
+                    ?: return@withContext null
+                val day = java.time.LocalDate.now().toString()
+                val plans = runCatching {
+                    app.db.dao().plansOnce(day).map { it.toPlanNow() }
+                }.getOrDefault(emptyList())
+                top.ccbase.campus.widget.buildWidgetModel(
+                    top.ccbase.campus.domain.loadToday(app.db), 3, plans,
+                )
+            }
+        }.getOrNull()
+    }
+    // 桌面到底有没有我们的实例、尺寸多少 —— 这是"桌面没反应"的第一个分岔口
+    val instances = remember(spec, open) {
+        val mgr = android.appwidget.AppWidgetManager.getInstance(ctx)
+        val ids = mgr.getAppWidgetIds(
+            android.content.ComponentName(ctx, TodayWidgetProvider::class.java),
+        )
+        ids.map { id ->
+            val o = mgr.getAppWidgetOptions(id)
+            id to (o.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) to
+                o.getInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT))
+        }
+    }
     val bmp = remember(spec) {
         runCatching { TodayWidgetProvider.backgroundBitmapFor(ctx, spec, 900, 400) }.getOrNull()
     }
@@ -546,8 +577,13 @@ private fun WidgetSelfCheck() {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            WidgetThemes.userImageInfo(ctx) + " · 中心像素 #$center",
+            WidgetThemes.userImageInfo(ctx) + " · 中心像素 #$center · " + brightnessOf(bmp),
             color = C.txt3, fontSize = 10.sp,
+        )
+        Text(
+            if (instances.isEmpty()) "桌面上还没有这个小组件 —— 长按桌面 → 添加小组件 → 校园助手"
+            else "桌面实例 " + instances.joinToString("，") { "#${it.first} ${it.second.first}×${it.second.second}dp" },
+            color = if (instances.isEmpty()) C.amber else C.txt3, fontSize = 10.sp,
         )
         Spacer(Modifier.height(8.dp))
 
@@ -556,7 +592,12 @@ private fun WidgetSelfCheck() {
             factory = { c ->
                 android.widget.FrameLayout(c).apply {
                     runCatching {
-                        val view = TodayWidgetProvider.themeViews(c, 900, 400, spec).apply(c, this)
+                        val m = model
+                        val view = if (m != null) {
+                            TodayWidgetProvider.viewsSized(c, m, 900, 400, spec).apply(c, this)
+                        } else {
+                            TodayWidgetProvider.themeViews(c, 900, 400, spec).apply(c, this)
+                        }
                         addView(
                             view,
                             android.widget.FrameLayout.LayoutParams(
@@ -579,6 +620,19 @@ private fun WidgetSelfCheck() {
         )
         }
     }
+}
+
+/** 底图平均亮度（0~255）。纯黑底图 = "没有主题"，得让它自己说出来。 */
+private fun brightnessOf(bmp: android.graphics.Bitmap?): String {
+    if (bmp == null) return "亮度 -"
+    val s = android.graphics.Bitmap.createScaledBitmap(bmp, 24, 24, true)
+    var sum = 0L
+    for (y in 0 until s.height) for (x in 0 until s.width) {
+        val p = s.getPixel(x, y)
+        sum += ((p shr 16 and 0xFF) * 299 + (p shr 8 and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+    }
+    val avg = (sum / (s.width * s.height)).toInt()
+    return "平均亮度 $avg/255" + if (avg < 12) "（几乎全黑）" else ""
 }
 
 // ────────────────────────────── 公用小件 ──────────────────────────────

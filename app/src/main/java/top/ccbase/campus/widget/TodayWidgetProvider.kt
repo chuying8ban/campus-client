@@ -390,9 +390,33 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun views(ctx: Context, mgr: AppWidgetManager, widgetId: Int, model: WidgetModel): RemoteViews {
+        private fun views(
+            ctx: Context,
+            mgr: AppWidgetManager,
+            widgetId: Int,
+            model: WidgetModel,
+            specOverride: String? = null,
+        ): RemoteViews {
+            val (w, h) = sizePx(ctx, mgr, widgetId)
+            return viewsSized(ctx, model, w, h, specOverride)
+        }
+
+        /**
+         * 尺寸定下来之后的全部绘制（2026-10-19 拆出来）。
+         *
+         * 「小组件自检」以前直接调 `themeViews` —— 那条路只贴主题、不填文字，于是自检里
+         * 永远是一个没有文字的黑框，用户据此判断「小组件还是没有主题」。现在自检和桌面
+         * 走**同一个** [viewsSized]，自检里看到的就是桌面上的样子。
+         */
+        fun viewsSized(
+            ctx: Context,
+            model: WidgetModel,
+            w: Int,
+            h: Int,
+            specOverride: String?,
+        ): RemoteViews {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
-            val theme = WidgetThemes.of(WidgetThemes.spec(ctx))
+            val theme = WidgetThemes.of(specOverride ?: WidgetThemes.spec(ctx))
             rv.setTextViewText(R.id.widget_status, model.status)
             rv.setTextViewText(R.id.widget_date, model.dateLine)
             rv.setTextViewText(R.id.widget_week, model.week)
@@ -427,8 +451,6 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
             rv.setTextViewText(R.id.widget_foot, model.footer)
 
-            val (w, h) = sizePx(ctx, mgr, widgetId)
-
             // 尺寸自适应：RemoteViews 不能测量，只能按 launcher 报的格子尺寸算。
             // 不同 ROM 的格子差很多（MIUI 4×2≈155dp，原生 4×2≈170dp，某些桌面 2×2 只有 110dp），
             // 所以**宽、高各分档**，不是只砍行。
@@ -460,7 +482,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewPadding(R.id.widget_content, (12 * density).toInt(), (10 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
             }
 
-            applyTheme(ctx, rv, w, h)
+            applyTheme(ctx, rv, w, h, specOverride)
 
             val open = PendingIntent.getActivity(
                 ctx, 0,

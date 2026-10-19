@@ -235,11 +235,34 @@ object UserMedia {
                 }
                 Kind.VIDEO -> android.media.MediaMetadataRetriever().use { r ->
                     r.setDataSource(m.file.path)
-                    r.getFrameAtTime(0)
+                    // 2026-10-19：原来取 t=0，很多动图/视频第一帧就是黑的（淡入、过场），
+                    // 于是"我的图"存下来是一张纯黑图 —— 小组件看着就是"没有主题"。
+                    // 取几个时间点，挑亮度最高的那一帧。
+                    val durMs = r.extractMetadata(
+                        android.media.MediaMetadataRetriever.METADATA_KEY_DURATION,
+                    )?.toLongOrNull() ?: 0L
+                    val marks = if (durMs > 0) {
+                        listOf(0.08, 0.25, 0.45, 0.65, 0.85).map { (durMs * it).toLong() * 1000 }
+                    } else {
+                        listOf(0L, 800_000L, 1_600_000L)
+                    }
+                    marks.mapNotNull { t -> runCatching { r.getFrameAtTime(t) }.getOrNull() }
+                        .maxByOrNull { meanLuma(it) }
                 }
             }
         }.getOrNull()
     }
+
+    /** 缩到 16×16 求平均亮度：用来在几帧里挑最亮的一帧当封面。 */
+    fun meanLuma(b: android.graphics.Bitmap): Int = runCatching {
+        val s = android.graphics.Bitmap.createScaledBitmap(b, 16, 16, true)
+        var sum = 0L
+        for (y in 0 until s.height) for (x in 0 until s.width) {
+            val p = s.getPixel(x, y)
+            sum += ((p shr 16 and 0xFF) * 299 + (p shr 8 and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+        }
+        (sum / (s.width * s.height)).toInt()
+    }.getOrDefault(0)
 
     private fun sampleSize(f: File, maxSide: Int): Int {
         val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }

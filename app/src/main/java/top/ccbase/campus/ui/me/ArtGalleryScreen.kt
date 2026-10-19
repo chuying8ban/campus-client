@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -391,13 +392,21 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         when {
             // 已经有图就别整块换成转圈：搜索时旧图留着，上面那行字在走路，才不像卡死
             loading && shown.isEmpty() -> CenterHint("正在读图库…", spinner = true)
-            shown.isEmpty() -> CenterHint(
-                when {
-                    hint != null -> hint!!
-                    query.isBlank() -> "这批里还没有图"
-                    else -> "没搜到「${query.trim()}」，换个词试试"
-                },
-            )
+            shown.isEmpty() -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CenterHint(
+                    when {
+                        hint != null -> hint!!
+                        query.isBlank() -> "这批里还没有图"
+                        else -> "没搜到「${query.trim()}」，换个词试试"
+                    },
+                )
+                // 空白页必须能自己再试一次：2026-10-19 用户截图"动图上什么都没有"，
+                // 但同一时刻接口是有 57 条的 —— 十有八九是他那次请求没回来，而不是真没有。
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { tick += 1 }) {
+                    Text(if (animOnly) "重新读一次动图" else "重新搜一次", color = C.violet, fontSize = 12.sp)
+                }
+            }
             else -> LazyVerticalGrid(
                 state = grid,
                 columns = GridCells.Fixed(3),
