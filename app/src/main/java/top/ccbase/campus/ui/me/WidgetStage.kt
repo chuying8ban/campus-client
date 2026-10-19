@@ -228,7 +228,7 @@ internal fun mountWidgetViews(
     runCatching {
         val m = info.model
         val view = if (m != null) {
-            TodayWidgetProvider.viewsSized(ctx, m, info.wPx, info.hPx, spec, alpha).apply(ctx, host)
+            TodayWidgetProvider.viewsSized(ctx, m, info.wPx, info.hPx, spec, alpha, preview = true).apply(ctx, host)
         } else {
             TodayWidgetProvider.themeViews(ctx, info.wPx, info.hPx, spec, alpha).apply(ctx, host)
         }

@@ -3,7 +3,7 @@
      这两个动画写在布局属性里（android:inAnimation / android:outAnimation），由桌面在
      inflate 时自己读 —— 不需要我们跨进程调用，远端视图调不了 setInAnimation。 -->
 <alpha xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="420"
+    android:duration="200"
     android:interpolator="@android:anim/accelerate_decelerate_interpolator"
     android:fromAlpha="0.0"
     android:toAlpha="1.0" />

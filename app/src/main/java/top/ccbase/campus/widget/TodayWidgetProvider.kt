@@ -104,8 +104,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 12 个位子只有 4 个有图 = 卡片 2/3 的时间是空的，用户看到的就是"动态主题一片黑"。
          */
         private val FRAME_IDS = intArrayOf(
-            R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5,
-            R.id.f6, R.id.f7, R.id.f8, R.id.f9, R.id.f10, R.id.f11,
+            R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5, R.id.f6, R.id.f7,
+            R.id.f8, R.id.f9, R.id.f10, R.id.f11, R.id.f12, R.id.f13, R.id.f14, R.id.f15,
+            R.id.f16, R.id.f17, R.id.f18, R.id.f19, R.id.f20, R.id.f21, R.id.f22, R.id.f23,
         )
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250
@@ -223,6 +224,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             hPx: Int,
             specOverride: String? = null,
             alphaOverride: Float? = null,
+            preview: Boolean = false,
         ) {
             val spec = specOverride ?: WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
@@ -289,7 +291,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 2026-10-19 用户："小控件的动态主题画质太糊了" —— 糊正是因为位图预算
                 // 把 880×443 的帧压到 300 多像素宽，桌面再放大 2~3 倍。
                 // 有可读性幕时必须走位图（幕要画进图里）；没幕才用 URI 高画质。
-                val hdOk = hdFiles != null && hdFiles.size >= FRAME_IDS.size
+                // 预览不走 URI（会把 24 张全解码进本进程）；桌面才走
+                val hdOk = !preview && hdFiles != null && hdFiles.size >= FRAME_IDS.size
                 if (hdOk) {
                     val authority = ctx.packageName + ".fileprovider"
                     // 显式把读权限授给桌面（launcher）：`setImageViewUri` 的 URI 是**桌面进程**去读的，
@@ -327,15 +330,29 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     // binder 单次事务的 1MB 上限 —— 一旦不是高画质模式，桌面会把**整份** RemoteViews
                     // 丢掉（表现就是"主题没反应/卡片空一块"）。所以兜底只放第 0 帧当静态底，
                     // 等 HD 帧文件就绪后的下一次刷新再切到 URI 动画。静态 2 秒，好过整块丢掉。
-                    val fr = frames!!.firstOrNull()
-                    if (fr != null) {
-                        rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                        val veiled = if (wScrim != 0) {
-                            WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
-                        } else fr
-                        rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(veiled, wAlpha))
+                    if (preview) {
+                        // 预览：小位图逐帧塞进去，24 帧加起来约 3.8MB，进程内不走 binder，也不解码 PNG
+                        FRAME_IDS.forEachIndexed { i, id ->
+                            val fr = frames!![i.coerceAtMost(frames!!.size - 1)]
+                            val veiled = if (wScrim != 0) {
+                                WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
+                            } else fr
+                            rv.setImageViewBitmap(id, WidgetArt.fade(veiled, wAlpha))
+                            rv.setViewVisibility(id, View.VISIBLE)
+                        }
+                        rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
+                        rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
+                    } else {
+                        val fr = frames!!.firstOrNull()
+                        if (fr != null) {
+                            rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                            val veiled = if (wScrim != 0) {
+                                WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
+                            } else fr
+                            rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(veiled, wAlpha))
+                        }
+                        rv.setViewVisibility(R.id.widget_flip, View.GONE)
                     }
-                    rv.setViewVisibility(R.id.widget_flip, View.GONE)
                 }
                 // 帧由桌面自己轮播（layout 里的 autoStart + flipInterval + in/out 动画）。
                 // 2026-10-19 用户："极其生硬" —— 原来是我们在 WidgetTicker 里每 250ms 广播一次、
@@ -612,6 +629,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
             h: Int,
             specOverride: String?,
             alphaOverride: Float? = null,
+            // App 内预览：帧以**小位图**直接塞进 ImageView，不走 content:// URI。
+            // 为什么必须分路：URI 是给桌面进程读的，桌面上 24 帧各 1080×520 由 launcher 按需解码；
+            // 而在 App 进程里 setImageViewUri 会把 24 张 PNG **全部解码进本进程内存**（≈50MB），
+            // 一进设置页就明显卡顿（用户 2026-10-19："app 现在有明显卡顿"）。
+            preview: Boolean = false,
         ): RemoteViews {
             val rv = RemoteViews(ctx.packageName, top.ccbase.campus.ui.theme.WidgetFont.layoutFor(ctx))
             val theme = WidgetThemes.of(specOverride ?: WidgetThemes.spec(ctx))
@@ -680,7 +702,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewPadding(R.id.widget_content, (12 * density).toInt(), (10 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
             }
 
-            applyTheme(ctx, rv, w, h, specOverride, alphaOverride)
+            applyTheme(ctx, rv, w, h, specOverride, alphaOverride, preview)
 
             val open = PendingIntent.getActivity(
                 ctx, 0,
