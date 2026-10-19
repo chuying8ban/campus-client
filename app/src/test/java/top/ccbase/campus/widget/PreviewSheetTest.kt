@@ -43,6 +43,9 @@ class PreviewSheetTest {
             sc.drawBitmap(f, ((i % 3) * cw).toFloat(), ((i / 3) * ch).toFloat(), Paint())
             File(out, "${k.id}.png").outputStream().use { f.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
+        // 卡片真实比例的单独一张（看颗粒/暗角/光晕在成品尺寸下的样子）
+        val big = WidgetFrames.forSpec(ctx, WidgetDyn.spec(DynPainter.Kind.AURORA, accent), 960, 460, fullRes = true)!![0]
+        File(out, "card_960.png").outputStream().use { big.compress(Bitmap.CompressFormat.PNG, 100, it) }
         File(out, "sheet.png").outputStream().use { sheet.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }
