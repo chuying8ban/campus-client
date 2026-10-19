@@ -230,8 +230,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 可读性幕要先算：它决定"这版能不能走 URI 高画质"（幕必须画进位图里）。
             val imgTheme = dynSpec || spec.startsWith("photo") || spec.startsWith("media") ||
                 spec.startsWith("animphoto")
-            val wScrim = if (imgTheme)
-                TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor) else 0
+            // 2026-10-19 用户："更改文字颜色时小部件的背景颜色不要一起改，取消那个遮罩功能"。
+            // 幕是按"字色 vs 底色"的对比度算出来的，所以改字色必然连带改背景 —— 这就是 Bug 本身。
+            // 现在恒为 0：字色只管字，背景只由主题决定。看不清是用户的自由选择，不再替他兜底。
+            val wScrim = 0
             val density = ctx.resources.displayMetrics.density
             val veilRadius = WidgetArt.radiusFor(hPx, density)
 

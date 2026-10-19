@@ -29,6 +29,7 @@ import top.ccbase.campus.data.local.CampusDb
 import top.ccbase.campus.data.local.TaskDone
 import top.ccbase.campus.data.local.Resource
 import top.ccbase.campus.data.local.StudyStep
+import top.ccbase.campus.domain.Soup
 import top.ccbase.campus.domain.TaskNow
 import top.ccbase.campus.domain.TodayView
 import top.ccbase.campus.domain.UNIT_TIMES
@@ -165,6 +166,9 @@ fun TodayScreen(
         item { ExamStrip(db, onOpenExam) }
         item { WidgetInviteBottom(onOpenTheme = onOpenWidgetTheme) }
 
+        // 今日的最下面：一条毒鸡汤（2026-10-19 用户要求）。每次进 App 换一条，队列不重复。
+        item { SoupCard() }
+
 
     }
 
@@ -235,6 +239,42 @@ internal fun selfStudyLabel(start: String, end: String): String {
     if (a.isEmpty()) return b
     if (b.isEmpty() || b == a) return zeroPad(a)
     return "${zeroPad(a)}-${zeroPad(b)}"
+}
+
+/**
+ * 页尾的毒鸡汤（2026-10-19 用户："加一个毒鸡汤库，每次进入 app 在今日的最下面随机放一个"）。
+ *
+ * 读的是 [Soup] 里"进 App 时已经前进过"的那一条 —— 本卡片自己**不抽签**，
+ * 否则每次重组（滑一次列表、切一次 tab）都会换句子，看着像闪。
+ * 只在 ON_RESUME 时重读一次，保证"从后台回来"看到的是新的那句。
+ */
+@Composable
+private fun SoupCard() {
+    val ctx = LocalContext.current
+    var text by remember { mutableStateOf(runCatching { Soup.current(ctx) }.getOrDefault("")) }
+    val owner = LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) {
+                text = runCatching { Soup.current(ctx) }.getOrDefault(text)
+            }
+        }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    if (text.isBlank()) return
+    Column(Modifier.padding(top = 26.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(C.line))
+        Spacer(Modifier.height(14.dp))
+        Text("今日毒鸡汤", color = C.violet.copy(alpha = 0.85f), fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text,
+            color = C.txt2,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+        )
+    }
 }
 
 private data class TRow(

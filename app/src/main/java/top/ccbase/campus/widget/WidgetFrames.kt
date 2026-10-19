@@ -96,6 +96,21 @@ object WidgetFrames {
                 drawCinemagraph(c, src, effect, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
             }
         }
+        // 壁纸级动态主题（换源）：一张在线横版画 + 微动。图不在本地就返回 null，
+        // 由调用方/UI 触发 [WallDyn.ensure] 下载，下好再刷新 —— 绝不能在这里同步联网。
+        WallDyn.parse(spec)?.let { item ->
+            val file = WallDyn.file(ctx, item.id)
+            if (!file.isFile) return null
+            val key = "wd|${item.id}|${file.lastModified()}|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
+            cache.get(key)?.let { return it }
+            diskLoad(ctx, key)?.let { cache.put(key, it); return it }
+            val src = runCatching { android.graphics.BitmapFactory.decodeFile(file.absolutePath) }
+                .getOrNull() ?: return null
+            val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
+            return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
+                drawCinemagraph(c, src, item.effect, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
+            }
+        }
         // 用户自己传的 gif / 视频（2026-10-18）：桌面放不了视频，就抽 12 帧轮播。
         // 视频取前 ~1.4 秒里的 12 个时间点；gif 按总时长均分 —— 两者都按"整张卡片"裁切填满。
         top.ccbase.campus.ui.theme.UserMedia.parse(spec)?.let { kind ->
@@ -140,7 +155,8 @@ object WidgetFrames {
 
     /** 这个 spec 是不是"会动"的（动态预设 / 让图动起来 / 用户传的 gif·视频）。 */
     fun isDynamic(spec: String): Boolean =
-        WidgetDyn.parse(spec) != null ||
+        WallDyn.parse(spec) != null ||
+            WidgetDyn.parse(spec) != null ||
             WidgetDyn.parseImage(spec) != null ||
             top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null
 

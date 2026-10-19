@@ -69,6 +69,7 @@ import top.ccbase.campus.domain.toPlanNow
 import top.ccbase.campus.widget.WidgetArt
 import top.ccbase.campus.widget.WidgetModel
 import top.ccbase.campus.widget.buildWidgetModel
+import top.ccbase.campus.widget.WallDyn
 import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.widget.WidgetDyn
 import top.ccbase.campus.widget.WidgetFrames
@@ -594,6 +595,21 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     )
     Spacer(Modifier.height(14.dp))
 
+    // ---- 壁纸级动态主题（2026-10-19 用户："动态主题都太阴间了…实在不行就给小控件的主题换源"）----
+    // 换源：不再自己画粒子场（深底必然阴间），改用一张在线横版画 + 微动，像系统动态壁纸那样。
+    WallDynRow(ctx, current = wSpec) { item ->
+        WidgetThemes.set(ctx, WallDyn.specOf(item.id))
+        wSpec = WallDyn.specOf(item.id)
+        pvKey++
+        TodayWidgetProvider.refresh(ctx)          // 先用已有缓存/占位
+        WallDyn.ensure(ctx, item.id) {            // 图没下过就后台下，下好自己回来刷新
+            pvKey++
+            WidgetFrames.clear()
+            TodayWidgetProvider.refresh(ctx)
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+
     // ---- 文字颜色（2026-10-19 用户："要支持更改app内和小控件的文字颜色，
     //      把更改文字颜色的控件放在预览旁边"）----
     // 放在预览正下方、透明度上面：这两个都是"同一张卡上的观感"，挨着改最顺手。
@@ -1068,3 +1084,65 @@ private fun toast(ctx: android.content.Context, msg: String) {
 
 /** 用例抓手：动态壁纸入口 */
 const val WP_BTN = "theme-wallpaper-entry"
+
+/**
+ * 壁纸级动态主题那一排（6 个方向）。
+ *
+ * 状态只有两种：**已就绪**（图在本地，点了立刻生效）/ **要下载**（点一下后台取图，顶部提示"正在准备"）。
+ * 不在这里显示进度条 —— 一张横版图通常 1~3 秒，进度条反而让人盯着等。
+ */
+@Composable
+private fun WallDynRow(ctx: android.content.Context, current: String, onPick: (WallDyn.Item) -> Unit) {
+    var readyIds by remember { mutableStateOf(WallDyn.items.filter { WallDyn.ready(ctx, it.id) }.map { it.id }.toSet()) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text("壁纸级动态主题", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            Text(if (busy != null) "正在准备…" else "在线图源 · 微动", color = C.txt3, fontSize = 10.sp)
+        }
+        Spacer(Modifier.height(2.dp))
+        Text("不再是黑底粒子，是一张真图在慢慢推近。", color = C.txt3, fontSize = 10.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            WallDyn.items.forEach { item ->
+                val spec = WallDyn.specOf(item.id)
+                val on = current == spec
+                val has = item.id in readyIds
+                Column(
+                    Modifier
+                        .width(96.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (on) C.violet.copy(alpha = 0.16f) else C.card)
+                        .border(1.dp, if (on) C.violet.copy(alpha = 0.55f) else C.line, RoundedCornerShape(10.dp))
+                        .clickable {
+                            if (!has) busy = item.id
+                            onPick(item)
+                        }
+                        .padding(horizontal = 10.dp, vertical = 9.dp),
+                ) {
+                    Text(item.label, color = if (on) C.violet else C.txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        when {
+                            busy == item.id && !has -> "正在准备…"
+                            has -> item.hint
+                            else -> item.hint + " · 需下载"
+                        },
+                        color = C.txt3, fontSize = 9.sp, lineHeight = 12.sp,
+                    )
+                }
+            }
+        }
+        LaunchedEffect(busy) {
+            val id = busy ?: return@LaunchedEffect
+            // ensure 完成后 ready 会变；这里兜一个"最多等 20 秒"的刷新，避免一直显示正在准备
+            kotlinx.coroutines.delay(20_000)
+            readyIds = WallDyn.items.filter { WallDyn.ready(ctx, it.id) }.map { it.id }.toSet()
+            busy = null
+        }
+    }
+}

@@ -311,7 +311,10 @@ fun CampusTheme(content: @Composable () -> Unit) {
             bg.startsWith(ANIMPHOTO_PREFIX) ||
             bg.startsWith(ANIM_PREFIX) ||
             bg.startsWith(top.ccbase.campus.ui.theme.UserMedia.PREFIX)
-        val scrim = if (hasImage) TextTint.scrimArgb(p.bg.toArgb()) else 0
+        // 2026-10-19 用户："还有更改文字颜色时小部件的背景颜色不要一起改，取消那个遮罩功能"。
+        // 遮罩就是"改字色把背景也改了"的唯一来源（字色越浅 / 越黑，算出来的幕越浓）。
+        // 彻底关掉：字色只影响文字，背景永远只由主题决定。
+        val scrim = 0
         if (scrim != 0) {
             Box(Modifier.fillMaxSize().background(Color(scrim)))
         }

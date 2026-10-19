@@ -268,6 +268,10 @@ object WidgetThemes {
                 headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM,
             )
         }
+        // 壁纸级动态主题：底是照片，按"图片主题"那套白字/深色字处理
+        if (WallDyn.parse(spec) != null) {
+            return imageThemes.firstOrNull { it.id == "img_aurora" } ?: imageThemes.first()
+        }
         if (spec.startsWith("diy:")) {
             val hue = spec.removePrefix("diy:").substringBefore(":").toFloatOrNull() ?: 0f
             val dark = spec.substringAfterLast(":", "1") == "1"

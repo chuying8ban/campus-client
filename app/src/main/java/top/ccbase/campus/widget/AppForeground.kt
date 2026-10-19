@@ -21,10 +21,15 @@ object AppForeground {
     private var started = 0
 
     fun register(app: Application) {
+        val appCtx = app.applicationContext
         app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
+                val wasAway = started == 0
                 started++
                 visible = true
+                // 2026-10-19 用户："每次进入 app 在今日的最下面随机放一个（毒鸡汤），尽量不要重复"。
+                // 放在这里而不是页面里：页面重组/tab 切换都不该换句子，只有"真的回到 App"才换一句。
+                if (wasAway) runCatching { top.ccbase.campus.domain.Soup.advance(appCtx) }
             }
 
             override fun onActivityStopped(activity: Activity) {
