@@ -90,7 +90,23 @@ object WidgetThemes {
     )
 
     /** 规格：预置 id / `img_*` / `diy:<hue>:<dark>` / `user`（自己上传的那张）。 */
-    fun spec(ctx: Context): String = prefs(ctx).getString(K_THEME, DEFAULT) ?: DEFAULT
+    fun spec(ctx: Context): String {
+        val raw = prefs(ctx).getString(K_THEME, DEFAULT) ?: DEFAULT
+        // 2026-10-19：「壁纸级动态主题」（`dynwall:*`）整体删掉了 ——
+        // 用户原话"效果很差，而且要准备很久，准备完后又非常卡顿，直接删了"。
+        // 老版本存下的这个规格必须迁回默认，否则桌面上会留一张画不出来的空卡。
+        if (raw.startsWith("dynwall:")) {
+            set(ctx, DEFAULT)
+            purgeWallCache(ctx)
+            return DEFAULT
+        }
+        return raw
+    }
+
+    /** 删掉已下线的壁纸级主题缓存（cache/wall/）。删过一次就是空目录，不占事。 */
+    private fun purgeWallCache(ctx: Context) {
+        runCatching { java.io.File(ctx.cacheDir, "wall").deleteRecursively() }
+    }
 
     fun set(ctx: Context, spec: String) {
         prefs(ctx).edit().putString(K_THEME, spec).apply()
@@ -264,10 +280,6 @@ object WidgetThemes {
                 "user", "自己的图片", userImage = true,
                 headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM,
             )
-        }
-        // 壁纸级动态主题：底是照片，按"图片主题"那套白字/深色字处理
-        if (WallDyn.parse(spec) != null) {
-            return imageThemes.firstOrNull { it.id == "img_aurora" } ?: imageThemes.first()
         }
         if (spec.startsWith("diy:")) {
             val hue = spec.removePrefix("diy:").substringBefore(":").toFloatOrNull() ?: 0f

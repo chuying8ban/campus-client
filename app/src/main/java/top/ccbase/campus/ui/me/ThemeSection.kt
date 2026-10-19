@@ -69,7 +69,6 @@ import top.ccbase.campus.domain.toPlanNow
 import top.ccbase.campus.widget.WidgetArt
 import top.ccbase.campus.widget.WidgetModel
 import top.ccbase.campus.widget.buildWidgetModel
-import top.ccbase.campus.widget.WallDyn
 import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.widget.WidgetDyn
 import top.ccbase.campus.widget.WidgetFrames
@@ -224,179 +223,6 @@ fun AccentSection() {
         "色环：外圈转色相，往里拖变淡；拖到哪整屏变到哪。",
         fontSize = 10.sp, lineHeight = 15.sp, color = C.txt3,
     )
-}
-
-/**
- * 桌面小组件的**完整预览**（4×2，按真实比例 2:1 画，不裁剪、不截半块）。
- *
- * 为什么不用 Compose 重新"仿"一个：仿的迟早和真remoteviews 走样。这里底图直接调
- * [WidgetArt.background]（真机同一函数），文字用 [buildWidgetModel] 的真实课表数据，
- * 边距/字号照 `res/layout/widget_today.xml` 的数值按屏宽等比缩放。
- *
- * 什么时候会不一样：真机上的格子宽度由 launcher 决定（MIUI 4×2≈155dp 高、原生≈170dp），
- * 窄到 210dp 以下会收起日期/周次 —— 预览按满宽画，也就是"最宽松的那种格子"。
- */
-@Composable
-private fun WidgetPreviewCard(
-    ctx: android.content.Context,
-    spec: String,
-    alpha: Float = 1f,
-    refreshKey: Int = 0,
-) {
-    val theme = remember(spec) { WidgetThemes.of(spec) }
-    val density = LocalDensity.current
-    // 预览和自检都按**桌面真实那一格**的比例与行数画（2026-10-19 用户：
-    // "为什么小控件自检这个做不到和预览的一样"）。以前预览写死 2:1 且永远画 3 行，
-    // 桌面却是别的比例、还只放得下 1~2 行 —— 两张图当然对不上。
-    val deskDp = remember(spec, refreshKey) { TodayWidgetProvider.deskSizeDp(ctx) }
-    val deskRows = TodayWidgetProvider.rowsFor(TodayWidgetProvider.usableHDp(deskDp.second))
-    var model by remember { mutableStateOf<WidgetModel?>(null) }
-    LaunchedEffect(deskRows) {
-        model = runCatching {
-            withContext(Dispatchers.IO) {
-                val app = ctx.applicationContext as? CampusApplication ?: return@withContext null
-                val day = java.time.LocalDate.now().toString()
-                val plans = runCatching {
-                    app.db.dao().plansOnce(day).map { it.toPlanNow() }
-                }.getOrDefault(emptyList())
-                buildWidgetModel(loadToday(app.db), deskRows, plans)
-            }
-        }.getOrNull()
-    }
-    BoxWithConstraints(
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio((deskDp.first / deskDp.second).coerceIn(1.2f, 2.6f))
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, C.lineHi, RoundedCornerShape(18.dp)),
-    ) {
-        val wPx = with(density) { maxWidth.toPx() }.toInt().coerceAtLeast(200)
-        val hPx = with(density) { maxHeight.toPx() }.toInt().coerceAtLeast(100)
-        val f = maxWidth.value / 320f            // 320dp = 常见 4×2 宽度
-        // 预览也要"所见即所得"：gif/视频主题取一帧当封面，别退回成纯色渐变
-        val art = remember(spec, refreshKey) {
-            if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
-                top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
-                    ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
-                )
-            } else {
-                WidgetThemes.imageBitmap(ctx, theme)
-            }
-        }
-        var bg by remember(spec, wPx, hPx, art) { mutableStateOf<android.graphics.Bitmap?>(null) }
-        LaunchedEffect(spec, wPx, hPx, refreshKey) {
-            if (art == null) {
-                bg = withContext(Dispatchers.IO) {
-                    WidgetArt.background(
-                        w = wPx, h = hPx,
-                        base = theme.bgColor, accent = theme.accentColor,
-                        light = theme.light,
-                        radiusPx = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density),
-                    )
-                }
-            }
-        }
-        // 预览底下的"假桌面壁纸"：不透明主题看不到它，一旦把透明度拉下来，
-        // 底下这块就会透上来 —— 效果和桌面上一致，不用回桌面验证。
-        Box(Modifier.fillMaxSize().background(Color(0xFF3A3550))) {
-            Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF5B6FA8)))
-                Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF7A5A8C)))
-            }
-        }
-        val layer = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.coerceIn(0.05f, 1f) }
-        if (art != null) {
-            Image(
-                bitmap = art.asImageBitmap(), contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = layer,
-            )
-            // 蒙版也一起跟着透明度走，否则拉透明时卡片反而更黑
-            Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.coerceIn(0.05f, 1f) }
-                .background(Color(0x7A000000)))
-        } else {
-            bg?.let {
-                Image(
-                    bitmap = it.asImageBitmap(), contentDescription = null,
-                    contentScale = ContentScale.FillBounds,
-                    modifier = layer,
-                )
-            }
-        }
-
-        val m = model
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(
-                    start = (18 * f).dp, end = (18 * f).dp,
-                    top = (14 * f).dp, bottom = (11 * f).dp,
-                ),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size((6 * f).dp).background(Color(theme.accentColor), CircleShape),
-                )
-                Spacer(Modifier.width((7 * f).dp))
-                Text(
-                    m?.status ?: "正在上课",
-                    color = Color(theme.accentColor), fontSize = (11 * f).sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    m?.dateLine ?: "10月18日 周六",
-                    color = Color(theme.dimColor), fontSize = (10.5f * f).sp, maxLines = 1,
-                )
-                if ((m?.week ?: "").isNotBlank()) {
-                    Spacer(Modifier.width((7 * f).dp))
-                    Text(
-                        m!!.week, color = Color(theme.dimColor),
-                        fontSize = (10.5f * f).sp, maxLines = 1,
-                    )
-                }
-            }
-            Spacer(Modifier.height((7 * f).dp))
-            Text(
-                m?.headline ?: "高等数学 A",
-                color = Color(theme.headColor), fontSize = (19 * f).sp,
-                fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height((3 * f).dp))
-            Text(
-                m?.meta ?: "10:10–11:45 · 教A301",
-                color = Color(theme.bodyColor), fontSize = (11.5f * f).sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            val rows = m?.rows ?: emptyList()
-            if (rows.isNotEmpty()) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = (9 * f).dp)
-                        .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.12f)),
-                )
-                rows.take(2).forEachIndexed { i, r ->
-                    Spacer(Modifier.height(((if (i == 0) 7 else 5) * f).dp))
-                    Text(
-                        buildString {
-                            append(r.time); append("　"); append(r.name)
-                            if (r.room.isNotBlank()) { append(" · "); append(r.room) }
-                        },
-                        color = Color(theme.bodyColor), fontSize = (11.5f * f).sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                m?.footer ?: "第 8 周 · 周六",
-                color = Color(theme.dimColor), fontSize = (10 * f).sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
 }
 
 /**
@@ -585,29 +411,26 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
-    // ---- 先看预览：完整一张 4×2，换色/换图/拖透明度都当场反映在它身上 ----
-    WidgetPreviewCard(ctx, wSpec, alpha = wAlpha, refreshKey = pvKey)
+    // 预览与自检已合并成**一套**（2026-10-19 用户："我希望预览和自检用同一套系统"）：
+    // 这张卡就是桌面那份 RemoteViews，自检只剩下面这排读数。
+    // 「试穿」规格（纯色/随包图片/我的图）也只改这张卡，不写回设置。
+    var trySpec by remember { mutableStateOf<String?>(null) }
+    // 用户换掉真主题时，试穿状态作废 —— 否则会拿旧试穿规格盖住新选的
+    LaunchedEffect(wSpec) { trySpec = null }
+    val stage = rememberWidgetStageInfo(ctx, refreshKey = pvKey)
+    val effSpec = trySpec ?: wSpec
+
+    WidgetStageCard(stage, spec = effSpec, alpha = wAlpha)
     Spacer(Modifier.height(8.dp))
     Text(
         "按你桌面上那一格的实际尺寸和比例画；格子窄了会自动收起日期/周次，高度不够就少放一行 —— " +
             "宁可少一行，不把一行切成两半。",
         fontSize = 10.sp, color = C.txt3,
     )
-    Spacer(Modifier.height(14.dp))
-
-    // ---- 壁纸级动态主题（2026-10-19 用户："动态主题都太阴间了…实在不行就给小控件的主题换源"）----
-    // 换源：不再自己画粒子场（深底必然阴间），改用一张在线横版画 + 微动，像系统动态壁纸那样。
-    WallDynRow(ctx, current = wSpec) { item ->
-        WidgetThemes.set(ctx, WallDyn.specOf(item.id))
-        wSpec = WallDyn.specOf(item.id)
-        pvKey++
-        TodayWidgetProvider.refresh(ctx)          // 先用已有缓存/占位
-        WallDyn.ensure(ctx, item.id) {            // 图没下过就后台下，下好自己回来刷新
-            pvKey++
-            WidgetFrames.clear()
-            TodayWidgetProvider.refresh(ctx)
-        }
-    }
+    Spacer(Modifier.height(8.dp))
+    WidgetDiagPanel(stage, spec = effSpec, savedSpec = wSpec, onTrySpec = { trySpec = it })
+    // 2026-10-19：壁纸级动态主题（WallDyn）已整体删除 ——
+    // 用户："效果很差，而且要准备很久，准备完后又非常卡顿，直接删了"。
     Spacer(Modifier.height(16.dp))
 
     // ---- 文字颜色（2026-10-19 用户："要支持更改app内和小控件的文字颜色，
@@ -997,67 +820,3 @@ private fun toast(ctx: android.content.Context, msg: String) {
 }
 
 
-/** 用例抓手：动态壁纸入口 */
-const val WP_BTN = "theme-wallpaper-entry"
-
-/**
- * 壁纸级动态主题那一排（6 个方向）。
- *
- * 状态只有两种：**已就绪**（图在本地，点了立刻生效）/ **要下载**（点一下后台取图，顶部提示"正在准备"）。
- * 不在这里显示进度条 —— 一张横版图通常 1~3 秒，进度条反而让人盯着等。
- */
-@Composable
-private fun WallDynRow(ctx: android.content.Context, current: String, onPick: (WallDyn.Item) -> Unit) {
-    var readyIds by remember { mutableStateOf(WallDyn.items.filter { WallDyn.ready(ctx, it.id) }.map { it.id }.toSet()) }
-    var busy by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text("壁纸级动态主题", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.weight(1f))
-            Text(if (busy != null) "正在准备…" else "在线图源 · 微动", color = C.txt3, fontSize = 10.sp)
-        }
-        Spacer(Modifier.height(2.dp))
-        Text("不再是黑底粒子，是一张真图在慢慢推近。", color = C.txt3, fontSize = 10.sp)
-        Spacer(Modifier.height(8.dp))
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            WallDyn.items.forEach { item ->
-                val spec = WallDyn.specOf(item.id)
-                val on = current == spec
-                val has = item.id in readyIds
-                Column(
-                    Modifier
-                        .width(96.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (on) C.violet.copy(alpha = 0.16f) else C.card)
-                        .border(1.dp, if (on) C.violet.copy(alpha = 0.55f) else C.line, RoundedCornerShape(10.dp))
-                        .clickable {
-                            if (!has) busy = item.id
-                            onPick(item)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                ) {
-                    Text(item.label, color = if (on) C.violet else C.txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        when {
-                            busy == item.id && !has -> "正在准备…"
-                            has -> item.hint
-                            else -> item.hint + " · 需下载"
-                        },
-                        color = C.txt3, fontSize = 9.sp, lineHeight = 12.sp,
-                    )
-                }
-            }
-        }
-        LaunchedEffect(busy) {
-            val id = busy ?: return@LaunchedEffect
-            // ensure 完成后 ready 会变；这里兜一个"最多等 20 秒"的刷新，避免一直显示正在准备
-            kotlinx.coroutines.delay(20_000)
-            readyIds = WallDyn.items.filter { WallDyn.ready(ctx, it.id) }.map { it.id }.toSet()
-            busy = null
-        }
-    }
-}

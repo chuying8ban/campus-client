@@ -197,9 +197,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 测试钩子：只按主题拼一张 RemoteViews（不查课表、不依赖 launcher）。
          * 用来验证"主题到底有没有铺上去"——真机上看不到的画面，测试里能一项项断言。
          */
-        internal fun themeViews(ctx: Context, wPx: Int, hPx: Int, specOverride: String? = null): RemoteViews {
+        internal fun themeViews(
+            ctx: Context,
+            wPx: Int,
+            hPx: Int,
+            specOverride: String? = null,
+            alphaOverride: Float? = null,
+        ): RemoteViews {
             val rv = RemoteViews(ctx.packageName, top.ccbase.campus.ui.theme.WidgetFont.layoutFor(ctx))
-            applyTheme(ctx, rv, wPx, hPx, specOverride)
+            applyTheme(ctx, rv, wPx, hPx, specOverride, alphaOverride)
             return rv
         }
 
@@ -207,11 +213,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 上色 + 铺底。**每次刷新都重新读一次主题**（不缓存）：
          * 用户在外观页换了色，回到桌面那一下就该是新的，不用等系统 30 分钟。
          */
-        private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int, specOverride: String? = null) {
+        private fun applyTheme(
+            ctx: Context,
+            rv: RemoteViews,
+            wPx: Int,
+            hPx: Int,
+            specOverride: String? = null,
+            alphaOverride: Float? = null,
+        ) {
             val spec = specOverride ?: WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
-            // 主题透明度（用户 2026-10-19 要的滑块；1f = 原样）
-            val wAlpha = runCatching { WidgetThemes.alpha(ctx) }.getOrDefault(1f)
+            // 主题透明度（用户 2026-10-19 要的滑块；1f = 原样）。
+            // 2026-10-19 第三版：预览也走这条真路径，滑块拖动时传 alphaOverride 进来 ——
+            // 位图上的透明度必须和桌面**同一条代码**做（文字不跟着变透明），
+            // 不能在 Compose 层套一层 graphicsLayer 冒充。
+            val wAlpha = alphaOverride ?: runCatching { WidgetThemes.alpha(ctx) }.getOrDefault(1f)
             // 根容器必须是**透明**的：圆角是通过位图的透明角落做出来的，
             // 底下要是垫一层不透明底色，那圈透明角落就被它填成黑色方块 ——
             // 用户 2026-10-19 的原话："没有实现圆角，外边有黑色的矩形"。
@@ -595,6 +611,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             w: Int,
             h: Int,
             specOverride: String?,
+            alphaOverride: Float? = null,
         ): RemoteViews {
             val rv = RemoteViews(ctx.packageName, top.ccbase.campus.ui.theme.WidgetFont.layoutFor(ctx))
             val theme = WidgetThemes.of(specOverride ?: WidgetThemes.spec(ctx))
@@ -663,7 +680,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewPadding(R.id.widget_content, (12 * density).toInt(), (10 * density).toInt(), (12 * density).toInt(), (9 * density).toInt())
             }
 
-            applyTheme(ctx, rv, w, h, specOverride)
+            applyTheme(ctx, rv, w, h, specOverride, alphaOverride)
 
             val open = PendingIntent.getActivity(
                 ctx, 0,
