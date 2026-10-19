@@ -54,7 +54,7 @@ object WidgetFrames {
      * 否则桌面上会一直复用上次那批高分辨率帧，改了预算等于没改。
      * 每次动 [FRAMES] / `frameSize` 的预算就把这里 +1。
      */
-    private const val ARCH = "a4"
+    private const val ARCH = "a5"
     // 0.25s 一帧 × 24 帧 = 6 秒一个循环；配合 200ms 交叉淡入，桌面看到的是连续的光影流动。
     const val STEP_SEC = 0.25f
 
@@ -259,7 +259,9 @@ object WidgetFrames {
         // 背景帧里没有文字（文字是独立 TextView），柔和的渐变放大 1.5~2 倍看不出来，
         // 但 24 张 1080×520 全分辨率解码会吃掉桌面 50MB —— MIUI 桌面扛不住就把小组件回收，
         // 表现就是"小组件一直在删来删去"。总量钉在 320 万像素（24 帧 × 13 万 ≈ 12MB）。
-        val perFrame = if (fullRes) 3_200_000f / FRAMES else 40_000f
+        // 24 帧 × 26 万像素 ≈ 每帧 76% 宽度（960 的卡出 733 宽），放大后肉眼几乎无感；
+        // 而不是"每帧满分辨率 × 24"（那是 40MB 解码量，桌面扛不住）。
+        val perFrame = if (fullRes) 6_300_000f / FRAMES else 40_000f
         val px = wPx.toLong() * hPx
         // 不设下限：预算优先。1200×600 的格子 scale≈0.24 刚好；2475×1375 的格子要 0.108，
         // 原来那个 0.24 下限会让 4 帧加起来 3MB，超了 binder 上限 → 桌面整块丢掉（画质换可见）。

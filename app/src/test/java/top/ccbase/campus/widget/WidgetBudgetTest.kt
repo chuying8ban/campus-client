@@ -58,6 +58,6 @@ class WidgetBudgetTest {
         val perFrame = frames.maxOf { it.width.toLong() * it.height }
         assertTrue("单帧 $perFrame 像素超预算", perFrame <= 40_000)
         val bytes = frames.sumOf { it.width.toLong() * it.height * 4 }
-        assertTrue("整组 $bytes 字节，超了 12 帧的上限", bytes <= 12L * 40_000 * 4)
+        assertTrue("整组 $bytes 字节，超了帧数×单帧预算的上限", bytes <= WidgetFrames.FRAMES.toLong() * 40_000 * 4)
     }
 }

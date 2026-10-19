@@ -271,23 +271,31 @@ private val CampusType = Typography().let { base ->
  * 只改 App：小组件走它自己的 layout 变体（见 `WidgetFont`），两边各存各的 pref。
  * 注意 `Digits`（时间/数字）**不受影响** —— 它必须等宽，否则并排的数字会跳。
  */
-private fun Typography.withFamily(f: androidx.compose.ui.text.font.FontFamily): Typography = copy(
-    displayLarge = displayLarge.copy(fontFamily = f),
-    displayMedium = displayMedium.copy(fontFamily = f),
-    displaySmall = displaySmall.copy(fontFamily = f),
-    headlineLarge = headlineLarge.copy(fontFamily = f),
-    headlineMedium = headlineMedium.copy(fontFamily = f),
-    headlineSmall = headlineSmall.copy(fontFamily = f),
-    titleLarge = titleLarge.copy(fontFamily = f),
-    titleMedium = titleMedium.copy(fontFamily = f),
-    titleSmall = titleSmall.copy(fontFamily = f),
-    bodyLarge = bodyLarge.copy(fontFamily = f),
-    bodyMedium = bodyMedium.copy(fontFamily = f),
-    bodySmall = bodySmall.copy(fontFamily = f),
-    labelLarge = labelLarge.copy(fontFamily = f),
-    labelMedium = labelMedium.copy(fontFamily = f),
-    labelSmall = labelSmall.copy(fontFamily = f),
-)
+private fun Typography.withFamily(opt: FontOpt): Typography {
+    val f = opt.compose
+    // 字重也一起铺：只换族名的话，"粗体/特粗/窄粗"这些选项在 App 里点了毫无反应
+    // （2026-10-19 真机走查：字体胶囊长得一模一样，选了看不出变化）。
+    fun androidx.compose.ui.text.TextStyle.w(): androidx.compose.ui.text.TextStyle =
+        if (opt.weight > 0) copy(fontFamily = f, fontWeight = androidx.compose.ui.text.font.FontWeight(opt.weight))
+        else copy(fontFamily = f)
+    return copy(
+        displayLarge = displayLarge.w(),
+        displayMedium = displayMedium.w(),
+        displaySmall = displaySmall.w(),
+        headlineLarge = headlineLarge.w(),
+        headlineMedium = headlineMedium.w(),
+        headlineSmall = headlineSmall.w(),
+        titleLarge = titleLarge.w(),
+        titleMedium = titleMedium.w(),
+        titleSmall = titleSmall.w(),
+        bodyLarge = bodyLarge.w(),
+        bodyMedium = bodyMedium.w(),
+        bodySmall = bodySmall.w(),
+        labelLarge = labelLarge.w(),
+        labelMedium = labelMedium.w(),
+        labelSmall = labelSmall.w(),
+    )
+}
 
 private val CampusShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -342,8 +350,8 @@ fun CampusTheme(content: @Composable () -> Unit) {
         if (scrim != 0) {
             Box(Modifier.fillMaxSize().background(Color(scrim)))
         }
-        val appFamily = AppFont.state.value.compose
-        val type = androidx.compose.runtime.remember(appFamily) { CampusType.withFamily(appFamily) }
+        val appFont = AppFont.state.value
+        val type = androidx.compose.runtime.remember(appFont) { CampusType.withFamily(appFont) }
     MaterialTheme(
             colorScheme = schemeFor(p),
             typography = type,

@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,11 +47,46 @@ enum class FontOpt(
     val compose: FontFamily,
     /** layout XML 里 `android:fontFamily` 的值 —— 必须是系统通用族名 */
     val system: String,
+    /** 0 = 不写 textFontWeight（用族默认字重） */
+    val weight: Int = 0,
 ) {
     SANS("sans", "默认", FontFamily.SansSerif, "sans-serif"),
-    MONO("mono", "等宽", FontFamily.Monospace, "monospace"),
-    SERIF("serif", "衬线", FontFamily.Serif, "serif"),
+
+    // ── 无衬线（黑体）字重谱 ──────────────────────────────────────────────
+    THIN("thin", "极细", FontFamily.SansSerif, "sans-serif-thin"),
+    LIGHT("light", "细体", FontFamily.SansSerif, "sans-serif-light"),
+    REGULAR("regular", "常规", FontFamily.SansSerif, "sans-serif", 400),
+    MEDIUM("medium", "中等", FontFamily.SansSerif, "sans-serif", 500),
+    SEMIBOLD("semibold", "半粗", FontFamily.SansSerif, "sans-serif", 600),
+    BOLD("bold", "粗体", FontFamily.SansSerif, "sans-serif", 700),
+    BLACK("black", "特粗", FontFamily.SansSerif, "sans-serif", 900),
+
+    // ── 窄体（condensed）：字面更收，同宽度能塞更多字 ──────────────────────
+    CND_LIGHT("cnd_light", "窄细", FontFamily.SansSerif, "sans-serif-condensed", 300),
+    CND("cnd", "窄体", FontFamily.SansSerif, "sans-serif-condensed", 400),
+    CND_BOLD("cnd_bold", "窄粗", FontFamily.SansSerif, "sans-serif-condensed", 700),
+    CND_BLACK("cnd_black", "窄特粗", FontFamily.SansSerif, "sans-serif-condensed", 900),
+
+    // ── 衬线（宋体）：适合长时间阅读的正文观感 ────────────────────────────
+    SERIF("serif", "衬线", FontFamily.Serif, "serif", 400),
+    SERIF_LIGHT("serif_light", "衬线细", FontFamily.Serif, "serif", 300),
+    SERIF_BOLD("serif_bold", "衬线粗", FontFamily.Serif, "serif", 700),
+    SERIF_BLACK("serif_black", "衬线特粗", FontFamily.Serif, "serif", 900),
+
+    // ── 等宽：时间、节次、教室号对齐用 ────────────────────────────────────
+    MONO("mono", "等宽", FontFamily.Monospace, "monospace", 400),
+    MONO_BOLD("mono_bold", "等宽粗", FontFamily.Monospace, "monospace", 700),
+    SERIF_MONO("serif_mono", "等宽衬线", FontFamily.Monospace, "serif-monospace"),
+
+    // ── 个性族：中文字形多半回落到系统字体，英文/数字才会真的变 ────────────
+    CASUAL("casual", "手写", FontFamily.Cursive, "casual"),
+    CURSIVE("cursive", "连笔", FontFamily.Cursive, "cursive"),
+    SMALLCAPS("smallcaps", "小型大写", FontFamily.SansSerif, "sans-serif-smallcaps"),
     ;
+
+    /** 小组件那份布局的资源名：默认用基础布局，其余按 id 找生成的变体 */
+    val layoutName: String
+        get() = if (this == SANS) "widget_today" else "widget_today_f_$id"
 
     companion object {
         fun of(id: String?): FontOpt = entries.firstOrNull { it.id == id } ?: SANS
@@ -115,10 +152,12 @@ object WidgetFont : FontStore {
      * 字体只能在**桌面充气我们的布局**那一刻由 `android:fontFamily` 决定，
      * 所以一份字体 = 一份布局。三份内容的唯一差异就是这一行属性（有测试守着）。
      */
-    fun layoutFor(ctx: Context): Int = when (read(ctx)) {
-        FontOpt.SANS -> R.layout.widget_today
-        FontOpt.MONO -> R.layout.widget_today_mono
-        FontOpt.SERIF -> R.layout.widget_today_serif
+    fun layoutFor(ctx: Context): Int {
+        val name = read(ctx).layoutName
+        // 用资源名查，而不是写 21 个 when 分支：字体变体是 tools/gen_widget_fonts.py 生成的，
+        // 名字和枚举 id 一一对应，少一份布局就会在这里回落而不是崩。
+        val id = ctx.resources.getIdentifier(name, "layout", ctx.packageName)
+        return if (id != 0) id else R.layout.widget_today
     }
 
     private fun prefs(ctx: Context) =
@@ -131,6 +170,7 @@ object WidgetFont : FontStore {
  * 这里刻意**不共用状态**：`widget = true` 只碰 `widget_font`，`false` 只碰 `app_font`。
  * 用户 2026-10-19 的原话："app 和小部件要分开"。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FontPicker(
     widget: Boolean,
@@ -149,13 +189,19 @@ fun FontPicker(
             Text("只改这一边", fontSize = 9.5.sp, color = C.txt3)
         }
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             FontOpt.entries.forEach { opt ->
                 val on = opt.id == sel.id
                 Text(
                     opt.label,
                     fontSize = 11.sp,
                     fontFamily = opt.compose,
+                    // 胶囊自己也要"像它承诺的那样"显示：不写字重的话，
+                    // 20 多个胶囊长得一模一样，选哪个全凭猜（2026-10-19 真机走查发现）
+                    fontWeight = if (opt.weight > 0) FontWeight(opt.weight) else null,
                     color = if (on) C.violet else C.txt2,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))

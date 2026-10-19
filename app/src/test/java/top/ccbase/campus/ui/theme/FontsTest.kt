@@ -41,38 +41,43 @@ class FontsTest {
     }
 
     @Test
-    fun `三种字体给三份不同的布局`() {
+    fun `每一款字体都有自己的布局`() {
+        // 2026-10-19 用户："多加一些字体，起码提供几十个"。
+        // 一款字体 = 一份布局（RemoteViews 不能运行时 setTypeface），
+        // 少生成一份的后果是"选了没反应"（layoutFor 回落基础布局），所以这里钉死 1:1。
         val ids = mutableSetOf<Int>()
         FontOpt.entries.forEach {
             WidgetFont.set(ctx, it)
-            ids += WidgetFont.layoutFor(ctx)
+            val id = WidgetFont.layoutFor(ctx)
+            assertNotEquals("字体 ${it.id} 没有对应布局", 0, id)
+            ids += id
         }
-        assertEquals("三套字体必须落到三份不同布局", FontOpt.entries.size, ids.size)
+        assertEquals("字体数必须等于布局数（不许两款字体重用一份布局）", FontOpt.entries.size, ids.size)
     }
 
     @Test
-    fun `布局变体之间只差 fontFamily 一行`() {
-        val files = listOf(
-            "src/main/res/layout/widget_today.xml" to null,
-            "src/main/res/layout/widget_today_mono.xml" to "monospace",
-            "src/main/res/layout/widget_today_serif.xml" to "serif",
-        )
-        val normalized = files.map { (path, fam) ->
-            val f = File(path)
-            assertTrue("布局缺失：$path（工作目录 ${File(".").absolutePath}）", f.isFile)
+    fun `布局变体之间只差字体那几行`() {
+        // 生成的变体只允许在 TextView 上多出 fontFamily / textFontWeight 这两类属性。
+        // 手改其中一份忘了同步 —— 这个断言会立刻红。
+        val base = File("src/main/res/layout/widget_today.xml")
+        assertTrue("基础布局缺失（工作目录 ${File(".").absolutePath}）", base.isFile)
+        val baseText = base.readText()
+        assertTrue("默认布局不该写死 fontFamily", "android:fontFamily" !in baseText)
+        val nText = Regex("""<TextView\b""").findAll(baseText).count()
+        assertEquals("基础布局的 TextView 数变了，生成脚本要跟着改", 9, nText)
+
+        val normalizedBase = baseText.lines().filter { "android:fontFamily" !in it }.joinToString("\n")
+        FontOpt.entries.filter { it != FontOpt.SANS }.forEach { opt ->
+            val f = File("src/main/res/layout/${opt.layoutName}.xml")
+            assertTrue("布局缺失：${f.path}", f.isFile)
             val text = f.readText()
-            if (fam != null) {
-                assertEquals(
-                    "$path 里应当每个 TextView 都带 fontFamily=$fam",
-                    9, Regex("""android:fontFamily="$fam"""").findAll(text).count(),
-                )
-            } else {
-                assertTrue("默认布局不该写死 fontFamily", "android:fontFamily" !in text)
-            }
-            text.lines().filter { "android:fontFamily" !in it }.joinToString("\n")
+            assertEquals(
+                "${f.name} 里每个 TextView 都要带 fontFamily=${opt.system}",
+                nText, Regex("""android:fontFamily="${opt.system}"""").findAll(text).count(),
+            )
+            val normalized = text.lines().filter { "android:fontFamily" !in it }.joinToString("\n")
+            assertEquals("${f.name} 除了字体那几行必须和基础布局一致", normalizedBase, normalized)
         }
-        assertEquals("三份布局除了字体那一行必须完全一致", normalized[0], normalized[1])
-        assertEquals("三份布局除了字体那一行必须完全一致", normalized[0], normalized[2])
     }
 
     @Test

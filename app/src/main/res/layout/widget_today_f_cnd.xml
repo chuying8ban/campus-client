@@ -97,7 +97,7 @@
                 android:contentDescription="@null" />
 
             <TextView
-                android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
                 android:id="@+id/widget_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -115,7 +115,7 @@
                 android:contentDescription="@null" />
 
             <TextView
-                android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
                 android:id="@+id/widget_date"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -124,7 +124,7 @@
                 android:textColor="#8A84A0" />
 
             <TextView
-                android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
                 android:id="@+id/widget_week"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -136,7 +136,7 @@
 
         <!-- ② 唯一的大字：课程名 / 今天没有课 -->
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_head"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -149,7 +149,7 @@
 
         <!-- ③ 时间 · 地点 -->
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_meta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -169,7 +169,7 @@
 
         <!-- ④ 后几节 -->
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_row1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -180,7 +180,7 @@
             android:textColor="#C8C2D8" />
 
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_row2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -191,7 +191,7 @@
             android:textColor="#C8C2D8" />
 
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_row3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -208,7 +208,7 @@
             android:contentDescription="@null" />
 
         <TextView
-            android:fontFamily="monospace"
+            android:fontFamily="sans-serif-condensed" android:textFontWeight="400"
             android:id="@+id/widget_foot"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

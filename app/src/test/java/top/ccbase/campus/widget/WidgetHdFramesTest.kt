@@ -37,8 +37,12 @@ class WidgetHdFramesTest {
         val h = 480
         val hd = WidgetFrames.forSpec(ctx, spec, w, h, 1f, fullRes = true)
         assertNotNull("高画质帧没生成", hd)
-        assertTrue("高画质帧宽度应接近视图宽度：实际 ${hd!![0].width}", hd[0].width >= (w * 0.95f).toInt())
-        assertTrue("高画质帧高度应接近视图高度：实际 ${hd[0].height}", hd[0].height >= (h * 0.95f).toInt())
+        // 2026-10-19：帧数抬到 24 之后，"每帧满分辨率"= 24×1.7MB ≈ 40MB 解码量，桌面会被系统回收。
+        // 改成总量预算（630 万像素）按帧数摊平，每帧约 76% 宽度 —— fitXY 放大 1.3 倍肉眼无感。
+        assertTrue("高画质帧宽度应达到视图宽度的 70% 以上：实际 ${hd!![0].width}", hd[0].width >= (w * 0.70f).toInt())
+        assertTrue("高画质帧高度应达到视图高度的 70% 以上：实际 ${hd[0].height}", hd[0].height >= (h * 0.70f).toInt())
+        val total = hd.sumOf { it.width.toLong() * it.height }
+        assertTrue("整组帧像素总量 $total 超预算", total <= 6_400_000)
     }
 
     @Test
@@ -90,7 +94,8 @@ class WidgetHdFramesTest {
         val files = WidgetFrames.frameFiles(ctx, spec, 960, 480, 1f)
         assertNotNull(files)
         val bmp = android.graphics.BitmapFactory.decodeFile(files!!.first().absolutePath)
-        assertTrue("帧必须接近真实分辨率", bmp.width >= 900)
+        // 走的是高画质那条路（URI 读文件、每帧按总预算摊平），不是 40 万像素的位图兜底
+        assertTrue("帧必须明显大于位图兜底（${bmp.width}）", bmp.width >= 600)
         bmp.recycle()
     }
 
