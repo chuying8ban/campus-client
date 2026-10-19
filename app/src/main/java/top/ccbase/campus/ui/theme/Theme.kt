@@ -423,7 +423,10 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
             // "我希望 app 背景图能够更明显一些"）。改成上下两头厚、中间薄 —— 顶栏/底部导航
             // 那些字有把握，画面中间尽量露出原图。
             if (scrim > 0f) {
-                val mid = (scrim * 0.62f).coerceAtLeast(0.10f)
+                // 中间那层最小值从 0.10 抬到 0.20（2026-10-19 用户："浅色主题底下的标签
+                // 颜色都看不见了"）：0.10 时对比照片里偏亮的一块，字就糊进去了。
+                // 上下两头仍然更厚，保证标题栏/导航栏的字。
+                val mid = (scrim * 0.62f).coerceAtLeast(0.20f)
                 val edge = (mid + 0.30f).coerceAtMost(0.94f)
                 Box(
                     Modifier.fillMaxSize().background(

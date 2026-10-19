@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 
 /**
@@ -55,13 +56,40 @@ object TextTint {
         state.value = value
     }
 
+    // ---- 可读性守卫（2026-10-19 用户："浅色主题底下的标签颜色都看不见了"）----
+    //
+    // 用户自己挑文字颜色时会挑到"这套底色上根本没有对比"的那一支：
+    // 浅色主题 + 白字 = 一片白；深色主题 + 黑字 = 一片黑。
+    // 所以这里不禁止他选，但**落笔前过一道对比度闸**：
+    //   选的颜色够看就用它 → 不够看就退回色板原本的字色 → 原本的也不够看，
+    //   就按底色的明暗给纯黑/纯白。永远不会出现"选了字反而看不见"。
+
+    private const val MIN_CONTRAST = 3.0f
+
+    private fun lum(c: Color): Float = c.luminance()
+
+    fun contrast(a: Color, b: Color): Float {
+        val la = lum(a)
+        val lb = lum(b)
+        val hi = maxOf(la, lb)
+        val lo = minOf(la, lb)
+        return (hi + 0.05f) / (lo + 0.05f)
+    }
+
+    /** 保证 c 在 bg 上看得见；看不见就依次退到 base、纯黑/纯白 */
+    private fun readable(c: Color, base: Color, bg: Color): Color {
+        if (contrast(c, bg) >= MIN_CONTRAST) return c
+        if (contrast(base, bg) >= MIN_CONTRAST) return base
+        return if (lum(bg) > 0.5f) Color(0xFF111318) else Color(0xFFF7F7F9)
+    }
+
     /** 三级文字的层次：主色原样，二级/三级往底色里退 */
-    fun head(tint: Color?, base: Color, bg: Color): Color = tint ?: base
+    fun head(tint: Color?, base: Color, bg: Color): Color = readable(tint ?: base, base, bg)
     fun body(tint: Color?, base: Color, bg: Color): Color =
-        if (tint == null) base else lerp(tint, bg, 0.18f)
+        if (tint == null) readable(base, base, bg) else readable(lerp(tint, bg, 0.18f), base, bg)
 
     fun dim(tint: Color?, base: Color, bg: Color): Color =
-        if (tint == null) base else lerp(tint, bg, 0.45f)
+        if (tint == null) readable(base, base, bg) else readable(lerp(tint, bg, 0.45f), base, bg)
 
     // ---- 小组件那侧要的是 ARGB Int（RemoteViews.setTextColor）----
 
@@ -72,10 +100,11 @@ object TextTint {
         if (tint == null) return base
         val t = Color(tint)
         val b = Color(bg)
-        return when (level) {
+        val out = when (level) {
             0 -> t
             1 -> lerp(t, b, 0.18f)
             else -> lerp(t, b, 0.45f)
-        }.toArgb()
+        }
+        return readable(out, Color(base), b).toArgb()
     }
 }
