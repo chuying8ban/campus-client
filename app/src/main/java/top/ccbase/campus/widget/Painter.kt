@@ -80,6 +80,47 @@ object Painter {
         c.drawBitmap(bmp, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
     }
 
+    /**
+     * 光溢出（bloom）：亮部周围淡淡散开一层。
+     *
+     * 做法是"降采样 → 升采样 → SCREEN 叠加"：真做阈值提取要多一次全屏 pAss，这里用
+     * 1/6 缩放的自身当"亮部代理"已经够用 —— 大片暗部缩下去还是暗的，叠上去几乎不动；
+     * 亮带/光团缩下去会被抹开，叠回去就是柔和的光晕。这是"廉价感"和"贵感"之间性价比最高的一步。
+     */
+    fun bloom(c: Canvas, src: Bitmap, strength: Float = 0.20f) {
+        val w = src.width
+        val h = src.height
+        if (w < 8 || h < 8) return
+        val small = Bitmap.createScaledBitmap(src, (w / 6).coerceAtLeast(4), (h / 6).coerceAtLeast(4), true)
+        val up = Bitmap.createScaledBitmap(small, w, h, true)
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = (strength * 255).toInt().coerceIn(0, 255)
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SCREEN)
+        }
+        c.drawBitmap(up, 0f, 0f, paint)
+        if (small !== up) small.recycle()
+        up.recycle()
+    }
+
+    /**
+     * 柔焦：把整帧"略糊一层"再叠回去。
+     *
+     * 低帧率下最扎眼的是硬边（粒子、光带边缘）——它们一帧一动，读成"贴纸在瞬移"。
+     * 叠一层 1/3 降采样的自身，边缘变软，眼睛读成"焦外光斑"，这是壁纸感的关键之一。
+     */
+    fun soften(c: Canvas, src: Bitmap, strength: Float = 0.35f) {
+        val w = src.width
+        val h = src.height
+        if (w < 8 || h < 8) return
+        val small = Bitmap.createScaledBitmap(src, (w / 3).coerceAtLeast(4), (h / 3).coerceAtLeast(4), true)
+        val up = Bitmap.createScaledBitmap(small, w, h, true)
+        c.drawBitmap(up, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = (strength * 255).toInt().coerceIn(0, 255)
+        })
+        if (small !== up) small.recycle()
+        up.recycle()
+    }
+
     private val BAYER = intArrayOf(
         0, 8, 2, 10,
         12, 4, 14, 6,

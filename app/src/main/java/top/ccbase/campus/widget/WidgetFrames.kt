@@ -103,7 +103,15 @@ object WidgetFrames {
             return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
                 // 播放速度：把"时间轴"走快/走慢，不是简单抽帧 —— 慢放时粒子真的更慢
                 val t = t0 / speed.coerceAtLeast(0.2f)
-                DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
+                // 低频大形走 fbm 流场内核（有真结构、无双影、天然闭合）；
+                // 粒子类（落樱/飘雪/流码…）仍走老画笔 —— 它们本来就不该出现在桌面上。
+                if (FlowPainter.supports(kind)) {
+                    val fb = FlowPainter.frame(kind, t, fw, fh, accent, DynPainter.cycle)
+                    c.drawBitmap(fb, 0f, 0f, null)
+                    fb.recycle()
+                } else {
+                    DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
+                }
             }
         }
         WidgetDyn.parseImage(spec)?.let { effect ->
@@ -421,6 +429,12 @@ object WidgetFrames {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
             val c = Canvas(bmp)
             draw(c, fw, fh, i * STEP_SEC)
+            // 景深与光溢出：先柔焦一层（硬边变焦外），再拿亮部叠一层光晕。
+            // 顺序不能反 —— 先 bloom 再 soften 会把光晕又抹平，只剩一片糊。
+            // 强度是量出来的：0.35 会把极光的彩带糊成一团紫（对照图上看就是"六款同一张"），
+            // 0.14 只磨掉硬边、保留结构。bloom 同理，0.20 会让暗部整体泛白。
+            Painter.soften(c, bmp, 0.14f)
+            Painter.bloom(c, bmp, 0.14f)
             // 收尾三道工序：暗角 → 颗粒 → 圆角 → 抖动。
             // 前三步按"每帧完全一样"的参数做（同一个暗角梯度、同一张噪点图），
             // 换帧只换主体 —— 颗粒要是每帧重随机，5fps 下就是"沙沙闪"。

@@ -47,7 +47,10 @@ class WidgetLoopFlickerTest {
 
     @Test
     fun `接缝不闪_末帧回到首帧的变化不超过相邻帧的一倍半`() {
-        for (kind in listOf(DynPainter.Kind.AURORA, DynPainter.Kind.SILK, DynPainter.Kind.NEBULA)) {
+        // 覆盖全部"流场内核"的款 —— 它们共用同一套相位写法，漏一款就等于漏一种跳变
+        val kinds = DynPainter.Kind.entries.filter { FlowPainter.supports(it) } +
+            listOf(DynPainter.Kind.PETALS)      // 再留一款粒子类当反向对照（它走老画笔）
+        for (kind in kinds) {
             val spec = WidgetDyn.spec(kind, 0xFF6C5CE7.toInt())
             val frames = requireNotNull(WidgetFrames.forSpec(ctx, spec, 320, 160)) { "$kind 没生成帧" }
             assertEquals("帧数必须是 FRAMES", WidgetFrames.FRAMES, frames.size)
