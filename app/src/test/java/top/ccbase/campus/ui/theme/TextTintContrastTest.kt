@@ -1,60 +1,60 @@
 package top.ccbase.campus.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 文字颜色的**可读性守卫**（2026-10-19 用户："浅色主题底下的标签颜色都看不见了"）。
+ * 文字颜色：**用户的选择必须赢**（2026-10-19 用户："为什么我改成黑色里面的文字还是白色"）。
  *
- * 守的是行为而不是实现：不管用户挑了哪一支颜色、配哪一套底色，
- * 落笔画出来的字对底色都要有起码的对比度（≥ 3:1，WCAG 对大字的线）。
+ * 上一版的错在于"对比度不够就静默改回白色"。现在的约定变了：
+ *   - 挑了什么就画什么（head/body/dim 原样给）；
+ *   - 可读性靠背景幕补（scrimArgbFor：深字压白幕、浅字压黑幕，同向时更厚）。
  */
 class TextTintContrastTest {
 
-    private val light = Color(0xFFF5F2EC)   // 浅色底板
-    private val dark = Color(0xFF121016)    // 深色底板
-
-    private fun ratio(a: Color, b: Color) = TextTint.contrast(a, b)
+    private val lightBg = 0xFFF5F2EC.toInt()
+    private val darkBg = 0xFF121016.toInt()
 
     @Test
-    fun `白字放在浅色底上也看得见`() {
-        val out = TextTint.head(Color.White, Color(0xFF1A1A1A), light)
-        assertTrue("白字在浅底上对比只有 ${ratio(out, light)}", ratio(out, light) >= 3f)
+    fun `挑黑就是黑_不许被换成白`() {
+        val black = Color.Black
+        assertEquals(black, TextTint.head(black, Color.White, Color(darkBg)))
+        assertEquals(black, TextTint.head(black, Color.White, Color(lightBg)))
     }
 
     @Test
-    fun `黑字放在深色底上也看得见`() {
-        val out = TextTint.head(Color.Black, Color(0xFFEDEDED), dark)
-        assertTrue("黑字在深底上对比只有 ${ratio(out, dark)}", ratio(out, dark) >= 3f)
+    fun `挑白就是白_不许被换成黑`() {
+        assertEquals(Color.White, TextTint.head(Color.White, Color.Black, Color(lightBg)))
     }
 
     @Test
-    fun `三级字同样过闸`() {
-        listOf(
-            TextTint.body(Color.White, Color(0xFF1A1A1A), light),
-            TextTint.dim(Color.White, Color(0xFF1A1A1A), light),
-            TextTint.body(Color.Black, Color(0xFFEDEDED), dark),
-            TextTint.dim(Color.Black, Color(0xFFEDEDED), dark),
-        ).forEach {
-            // 允许它退回底色或纯黑/纯白，但不许留着看不清
-            assertTrue(it != Color.Transparent)
-        }
-        assertTrue(ratio(TextTint.dim(Color.White, Color(0xFF1A1A1A), light), light) >= 2f)
+    fun `没挑时用色板原本的字色`() {
+        assertEquals(Color.Red, TextTint.head(null, Color.Red, Color(lightBg)))
     }
 
     @Test
-    fun `选的色本来就够看时不改动`() {
-        val tint = Color(0xFFD9C8FF)                        // 淡紫
-        val out = TextTint.head(tint, Color(0xFFEDEDED), dark)
-        assertTrue("够看的颜色不该被替换", out == tint)
+    fun `深字配白幕_浅字配黑幕`() {
+        val onDark = TextTint.scrimArgbFor("#000000", darkBg)
+        val onLight = TextTint.scrimArgbFor("#FFFFFF", lightBg)
+        assertTrue("黑字深底该压白幕", Color(onDark).red > 0.9f)
+        assertTrue("黑字深底幕要够厚", Color(onDark).alpha >= 0.5f)
+        assertTrue("白字浅底该压黑幕", Color(onLight).red < 0.1f)
+        assertTrue("白字浅底幕要够厚", Color(onLight).alpha >= 0.5f)
+        assertTrue(Color(TextTint.scrimArgbFor("#000000", lightBg)).alpha < 0.5f)
+        assertNotEquals(0, TextTint.scrimArgbFor("#000000", lightBg))
     }
 
     @Test
-    fun `小组件那侧的 ARGB 版本同一套闸`() {
-        val white = 0xFFFFFFFF.toInt()
-        val got = TextTint.apply(white, 0xFF1A1A1A.toInt(), 0xFFF5F2EC.toInt(), 0)
-        val c = Color(got)
-        assertTrue("小组件白字在浅底上对比只有 ${ratio(c, light)}", ratio(c, light) >= 3f)
+    fun `默认档不加幕`() {
+        assertEquals(0, TextTint.scrimArgbFor(TextTint.AUTO, lightBg))
+        assertEquals(0, TextTint.scrimArgbFor(TextTint.AUTO, darkBg))
+    }
+
+    @Test
+    fun `小组件的 ARGB 版本同样不改用户的颜色`() {
+        assertEquals(0xFF000000.toInt(), TextTint.apply(0xFF000000.toInt(), 0xFFFFFFFF.toInt(), darkBg, 0))
     }
 }

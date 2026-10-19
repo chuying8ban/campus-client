@@ -1,11 +1,12 @@
 {
-  "version_code": 152,
-  "version_name": "3.4.33",
-  "url": "/updates/campus-3.4.33.apk",
-  "sha256": "3c3dba659ce96fa164dae7cb3580f14c04108ac77e112f3ffe1a5b97dd872db6",
-  "size": 8379231,
+  "version_code": 154,
+  "version_name": "3.4.35",
+  "url": "/updates/campus-3.4.35.apk",
+  "sha256": "ad1c5d52a23d8e8ee6cf12b5f66689de66aed7fd8b67810b11098f0c600e0cc5",
+  "size": 8379439,
   "notes": [
-    "文字颜色加了对比度保护：看不清会自动退回可读的字色",
-    "浅色主题配亮背景图时，中间遮罩加厚，标签不再糊进图里"
+    "日程的日期和时间改成点选：日历 + 24 小时时间轮盘",
+    "改主题、换强调色、改文字颜色，桌面小组件立刻跟着变",
+    "日程保存后小组件立刻刷新，不再等半小时"
   ]
 }

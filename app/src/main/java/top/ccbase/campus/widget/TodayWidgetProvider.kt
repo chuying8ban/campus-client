@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
@@ -44,6 +45,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         render(context, appWidgetIds, null)
+        // 进程此刻活着 → 动态主题立刻开始走帧，不必等用户再开一次 App
+        runCatching { WidgetTicker.start(context) }
     }
 
     /** 从桌面拉大小改格子尺寸：立刻按新尺寸重画底图，不然渐变会拉花。 */
@@ -66,7 +69,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 .show()
             refresh(context)
         }
-        if (intent.action == ACTION_REFRESH) {
+        if (intent.action == ACTION_REFRESH || intent.action == ACTION_TICK) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, TodayWidgetProvider::class.java))
             if (ids.isNotEmpty()) {
@@ -78,6 +81,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "top.ccbase.campus.WIDGET_REFRESH"
+
+        /**
+         * 动画帧步进（2026-10-19 用户："小组件的动画仍然是卡顿的，一点也不流畅"）。
+         * 由 [WidgetTicker] 每秒推一次，只为了让帧真的往前走；
+         * 数据（课表/计划）走 12 秒缓存，不做无意义的重复查库。
+         */
+        const val ACTION_TICK = "top.ccbase.campus.WIDGET_TICK"
+
+        /** 数据缓存：tick 频率高，别每次都为同一天的课表查库 */
+        @Volatile private var cachedModel: WidgetModel? = null
+        @Volatile private var cachedAtMs: Long = 0L
 
         /** requestPinAppWidget 的 successCallback 走这个 action（钉到桌面成功那一刻） */
         const val ACTION_PINNED = "top.ccbase.campus.WIDGET_PINNED"
@@ -391,11 +405,18 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val day = java.time.LocalDate.now().toString()
-                    val plans = runCatching {
-                        app.db.dao().plansOnce(day).map { it.toPlanNow() }
-                    }.getOrDefault(emptyList())
-                    val model = buildWidgetModel(loadToday(app.db), MAX_ROWS, plans)
+                    val now = SystemClock.elapsedRealtime()
+                    val fresh = cachedModel?.takeIf { now - cachedAtMs < 12_000L }
+                    val model = fresh ?: run {
+                        val day = java.time.LocalDate.now().toString()
+                        val plans = runCatching {
+                            app.db.dao().plansOnce(day).map { it.toPlanNow() }
+                        }.getOrDefault(emptyList())
+                        buildWidgetModel(loadToday(app.db), MAX_ROWS, plans).also {
+                            cachedModel = it
+                            cachedAtMs = now
+                        }
+                    }
                     withContext(Dispatchers.Main) {
                         val mgr = AppWidgetManager.getInstance(ctx)
                         // 逐个实例兜底：某个 launcher 给的尺寸/主题让这一只画挂了，

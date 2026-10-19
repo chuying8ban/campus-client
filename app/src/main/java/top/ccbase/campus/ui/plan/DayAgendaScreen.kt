@@ -162,6 +162,7 @@ fun DayAgendaScreen(db: CampusDb, onClose: () -> Unit, startWithEditor: Boolean 
     var showEditor by remember { mutableStateOf(startWithEditor) }
     val all by db.dao().allPlans().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
 
     // 整页要**自己铺底色**（之前直接叠在今日页上，底下的课表和顶部"已核对课表"那一条就透上来了，
     // 看着像日程页烂了）；再加状态栏留白，标题才不会钻到系统栏底下。
@@ -239,6 +240,9 @@ fun DayAgendaScreen(db: CampusDb, onClose: () -> Unit, startWithEditor: Boolean 
                 scope.launch {
                     db.dao().putPlan(ev)
                     showEditor = false
+                    // 日程一存就推桌面（2026-10-19 用户："不要有信息错误或是延迟"）——
+                    // 小组件上的"今日日程"读的是同一个库，等 30 分钟那次刷新就等于显示旧信息。
+                    runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(appCtx) }
                 }
             },
         )
@@ -270,6 +274,7 @@ private fun PlanEditor(init: PlanEvent?, onDismiss: () -> Unit, onSave: (PlanEve
     var end by remember { mutableStateOf(init?.end.orEmpty()) }
     var note by remember { mutableStateOf(init?.note.orEmpty()) }
     var err by remember { mutableStateOf<String?>(null) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     Box(
         Modifier.fillMaxSize().background(Color(0xCC000000)).clickable { onDismiss() },
@@ -289,10 +294,25 @@ private fun PlanEditor(init: PlanEvent?, onDismiss: () -> Unit, onSave: (PlanEve
             Spacer(Modifier.height(14.dp))
             Field("内容", title, "例如：交实验报告 / 去图书馆") { title = it }
             Spacer(Modifier.height(10.dp))
+            // 2026-10-19 用户："日程里的时间要支持选择时间" —— 不让他手打 16:00，
+            // 点开就是系统的时间轮盘/日历，选完直接落值；手打只在"改一个数字"时更快，
+            // 但输错格式会被保存前拦下，多一轮返工，所以干脆全改成选择。
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1.3f)) { Field("日期", day, "2026-10-18") { day = it } }
-                Column(Modifier.weight(1f)) { Field("开始", start, "16:00") { start = it } }
-                Column(Modifier.weight(1f)) { Field("结束", end, "可空") { end = it } }
+                Column(Modifier.weight(1.25f)) {
+                    PickField("日期", day.ifBlank { "选日期" }) {
+                        showDatePicker(ctx, day) { day = it }
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    PickField("开始", start.ifBlank { "选时间" }) {
+                        showTimePicker(ctx, start) { start = it }
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    PickField(if (end.isBlank()) "结束（可空）" else "结束", end.ifBlank { "选时间" }) {
+                        showTimePicker(ctx, end) { end = it }
+                    }
+                }
             }
             Spacer(Modifier.height(10.dp))
             Field("备注", note, "可选：地点、要带什么") { note = it }
@@ -317,9 +337,9 @@ private fun PlanEditor(init: PlanEvent?, onDismiss: () -> Unit, onSave: (PlanEve
                             val t = title.trim()
                             when {
                                 t.isEmpty() -> err = "写一句内容吧"
-                                !day.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> err = "日期要写成 2026-10-18"
-                                !start.matches(Regex("""\d{1,2}:\d{2}""")) -> err = "开始时间要写成 16:00"
-                                end.isNotBlank() && !end.matches(Regex("""\d{1,2}:\d{2}""")) -> err = "结束时间要写成 17:00"
+                                !day.matches(Regex("""\d{4}-\d{2}-\d{2}""")) -> err = "先点一下日期选一天"
+                                !start.matches(Regex("""\d{1,2}:\d{2}""")) -> err = "先选开始时间"
+                                end.isNotBlank() && !end.matches(Regex("""\d{1,2}:\d{2}""")) -> err = "结束时间格式不对，重新选一次"
                                 else -> onSave(
                                     PlanEvent(
                                         id = init?.id ?: 0,
@@ -341,11 +361,55 @@ private fun PlanEditor(init: PlanEvent?, onDismiss: () -> Unit, onSave: (PlanEve
     }
 }
 
+/**
+ * 点开就选：日期走系统日历、时间走系统时间轮盘（24 小时制，跟课表同一套写法）。
+ *
+ * 注意这两个是**异步**的：弹窗关掉才回调。所以不返回值、只给 null 安全回调 ——
+ * 写"返回 String"的版本会立刻返回旧值/ null，等于点了没反应（本地第一版就踩了这个坑）。
+ */
+private fun showDatePicker(ctx: android.content.Context, cur: String, onPick: (String) -> Unit) {
+    val base = runCatching { java.time.LocalDate.parse(cur) }.getOrNull() ?: java.time.LocalDate.now()
+    android.app.DatePickerDialog(
+        ctx,
+        { _, y, m, d -> onPick("%04d-%02d-%02d".format(y, m + 1, d)) },
+        base.year, base.monthValue - 1, base.dayOfMonth,
+    ).show()
+}
+
+private fun showTimePicker(ctx: android.content.Context, cur: String, onPick: (String) -> Unit) {
+    val h = cur.substringBefore(":").trim().toIntOrNull() ?: 8
+    val mi = cur.substringAfter(":", "").trim().take(2).toIntOrNull() ?: 0
+    android.app.TimePickerDialog(
+        ctx,
+        { _, hh, mm -> onPick("%02d:%02d".format(hh, mm)) },
+        h.coerceIn(0, 23), mi.coerceIn(0, 59), true,   // true = 24 小时制
+    ).show()
+}
+
 private fun pad(t: String): String {
     val s = t.trim()
     val h = s.substringBefore(":").trim().toIntOrNull() ?: return s
     val m = s.substringAfter(":", "0").trim().take(2).toIntOrNull() ?: 0
     return "%02d:%02d".format(h, m)
+}
+
+/** 只读的"点开就能选"的格子：跟 [Field] 同一副长相，但不可打字 */
+@Composable
+private fun PickField(label: String, value: String, onClick: () -> Unit) {
+    Column {
+        Text(label, color = C.txt3, fontSize = 10.5.sp)
+        Spacer(Modifier.height(4.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(C.card, RoundedCornerShape(10.dp))
+                .border(1.dp, C.line, RoundedCornerShape(10.dp))
+                .clickable { onClick() }
+                .padding(horizontal = 11.dp, vertical = 10.dp),
+        ) {
+            Text(value, color = C.txt, fontSize = 12.5.sp)
+        }
+    }
 }
 
 @Composable

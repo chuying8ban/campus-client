@@ -41,9 +41,18 @@ object TextTint {
     /** 组合侧读它 → 选一个当场重组合 */
     val state = mutableStateOf(AUTO)
 
-    fun parse(value: String): Color? = when (value) {
-        AUTO -> null
-        else -> runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrNull()
+    /**
+     * 自己解 #RRGGBB —— 不用 `android.graphics.Color.parseColor`。
+     * 那个是 Android 桩，在纯 JVM 单测里会抛 "not mocked"，返回 null，
+     * 于是"黑字深底该压白幕"这类判断在测试里静默走错分支（本地实测踩过）。
+     */
+    fun parse(value: String): Color? {
+        if (value == AUTO) return null
+        val h = value.trim().removePrefix("#")
+        if (h.length != 6 && h.length != 8) return null
+        val n = h.toLongOrNull(16) ?: return null
+        val argb = if (h.length == 6) (0xFF000000L or n) else n
+        return Color(argb.toInt())
     }
 
     fun current(): Color? = parse(state.value)
@@ -54,6 +63,8 @@ object TextTint {
     fun set(ctx: Context, value: String) {
         AppearanceStore.prefs(ctx).edit().putString("text_tint", value).apply()
         state.value = value
+        // 桌面上的字也立刻跟着换（不然要等 30 分钟那次刷新，两处不一致）
+        runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx) }
     }
 
     // ---- 可读性守卫（2026-10-19 用户："浅色主题底下的标签颜色都看不见了"）----
@@ -83,28 +94,60 @@ object TextTint {
         return if (lum(bg) > 0.5f) Color(0xFF111318) else Color(0xFFF7F7F9)
     }
 
-    /** 三级文字的层次：主色原样，二级/三级往底色里退 */
-    fun head(tint: Color?, base: Color, bg: Color): Color = readable(tint ?: base, base, bg)
+    /**
+     * 三级文字的层次：主色原样，二级/三级往底色里退。
+     *
+     * 2026-10-19 修正（用户："为什么我改成黑色里面的文字还是白色"）：
+     * 上一版在这里做了**静默回退** —— 黑字在深色底板上对比不够就偷偷改回白色，
+     * 于是"选了黑还是白"。**用户的选择必须赢**：这里原样返回他挑的颜色，
+     * 可读性改由[scrimArgb]在背景层补（深字配浅幕、浅字配深幕）。
+     */
+    fun head(tint: Color?, base: Color, bg: Color): Color = tint ?: base
     fun body(tint: Color?, base: Color, bg: Color): Color =
-        if (tint == null) readable(base, base, bg) else readable(lerp(tint, bg, 0.18f), base, bg)
+        if (tint == null) base else lerp(tint, bg, 0.18f)
 
     fun dim(tint: Color?, base: Color, bg: Color): Color =
-        if (tint == null) readable(base, base, bg) else readable(lerp(tint, bg, 0.45f), base, bg)
+        if (tint == null) base else lerp(tint, bg, 0.45f)
+
+    /** 用户挑的是一支深色的字？ */
+    fun isDarkTint(value: String): Boolean {
+        val c = parse(value) ?: return false
+        return lum(c) < 0.45f
+    }
 
     // ---- 小组件那侧要的是 ARGB Int（RemoteViews.setTextColor）----
 
     fun currentArgb(): Int? = current()?.toArgb()
+
+    /**
+     * 背景幕：用户挑了深色字 → 背景要压白；挑了浅色字 → 背景要压暗。
+     *
+     * 不透明度取 0.34：够把照片/动图的明暗拉回中间，又不至于把画面洗成灰板。
+     * 没挑（AUTO）时返回 0，背景保持原样 —— 默认色板本来就是配好的。
+     */
+    fun scrimArgb(paletteBgArgb: Int): Int = scrimArgbFor(state.value, paletteBgArgb)
+
+    /** 纯函数版本（测试用）：给定挑的颜色和底板，算出该压什么幕 */
+    fun scrimArgbFor(tint: String, paletteBgArgb: Int): Int {
+        if (tint == AUTO) return 0
+        val dark = isDarkTint(tint)
+        val bgLum = lum(Color(paletteBgArgb))
+        // 字和底板同向时最糟（深底黑字 / 浅底白字）→ 幕要更厚
+        val tooClose = if (dark) bgLum < 0.5f else bgLum > 0.5f
+        val a = if (tooClose) 0x8C else 0x57            // 55% / 34%
+        return (a shl 24) or if (dark) 0xFFFFFF else 0x000000
+    }
 
     /** level：0 标题 / 1 正文 / 2 次要 */
     fun apply(tint: Int?, base: Int, bg: Int, level: Int): Int {
         if (tint == null) return base
         val t = Color(tint)
         val b = Color(bg)
-        val out = when (level) {
+        // 同样按用户挑的颜色走（小组件那侧靠 WidgetArt 的遮罩保证可读）
+        return when (level) {
             0 -> t
             1 -> lerp(t, b, 0.18f)
             else -> lerp(t, b, 0.45f)
-        }
-        return readable(out, Color(base), b).toArgb()
+        }.toArgb()
     }
 }

@@ -301,6 +301,13 @@ fun CampusTheme(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         // 背景层在最底下（纯色时这一层什么都不画，行为与没有背景图时一致）
         BackgroundLayer(bg, p)
+        // 文字幕（2026-10-19 用户："为什么我改成黑色里面的文字还是白色"）：
+        // 用户挑的字色**原样生效**（不再偷偷换成白色），可读性由这一层补 ——
+        // 黑字压一层白幕、白字压一层黑幕；字与底板同向时幕更厚。
+        val scrim = TextTint.scrimArgb(p.bg.toArgb())
+        if (scrim != 0) {
+            Box(Modifier.fillMaxSize().background(Color(scrim)))
+        }
         MaterialTheme(
             colorScheme = schemeFor(p),
             typography = CampusType,
@@ -571,6 +578,7 @@ object AppearanceStore {
         prefs(ctx).edit().putString(K_ACCENT, value).apply()
         bound = true
         accent.value = value
+        pushWidget(ctx)
     }
 
     fun read(ctx: Context): String = prefs(ctx).getString(K_THEME, DARK) ?: DARK
@@ -579,6 +587,18 @@ object AppearanceStore {
         prefs(ctx).edit().putString(K_THEME, value).apply()
         bound = true
         theme.value = value
+        pushWidget(ctx)
+    }
+
+    /**
+     * 主题一改就让桌面重画（2026-10-19 用户："小控件以及 app 内容和主题有改动时要实时刷新，
+     * 不要有信息错误或是延迟"）。
+     *
+     * 以前只改了 App 内的状态：**App 当场变、桌面要等下一次 30 分钟刷新** ——
+     * 两处看到两套颜色，用户会当成"信息错误"。写偏好和推桌面必须在同一个动作里。
+     */
+    private fun pushWidget(ctx: Context) {
+        runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx) }
     }
 
     fun backgroundOf(ctx: Context): String = prefs(ctx).getString(K_BG, BG_SOLID) ?: BG_SOLID

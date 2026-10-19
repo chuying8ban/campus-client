@@ -36,6 +36,8 @@ open class CampusApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 屏幕亮着时让桌面小组件的动态主题真的走帧（熄屏即停，见 WidgetTicker）
+        runCatching { top.ccbase.campus.widget.ScreenWatcher.register(this) }
         db = CampusDb.get(this)
         // 兜底：#静音后手机重启/被清后台，下课那条恢复闹钟就没了。
         // 每次进程起来先还一次铃声（只在"我们按着静音、且已过该恢复的时间"时才动）。
