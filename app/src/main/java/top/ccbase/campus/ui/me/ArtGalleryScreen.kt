@@ -430,13 +430,28 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 modifier = Modifier.padding(start = 16.dp, top = 6.dp),
             )
         }
+        // 数量**必须以实际列表为准**（2026-10-19 用户："明明后来加载了很多动图，
+        // 这里只显示一开始加载出来的数目"）。原来这一行优先显示 [stage]，
+        // 而 stage 是第 1 页请求回来时写死的"「原神」找到 10 张动图"，
+        // 后面 loadMore 只往 live 里追加、从来没改过它 —— 数字就一直停在第一页。
+        val countLine = when {
+            animOnly && query.isBlank() -> "精选动图 ${shown.size} 张 · 点标签可筛"
+            query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
+            animOnly -> "「${query.trim()}」找到 ${shown.size} 张动图"
+            else -> "「${query.trim()}」找到 ${shown.size} 张"
+        } + when {
+            loadingMore -> " · 正在加载更多…"
+            hasMore -> " · 往下滑继续加载"
+            shown.isNotEmpty() -> " · 已经到底了"
+            else -> ""
+        }
         Text(
             when {
-                stage != null -> stage!!
-                loading -> "读取中…"
-                animOnly && query.isBlank() -> "精选动图 ${shown.size} 张 · 点标签可筛 · 往下滑看更多"
-                query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
-                else -> "「${query.trim()}」${shown.size} 张" + if (hasMore) " · 继续往下滑" else ""
+                // 只有"什么都还没显示"的时候，过程提示才有意义
+                shown.isEmpty() && stage != null -> stage!!
+                loading && shown.isEmpty() -> "读取中…"
+                shown.isNotEmpty() -> countLine
+                else -> if (animOnly) "没有动图 —— 换个词试试（风景 / 少女 / 猫）" else "没搜到，再点一次「搜索」"
             },
             color = C.txt3, fontSize = 10.5.sp,
             modifier = Modifier.padding(start = 16.dp, top = 7.dp, bottom = 2.dp),
