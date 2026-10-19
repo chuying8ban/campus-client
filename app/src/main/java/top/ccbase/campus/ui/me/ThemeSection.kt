@@ -244,8 +244,13 @@ private fun WidgetPreviewCard(
 ) {
     val theme = remember(spec) { WidgetThemes.of(spec) }
     val density = LocalDensity.current
+    // 预览和自检都按**桌面真实那一格**的比例与行数画（2026-10-19 用户：
+    // "为什么小控件自检这个做不到和预览的一样"）。以前预览写死 2:1 且永远画 3 行，
+    // 桌面却是别的比例、还只放得下 1~2 行 —— 两张图当然对不上。
+    val deskDp = remember(spec, refreshKey) { TodayWidgetProvider.deskSizeDp(ctx) }
+    val deskRows = TodayWidgetProvider.rowsFor(TodayWidgetProvider.usableHDp(deskDp.second))
     var model by remember { mutableStateOf<WidgetModel?>(null) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(deskRows) {
         model = runCatching {
             withContext(Dispatchers.IO) {
                 val app = ctx.applicationContext as? CampusApplication ?: return@withContext null
@@ -253,14 +258,14 @@ private fun WidgetPreviewCard(
                 val plans = runCatching {
                     app.db.dao().plansOnce(day).map { it.toPlanNow() }
                 }.getOrDefault(emptyList())
-                buildWidgetModel(loadToday(app.db), 3, plans)
+                buildWidgetModel(loadToday(app.db), deskRows, plans)
             }
         }.getOrNull()
     }
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(2f)
+            .aspectRatio((deskDp.first / deskDp.second).coerceIn(1.2f, 2.6f))
             .clip(RoundedCornerShape(18.dp))
             .border(1.dp, C.lineHi, RoundedCornerShape(18.dp)),
     ) {
@@ -583,7 +588,8 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     WidgetPreviewCard(ctx, wSpec, alpha = wAlpha, refreshKey = pvKey)
     Spacer(Modifier.height(8.dp))
     Text(
-        "按 4×2 画；桌面上格子更窄时会自动收起日期/周次。",
+        "按你桌面上那一格的实际尺寸和比例画；格子窄了会自动收起日期/周次，高度不够就少放一行 —— " +
+            "宁可少一行，不把一行切成两半。",
         fontSize = 10.sp, color = C.txt3,
     )
     Spacer(Modifier.height(14.dp))

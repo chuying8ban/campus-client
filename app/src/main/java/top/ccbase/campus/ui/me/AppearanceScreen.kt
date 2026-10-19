@@ -605,16 +605,22 @@ private fun WidgetSelfCheck() {
         )
         Spacer(Modifier.height(8.dp))
 
-        androidx.compose.runtime.key(spec) {
+        // 自检按**桌面上真实那一格**的尺寸和比例画（2026-10-19 用户："小控件自检做不到和预览的一样"）。
+        // 以前这里写死 900×400px 再塞进固定 150dp 的框：比例被拉歪、最后一行被裁掉半行。
+        val dense = androidx.compose.ui.platform.LocalDensity.current.density
+        val deskDp = remember(spec, open) { TodayWidgetProvider.deskSizeDp(ctx) }
+        val pwPx = (deskDp.first * dense).toInt().coerceAtLeast(200)
+        val phPx = (deskDp.second * dense).toInt().coerceAtLeast(120)
+        androidx.compose.runtime.key(spec, pwPx, phPx) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { c ->
                 android.widget.FrameLayout(c).apply {
                     runCatching {
                         val m = model
                         val view = if (m != null) {
-                            TodayWidgetProvider.viewsSized(c, m, 900, 400, spec).apply(c, this)
+                            TodayWidgetProvider.viewsSized(c, m, pwPx, phPx, spec).apply(c, this)
                         } else {
-                            TodayWidgetProvider.themeViews(c, 900, 400, spec).apply(c, this)
+                            TodayWidgetProvider.themeViews(c, pwPx, phPx, spec).apply(c, this)
                         }
                         addView(
                             view,
@@ -634,7 +640,10 @@ private fun WidgetSelfCheck() {
                 }
             },
             update = { _ -> },
-            modifier = Modifier.fillMaxWidth().height(150.dp),
+            // 高度跟着真实格子的比例走，不再写死 150dp（写死就必然和桌面长得不一样）
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio((deskDp.first / deskDp.second).coerceIn(1.2f, 2.6f)),
         )
         }
     }

@@ -113,10 +113,47 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 抽成纯函数是为了能测：真机尺寸千奇百怪，靠肉眼试不过来。
          */
         fun rowsFor(hDp: Float): Int = when {
-            hDp >= 175f -> 3
-            hDp >= 145f -> 2
-            hDp >= 118f -> 1
+            hDp >= 176f -> 3
+            hDp >= 146f -> 2
+            hDp >= 126f -> 1
             else -> 0
+        }
+
+        /**
+         * 给 launcher 报的格子尺寸留出的**安全边距**（dp）。
+         *
+         * 2026-10-19 用户："为什么小控件自检这个做不到和预览的一样"——那张截图里桌面上
+         * 第二行被裁掉一半。量过（见 `WidgetMeasureProbe`）：
+         * 只画课名+状态要 99.7dp，加 1 行 120.3dp，2 行 139.0dp，3 行 157.7dp。
+         * 而 launcher 报的 MIN_HEIGHT 常常**比真正给到的高度大**（MIUI 4×2 报 161dp，
+         * 实际只剩一百二十出头），按报来的数字算行数就必然裁掉最后一行。
+         * 所以算行数前先扣掉这一段，宁可少放一行，也不许把一行切成两半。
+         */
+        const val HEIGHT_SAFETY_DP = 18f
+
+        /** 真正用于排版的高度：报来的高度扣掉安全边距。 */
+        fun usableHDp(hDp: Float): Float = hDp - HEIGHT_SAFETY_DP
+
+        /**
+         * 桌面上那个实例的尺寸（dp），预览和自检都按它画。
+         *
+         * 2026-10-19 用户："为什么小控件自检这个做不到和预览的一样"。
+         * 原因有两个，都是"拿了个假尺寸"：
+         *   ① 预览写死 2:1、自检写死 900×400px —— 而桌面格子往往不是这个比例；
+         *   ② 自检把 900×400 塞进固定 150dp 高的框里，比例被拉歪，还裁掉最后一行。
+         * 这里统一成"读桌面真实实例"，两边就都对得上了。
+         */
+        fun deskSizeDp(ctx: Context): Pair<Float, Float> {
+            val mgr = AppWidgetManager.getInstance(ctx)
+            val ids = runCatching {
+                mgr.getAppWidgetIds(android.content.ComponentName(ctx, TodayWidgetProvider::class.java))
+            }.getOrDefault(IntArray(0))
+            val opt = ids.firstOrNull()?.let { runCatching { mgr.getAppWidgetOptions(it) }.getOrNull() }
+            val w = opt?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+            val h = opt?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+            if (w in 100..900 && h in 80..500) return w.toFloat() to h.toFloat()
+            // 桌面上还没有实例时给个"典型 4×2"：320×161dp（MIUI 上最常见的那一档）。
+            return 320f to 161f
         }
 
         /** 窄格子（2×2、3×2 拉扁）要收字号、砍掉日期周次。 */
@@ -531,7 +568,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val wDp = w / density
 
             // ① 高度：砍行 + 砍页脚
-            val maxVisible = rowsFor(hDp)
+            val maxVisible = rowsFor(usableHDp(hDp))
             rowIds.drop(maxVisible).forEach { rv.setViewVisibility(it, View.GONE) }
             if (maxVisible == 0) {
                 rv.setViewVisibility(R.id.widget_divider, View.GONE)
@@ -539,7 +576,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             }
             // 没课时不画那条横线：线上方是"今天没有课"，线下面什么都没有，看着像没渲染完
             if (model.rows.isEmpty()) rv.setViewVisibility(R.id.widget_divider, View.GONE)
-            if (hDp < 132f) rv.setViewVisibility(R.id.widget_foot, View.GONE)
+            if (usableHDp(hDp) < 132f) rv.setViewVisibility(R.id.widget_foot, View.GONE)
 
             // ② 宽度：窄格子先牺牲右侧的日期/周次（它们最可省），再收字号
             if (wDp < 230f) rv.setViewVisibility(R.id.widget_week, View.GONE)
