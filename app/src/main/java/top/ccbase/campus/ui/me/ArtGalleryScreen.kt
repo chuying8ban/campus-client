@@ -152,7 +152,16 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 // 服务端已经按 orient 过滤，这里是第二道闸：上游偶发把方形图判成两边都算，
                 // 在竖版里看到横图会让人以为点错了库。
                 val kept = pg.items.filter { it.ofOrient(orientKey) }
-                live = kept; page = 1; hasMore = pg.hasMore; hint = pg.hint
+                // 2026-10-19 用户："动图库搜不到动图" —— 接口确实返回了 57 条，方向字段却是空的/对不上，
+                // 于是被这道闸全部滤掉，界面只剩"没有动图了"。宁可先显示出来，再把实情写清楚，
+                // 也不要拿一个空白页让人以为图库空了。
+                val relaxed = if (kept.isEmpty() && pg.items.isNotEmpty()) pg.items else kept
+                live = relaxed; page = 1; hasMore = pg.hasMore; hint = pg.hint
+                if (kept.isEmpty() && pg.items.isNotEmpty()) {
+                    stage = "接口返回 ${pg.items.size} 条，但方向标记对不上（${pg.items.map { it.orient }.distinct()}）—— 已先全部显示"
+                    loading = false
+                    return@LaunchedEffect
+                }
                 stage = if (kept.isEmpty()) {
                     if (animOnly) "没有动图了 —— 换个词试试（风景 / 少女 / 猫），或点「全部」看静态"
                     else "「$q」这次没搜到 —— 再点一下「搜索」多试一次"
@@ -454,7 +463,22 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                             BackgroundPhoto.clear(ctx)
                                             AppearanceStore.setBackground(ctx, UserMedia.spec(kind))
                                         } else {
-                                            WidgetThemes.set(ctx, UserMedia.spec(kind))
+                                            // 桌面那边是先抽 4 帧再轮播的；抽不出帧就等于"设了也不显示"。
+                                            // 所以先试抽一遍，抽不出来就退回原来的主题并把原因说清楚，
+                                            // 别让用户以为是自己点错了。
+                                            val prev = WidgetThemes.spec(ctx)
+                                            val spec = UserMedia.spec(kind)
+                                            WidgetThemes.set(ctx, spec)
+                                            val frames = runCatching {
+                                                top.ccbase.campus.widget.WidgetFrames
+                                                    .forSpec(ctx, spec, 900, 400)
+                                            }.getOrNull()
+                                            if (frames == null) {
+                                                WidgetThemes.set(ctx, prev)
+                                                TodayWidgetProvider.refresh(ctx)
+                                                bad = true
+                                                return@withContext false
+                                            }
                                             TodayWidgetProvider.refresh(ctx)
                                         }
                                         return@withContext true

@@ -1,13 +1,12 @@
 {
-  "version_code": 133,
-  "version_name": "3.4.14",
-  "url": "/updates/campus-3.4.14.apk",
-  "sha256": "0d32dd9dde232c77a684c212f3b03c89aedb6fa4ccf13b32b4baf4013d611de0",
-  "size": 8327055,
+  "version_code": 134,
+  "version_name": "3.4.15",
+  "url": "/updates/campus-3.4.15.apk",
+  "sha256": "035cad9a9ddeb3f8ec78a588f4beaa3b70b61858d580a4ef2dbb1a488cbf1058",
+  "size": 8327171,
   "notes": [
-    "小组件自检现在和桌面画的是同一份，能看到课表和主题",
-    "自检里显示桌面实例数和底图亮度，问题一眼可见",
-    "动图封面取更亮那帧，不再存成纯黑",
-    "图库空的时候可以直接重试"
+    "动图列表只要有数据就一定显示，不再空白",
+    "小组件动图的四帧取在正片里，不再全黑",
+    "抽不出帧会退回原主题并说明，不静默失败"
   ]
 }

@@ -191,9 +191,15 @@ object WidgetFrames {
                 val mmr = android.media.MediaMetadataRetriever()
                 try {
                     mmr.setDataSource(media.file.path)
+                    // 2026-10-19：原来固定取 0 / 0.32 / 0.64 / 0.96s。很多动图开头是淡入黑场，
+                    // 四帧全黑 → 桌面小组件"没有主题"。改成按**整段时长**均匀取 12%~84%，
+                    // 保证每一帧都落在正片里，而不是片头过渡上。
+                    val durMs = mmr.extractMetadata(
+                        android.media.MediaMetadataRetriever.METADATA_KEY_DURATION,
+                    )?.toLongOrNull()?.takeIf { it > 400 } ?: 1_400L
                     for (i in 0 until FRAMES) {
-                        // 抽帧用微秒；取 0~1.4s 这段，正好和 12 帧 × 120ms 对上
-                        val us = (i * STEP_SEC * 1_000_000f).toLong()
+                        val frac = 0.12f + 0.72f * i / (FRAMES - 1).coerceAtLeast(1)
+                        val us = (durMs * 1000L * frac).toLong()
                         blit(mmr.getFrameAtTime(us, android.media.MediaMetadataRetriever.OPTION_CLOSEST))
                     }
                 } catch (e: Exception) {
