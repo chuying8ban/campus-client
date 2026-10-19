@@ -679,7 +679,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                     MediaNotify.cancel(ctx)
                                 }
                                 if (ok) Unit else msg =
-                                    if (bad) "这段动图没下完整，再点一次试试" else "这张图没下下来，换一张试试"
+                                    // 有具体原因就说具体的（断网/图床 5xx/太大/抽不出帧），
+                                    // 别再用一句"没下完整"盖住五种病 —— 用户只会反复点。
+                                    ArtRepo.lastError
+                                        ?: if (bad) "这段视频抽不出画面，换一张试试" else "这张图没下下来，换一张试试"
                             }
                         },
                     )

@@ -213,43 +213,107 @@ object ArtRepo {
      * 先 HEAD 问一次 `Content-Length`：动图是 1~10MB，没有总量就只能干转圈，
      * 用户分不清"在下"还是"卡死"。拿不到总量时 pct 回 -1，界面改显示已下载多少 MB。
      */
-    fun bytes(item: ArtItem, onProgress: (now: Long, total: Long) -> Unit): ByteArray? {
-        val total = runCatching { contentLength(item.url) }.getOrDefault(0L)
-        onProgress(0L, total)
-        val buf = java.io.ByteArrayOutputStream()
-        val ok = runCatching {
-            Net.dial.stream(item.url) { chunk, n, sofar ->
-                buf.write(chunk, 0, n)
-                onProgress(sofar, total)
-            } > 0
-        }.getOrDefault(false)
-        if (ok) return buf.toByteArray()
-        // 退路：普通 HttpURLConnection（同 downloadBytes 的第二条路），顺手报进度
-        return runCatching {
-            val c = java.net.URL(item.url).openConnection() as java.net.HttpURLConnection
-            c.connectTimeout = 15_000
-            c.readTimeout = 60_000
-            c.setRequestProperty("Accept", "*/*")
-            try {
-                if (c.responseCode !in 200..299) return@runCatching null
-                val len = c.contentLengthLong.takeIf { it > 0 } ?: total
-                val b = ByteArray(64 * 1024)
-                var got = 0L
-                c.inputStream.use { ins ->
-                    while (true) {
-                        val n = ins.read(b)
-                        if (n <= 0) break
-                        buf.write(b, 0, n)
-                        got += n
-                        onProgress(got, len)
-                    }
-                }
-                buf.toByteArray()
-            } finally {
-                c.disconnect()
-            }
-        }.getOrNull()
+    /**
+     * 上一次失败的原因（给界面说实话用）。
+     * 2026-10-20 用户截图"这段动图没下完整，再点一次试试" —— 那句话在三种完全不同的病上都出现：
+     * 断在半路、服务器 5xx、文件大到自己解不了。不区分就只能让他反复点。
+     */
+    @Volatile
+    var lastError: String? = null
+        private set
+
+    private fun fail(why: String): ByteArray? {
+        lastError = why
+        return null
     }
+
+    fun bytes(item: ArtItem, onProgress: (now: Long, total: Long) -> Unit): ByteArray? {
+        lastError = null
+        val total = runCatching { contentLength(item.url) }.getOrDefault(0L)
+        // 60MB 以上的原片在手机上是"下得完、解不动"：24 帧抽帧要吃几百 MB 内存，必然失败。
+        if (total > MAX_BYTES) return fail("这张太大（${total / 1024 / 1024}MB），换一张小一点的")
+        onProgress(0L, total)
+
+        // ① 先走 App 自己那条链（校园网/无 SNI 那条）。**必须核对长度**：
+        //    以前只要流返回 >0 就当成下载成功，中途被掐断的片段照样返回 → 存进去是个坏文件，
+        //    之后抽帧失败，用户看到的就是"没下完整"。
+        runCatching {
+            val buf = java.io.ByteArrayOutputStream()
+            Net.dial.stream(item.url) { chunk, n, sofar -> buf.write(chunk, 0, n); onProgress(sofar, total) }
+            val b = buf.toByteArray()
+            if (b.isNotEmpty() && (total <= 0L || b.size >= total)) return b
+        }
+
+        // ② 续传：断在哪就从哪接着要（Range），最多三轮。
+        //    这也顺手修掉一个老 bug：以前两次尝试共用同一个 ByteArrayOutputStream，
+        //    第一次的半截 + 第二次的整份拼在一起 → 文件更"大"但根本不能播。
+        val buf = java.io.ByteArrayOutputStream()
+        var lastCode = 0
+        repeat(3) { round ->
+            val from = buf.size().toLong()
+            if (total > 0 && from >= total) return buf.toByteArray()
+            lastCode = runCatching { fetchInto(item.url, from, buf, total, onProgress) }.getOrDefault(-1)
+            if (lastCode == -1) return@repeat
+            if (total <= 0L) return buf.toByteArray()
+            if (round == 2 && total > 0 && buf.size() < total) return@repeat
+        }
+        val b = buf.toByteArray()
+        if (b.isEmpty()) {
+            return fail(
+                when (lastCode) {
+                    -1 -> "连不上图床（网络切换或代理掉了），再点一次"
+                    401, 403 -> "图床拒绝访问（$lastCode）"
+                    in 500..599 -> "图床暂时出错（$lastCode），过会儿再试"
+                    else -> "下载失败（$lastCode）"
+                },
+            )
+        }
+        if (total > 0 && b.size < total) {
+            return fail("只下到 ${b.size / 1024 / 1024}MB / ${total / 1024 / 1024}MB，网断了")
+        }
+        return b
+    }
+
+    /**
+     * 把 [url] 从 [from] 字节起续写到 [buf]，返回 HTTP 码（-1 = 异常）。
+     * 服务器不支持 Range（回 200 而不是 206）时，把 buf 清空重来 —— 否则又会拼出坏文件。
+     */
+    private fun fetchInto(
+        url: String,
+        from: Long,
+        buf: java.io.ByteArrayOutputStream,
+        total: Long,
+        onProgress: (Long, Long) -> Unit,
+    ): Int {
+        val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 20_000
+        // 单次 read 的超时，不是整段的时间：动图 10MB、校园网 300KB/s 也需要 30+s
+        c.readTimeout = 45_000
+        c.setRequestProperty("Accept", "*/*")
+        if (from > 0) c.setRequestProperty("Range", "bytes=$from-")
+        try {
+            val code = c.responseCode
+            if (code !in 200..299) return code
+            if (code == 200 && from > 0) {
+                buf.reset()                      // 不支持续传：丢掉旧的半截，从头写
+                onProgress(0L, total)
+            }
+            val b = ByteArray(64 * 1024)
+            c.inputStream.use { ins ->
+                while (true) {
+                    val n = ins.read(b)
+                    if (n <= 0) break
+                    buf.write(b, 0, n)
+                    onProgress(buf.size().toLong(), total)
+                }
+            }
+            return code
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private const val MAX_BYTES = 60L * 1024 * 1024
 
     private fun contentLength(url: String): Long {
         val r = Net.dial.call("HEAD", url, mapOf("Accept" to "*/*"), null)
@@ -273,7 +337,10 @@ object ArtRepo {
         runCatching {
             val buf = java.io.ByteArrayOutputStream()
             if (Net.dial.stream(url) { chunk, n, _ -> buf.write(chunk, 0, n) } > 0) {
-                return buf.toByteArray()
+                val b = buf.toByteArray()
+                // 同样要核对长度：半截图当成品用，后面裁圆角/缩放都"成功"，但画面是灰的
+                val want = runCatching { contentLength(url) }.getOrDefault(0L)
+                if (want <= 0L || b.size >= want) return b
             }
         }
         return runCatching {
