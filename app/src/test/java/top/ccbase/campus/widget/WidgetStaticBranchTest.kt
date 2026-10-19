@@ -50,6 +50,17 @@ class WidgetStaticBranchTest {
     }
 
     @Test
+    fun `根容器必须透明，否则圆角会被填成黑色方块`() {
+        // 2026-10-19 用户："没有实现圆角，外边有黑色的矩形"。
+        // 圆角是靠位图的透明角落做出来的，根容器垫一层不透明底色就全毁了。
+        listOf(WidgetThemes.presets.first().id, WidgetThemes.USER_IMAGE_SPEC).forEach { spec ->
+            val bg = viewOf(spec).background as? android.graphics.drawable.ColorDrawable
+            val color = bg?.color ?: 0
+            assertEquals("$spec 的根容器不透明 —— 圆角会变成黑角", 0, color ushr 24)
+        }
+    }
+
+    @Test
     fun `动态规格反过来只用帧`() {
         val v = viewOf(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF39D3C0.toInt()))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.widget_flip).visibility)

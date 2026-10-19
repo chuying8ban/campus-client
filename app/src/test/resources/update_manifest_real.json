@@ -1,11 +1,11 @@
 {
-  "version_code": 142,
-  "version_name": "3.4.23",
-  "url": "/updates/campus-3.4.23.apk",
-  "sha256": "c18e035de7999d835ff3e5562ba4fa755547c9ec1be3291a9f253becc82aa1fe",
-  "size": 8344235,
+  "version_code": 143,
+  "version_name": "3.4.24",
+  "url": "/updates/campus-3.4.24.apk",
+  "sha256": "e0e929f8b16f05e6f45d6eb38ab1560c78085c82f0898b095d0263371bf15d5e",
+  "size": 8344295,
   "notes": [
-    "下载更新时不再挡住 App，可以照常看课表",
-    "进度收成底部一条，点「隐藏」下载也不会停"
+    "小组件圆角真的圆了，外面不再有黑色矩形",
+    "补了测试，圆角被改坏会先报错"
   ]
 }

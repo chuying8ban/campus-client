@@ -158,9 +158,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int, specOverride: String? = null) {
             val spec = specOverride ?: WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
-            // 先垫一层不透明底色：万一 launcher 把位图丢了（MIUI 对大位图会静默丢），
-            // 卡片至少还是一张深色卡，而不是"只剩文字的透明块"（用户 2026-10-19 截图）。
-            rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
+            // 根容器必须是**透明**的：圆角是通过位图的透明角落做出来的，
+            // 底下要是垫一层不透明底色，那圈透明角落就被它填成黑色方块 ——
+            // 用户 2026-10-19 的原话："没有实现圆角，外边有黑色的矩形"。
+            // 只在连位图都画不出来时才退回不透明底色（那时至少还能看见字）。
+            rv.setInt(R.id.widget_root, "setBackgroundColor", android.graphics.Color.TRANSPARENT)
 
             // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
             // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
