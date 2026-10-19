@@ -145,6 +145,24 @@ object WidgetThemes {
      * 帧是按"墙钟时间"挑的 —— 这里改的就是那根时间轴走多快，
      * 所以慢速和快速都真的动，只是推进速度不同。
      */
+    private const val K_HD = "hd_frames"
+
+    /**
+     * 动态主题用「高画质帧」——帧按视图真实尺寸渲染，**用 URI 交给桌面自己去读文件**，
+     * 不再塞进位图（2026-10-19 用户："小控件的动态主题画质太糊了"）。
+     *
+     * 为什么糊：RemoteViews 里的位图是连像素一起走 binder 的，一次更新总大小超过 ~1MB
+     * 桌面就会整块丢掉。所以 4 帧只能共享 ~4 万像素/帧，880×443 的格子被压到 300 多像素宽，
+     * 桌面再放大 2~3 倍 → 就是糊。走 URI 时 binder 里只有一个字符串，画面由桌面按文件原始
+     * 分辨率解码，清晰度只受像素预算（内存）限制，不受 binder 限制。
+     *
+     * 默认开。个别桌面对 FileProvider 授权支持不好时，用户可以在外观页关掉退回位图。
+     */
+    fun hdFrames(ctx: Context): Boolean = prefs(ctx).getBoolean(K_HD, true)
+
+    fun setHdFrames(ctx: Context, on: Boolean) =
+        prefs(ctx).edit().putBoolean(K_HD, on).apply()
+
     fun speed(ctx: Context): Float =
         prefs(ctx).getFloat(K_SPEED, 1f).coerceIn(0.35f, 3f)
 

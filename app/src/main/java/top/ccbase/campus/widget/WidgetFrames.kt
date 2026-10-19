@@ -66,12 +66,19 @@ object WidgetFrames {
     }
 
     /** 按 spec 生成 [FRAMES] 帧；返回 null = 不是动态 spec（调用方走静态分支）。 */
-    fun forSpec(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<Bitmap>? {
+    fun forSpec(
+        ctx: Context,
+        spec: String,
+        wPx: Int,
+        hPx: Int,
+        speed: Float = 1f,
+        fullRes: Boolean = false,
+    ): List<Bitmap>? {
         WidgetDyn.parse(spec)?.let { (kind, accent) ->
-            val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed"
+            val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return render(ctx, key, wPx, hPx) { c, fw, fh, t0 ->
+            return render(ctx, key, wPx, hPx, fullRes) { c, fw, fh, t0 ->
                 // 播放速度：把"时间轴"走快/走慢，不是简单抽帧 —— 慢放时粒子真的更慢
                 val t = t0 / speed.coerceAtLeast(0.2f)
                 DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
@@ -81,11 +88,11 @@ object WidgetFrames {
             val file = WidgetThemes.userImageFile(ctx)
             if (!file.exists()) return null
             val src = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
-            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx|s$speed"
+            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
-            return render(ctx, key, wPx, hPx) { c, fw, fh, t0 ->
+            return render(ctx, key, wPx, hPx, fullRes) { c, fw, fh, t0 ->
                 drawCinemagraph(c, src, effect, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
             }
         }
@@ -96,10 +103,10 @@ object WidgetFrames {
                 ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
             ) ?: return null
             if (media.kind != kind) return null
-            val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx"
+            val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return renderMedia(ctx, key, media, wPx, hPx)
+            return renderMedia(ctx, key, media, wPx, hPx, fullRes)
         }
         return null
     }
@@ -114,6 +121,31 @@ object WidgetFrames {
      * 现在：帧尺寸 = 视图尺寸（或等比缩小后的同比例），ImageView 改成 `fitXY`，
      * 1:1 铺进去，四个角都画在画内。
      */
+    /**
+     * 高画质帧的**文件列表**（给 `setImageViewUri` 用：桌面自己按原分辨率解码，不经过 binder）。
+     *
+     * 前提说明：`diskSave` 每次都会先把 `wframes/` 下的别的 spec 目录删掉，
+     * 所以这个目录里**同时只会有一份帧**（桌面只用一种主题）。因此这里直接取唯一那个子目录，
+     * 不需要再算一遍 key —— key 的算法分散在三个分支里，重复实现迟早会漂。
+     */
+    fun frameFiles(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<File>? {
+        fun dirNow(): File? = File(ctx.cacheDir, "wframes").listFiles()?.firstOrNull { it.isDirectory }
+        fun complete(d: File?, n: Int): Boolean =
+            d != null && (0 until n).all { File(d, "f$it.png").let { f -> f.isFile && f.length() > 0L } }
+
+        var frames = forSpec(ctx, spec, wPx, hPx, speed, fullRes = true) ?: return null
+        var dir = dirNow()
+        // 内存缓存可能命中（进程内画过一次），那种情况下不会再落盘 —— 但 URI 就是靠文件。
+        // 文件和缓存对不上就丢掉缓存重画一次，宁可多花一次渲染，也不能给桌面一个空 URI。
+        if (!complete(dir, frames.size)) {
+            clear()
+            frames = forSpec(ctx, spec, wPx, hPx, speed, fullRes = true) ?: return null
+            dir = dirNow()
+        }
+        if (!complete(dir, frames.size)) return null
+        return (0 until frames.size).map { File(dir, "f$it.png") }
+    }
+
     /**
      * 帧的**磁盘缓存**：换主题慢的主因不是下载，是"抽帧 + 画 6 张 + 过一遍圆角"。
      *
@@ -149,16 +181,20 @@ object WidgetFrames {
         }
     }
 
-    private fun frameSize(wPx: Int, hPx: Int): Triple<Int, Int, Float> {
+    private fun frameSize(wPx: Int, hPx: Int, fullRes: Boolean = false): Triple<Int, Int, Float> {
         // 别按满尺寸画：fitXY 放大肉眼看不出（画面本来就是柔焦的图/光）。**缩小不会切掉圆角** ——
         // fitXY 只拉伸不裁切，这正是 3.2.1 那次修法的关键。
         // 每帧像素预算：4 帧 × 5 万像素 ≈ 800KB（ARGB_8888）。
         // RemoteViews 把像素一起塞进 binder 事务，总量超过 ~1MB 桌面就会整块丢掉。
-        val perFrame = 40_000f
+        // 高画质（走 URI，不走 binder）：几乎按满尺寸画，只兜一个内存上限。
+        // 4 帧 × 42 万像素 × 4B ≈ 6.7MB **只在生成/落盘时占内存**，桌面上不经过 binder，
+        // 落成 PNG 后按 view 尺寸解码，所以不会像位图那样把整张卡顶掉。
+        val perFrame = if (fullRes) 420_000f else 40_000f
         val px = wPx.toLong() * hPx
         // 不设下限：预算优先。1200×600 的格子 scale≈0.24 刚好；2475×1375 的格子要 0.108，
         // 原来那个 0.24 下限会让 4 帧加起来 3MB，超了 binder 上限 → 桌面整块丢掉（画质换可见）。
-        val scale = minOf(0.7f, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.04f)
+        val cap = if (fullRes) 1f else 0.7f
+        val scale = minOf(cap, sqrt(perFrame / px.toFloat())).coerceAtLeast(0.04f)
         val fw = max(120, (wPx * scale).toInt())
         val fh = max(80, (hPx * scale).toInt())
         return Triple(fw, fh, scale)
@@ -171,8 +207,9 @@ object WidgetFrames {
         media: top.ccbase.campus.ui.theme.UserMedia.Media,
         wPx: Int,
         hPx: Int,
+        fullRes: Boolean = false,
     ): List<Bitmap>? {
-        val (fw, fh, scale) = frameSize(wPx, hPx)
+        val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
         val radius = WidgetArt.radiusFor(hPx, 1f) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
@@ -252,8 +289,15 @@ object WidgetFrames {
      * 渲染 N 帧并统一裁圆角（RemoteViews 没有圆角属性，只能画进位图）。
      * 帧按视图实际大小渲染（超大时整体等比缩小），配 `fitXY` 1:1 铺满 —— 见 [frameSize]。
      */
-    private fun render(ctx: Context, key: String, wPx: Int, hPx: Int, draw: (Canvas, Int, Int, Float) -> Unit): List<Bitmap> {
-        val (fw, fh, scale) = frameSize(wPx, hPx)
+    private fun render(
+        ctx: Context,
+        key: String,
+        wPx: Int,
+        hPx: Int,
+        fullRes: Boolean = false,
+        draw: (Canvas, Int, Int, Float) -> Unit,
+    ): List<Bitmap> {
+        val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
         val radius = WidgetArt.radiusFor(hPx, 1f) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         for (i in 0 until FRAMES) {

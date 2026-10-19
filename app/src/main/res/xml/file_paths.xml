@@ -12,4 +12,8 @@
     <!-- 老包（1.60-T1 及以前）装到了 cacheDir/update/，留着这条，升级路径上就不会出现
          "安装器打不开这个文件"。下一个大版本可以删掉。 -->
     <cache-path name="update_cache" path="update/" />
+    <!-- 桌面小组件的高画质帧（cacheDir/wframes/）：provider 用 setImageViewUri 交给桌面
+         自己去读文件，绕开"RemoteViews 位图走 binder 的 1MB 上限"——那个上限正是
+         动态主题发糊的原因（帧被压到 1/3 分辨率再被桌面放大）。 -->
+    <cache-path name="wframes" path="wframes/" />
 </paths>

@@ -1,0 +1,74 @@
+package top.ccbase.campus.widget
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * 「动态主题画质太糊」的守卫（2026-10-19 用户）。
+ *
+ * 糊的原因不是"没有矢量图"，是 **RemoteViews 的位图要走 binder**：
+ * 一次 updateAppWidget 的总位图超过 ~1MB，桌面会把整张卡丢掉，所以 4 帧只能共享
+ * ~4 万像素/帧 —— 880×443 的格子被压到 300 多像素宽，桌面再放大 2~3 倍。
+ *
+ * 修法：高画质模式把帧按真实像素渲染、落成 PNG，用 `setImageViewUri` 交给桌面自己解码。
+ * 这里守两件事：① 高画质帧确实接近原尺寸；② 帧文件真的落盘（否则 URI 指不到东西）。
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class WidgetHdFramesTest {
+
+    private val ctx get() = ApplicationProvider.getApplicationContext<Context>()
+    private val spec = WidgetDyn.spec(DynPainter.Kind.AURORA, 0xFF6C5CE7.toInt())
+
+    @Test
+    fun `高画质帧按卡片真实分辨率渲染`() {
+        val w = 960
+        val h = 480
+        val hd = WidgetFrames.forSpec(ctx, spec, w, h, 1f, fullRes = true)
+        assertNotNull("高画质帧没生成", hd)
+        assertTrue("高画质帧宽度应接近视图宽度：实际 ${hd!![0].width}", hd[0].width >= (w * 0.95f).toInt())
+        assertTrue("高画质帧高度应接近视图高度：实际 ${hd[0].height}", hd[0].height >= (h * 0.95f).toInt())
+    }
+
+    @Test
+    fun `省内存帧明显更小（这就是以前发糊的原因）`() {
+        val lo = WidgetFrames.forSpec(ctx, spec, 960, 480, 1f, fullRes = false)
+        val hd = WidgetFrames.forSpec(ctx, spec, 960, 480, 1f, fullRes = true)
+        assertNotNull(lo)
+        assertNotNull(hd)
+        assertTrue(
+            "省内存帧应该明显小于高画质帧：lo=${lo!![0].width} hd=${hd!![0].width}",
+            lo[0].width * 2 <= hd[0].width,
+        )
+    }
+
+    @Test
+    fun `帧文件真的落盘了（setImageViewUri 要能指到）`() {
+        val files = WidgetFrames.frameFiles(ctx, spec, 960, 480, 1f)
+        assertNotNull("frameFiles 返回 null，URI 会指空", files)
+        assertEquals("帧数要和布局里的帧位一致（FRAMES=${WidgetFrames.FRAMES}，实际=${files!!.size}）", WidgetFrames.FRAMES, files.size)
+        files.forEachIndexed { i, f ->
+            assertTrue("第 $i 帧文件不存在", f.isFile)
+            assertTrue("第 $i 帧文件是空的", f.length() > 1_000L)
+            // 必须是 PNG：圆角靠透明角，JPEG 会把四角填黑
+            assertTrue("第 $i 帧不是 PNG", f.name.endsWith(".png"))
+        }
+    }
+
+    @Test
+    fun `高画质默认开启`() {
+        assertTrue("默认应该是高画质", WidgetThemes.hdFrames(ctx))
+        WidgetThemes.setHdFrames(ctx, false)
+        assertTrue("关掉之后应当读回 false", !WidgetThemes.hdFrames(ctx))
+        WidgetThemes.setHdFrames(ctx, true)
+    }
+}

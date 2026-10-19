@@ -238,14 +238,50 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 只灌实际生成的帧，多出来的 ImageView 直接 GONE：
                 // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
                 // 帧不够就**重复最后一帧**填满，绝不留空位：ViewAnimator 会把空位也翻出来。
-                FRAME_IDS.forEachIndexed { i, id ->
-                    // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
-                    val fr = frames[i.coerceAtMost(frames.size - 1)]
-                    val veiled = if (wScrim != 0) {
-                        WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
-                    } else fr
-                    rv.setImageViewBitmap(id, WidgetArt.fade(veiled, wAlpha))
-                    rv.setViewVisibility(id, View.VISIBLE)
+                // 高画质：把帧文件交给桌面自己读（setImageViewUri），不把像素塞进 binder。
+                // 2026-10-19 用户："小控件的动态主题画质太糊了" —— 糊正是因为位图预算
+                // 把 880×443 的帧压到 300 多像素宽，桌面再放大 2~3 倍。
+                // 有可读性幕时必须走位图（幕要画进图里）；没幕才用 URI 高画质。
+                val hdFiles = if (wScrim == 0 &&
+                    runCatching { WidgetThemes.hdFrames(ctx) }.getOrDefault(true)
+                ) {
+                    runCatching { WidgetFrames.frameFiles(ctx, spec, wPx, hPx, speed) }.getOrNull()
+                } else null
+                val hdOk = hdFiles != null && hdFiles.size >= FRAME_IDS.size
+                if (hdOk) {
+                    // 兜底：万一某个桌面读不了 content URI，底下还压着一张静态底图，
+                    // 至少不会变成"只有文字、图没了"。
+                    runCatching {
+                        backgroundBitmapFor(ctx, spec, wPx, hPx)?.let { still ->
+                            rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(still, wAlpha))
+                            rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                        }
+                    }
+                    val authority = ctx.packageName + ".fileprovider"
+                    FRAME_IDS.forEachIndexed { i, id ->
+                        val f = hdFiles!![i.coerceAtMost(hdFiles.size - 1)]
+                        runCatching {
+                            rv.setImageViewUri(
+                                id,
+                                androidx.core.content.FileProvider.getUriForFile(ctx, authority, f),
+                            )
+                            // 透明度：走 URI 后不能在位图上做，交给 ImageView 自己的 alpha
+                            runCatching {
+                                rv.setInt(id, "setImageAlpha", (wAlpha.coerceIn(0f, 1f) * 255).toInt())
+                            }
+                            rv.setViewVisibility(id, View.VISIBLE)
+                        }.onFailure { rv.setViewVisibility(id, View.GONE) }
+                    }
+                } else {
+                    FRAME_IDS.forEachIndexed { i, id ->
+                        // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
+                        val fr = frames[i.coerceAtMost(frames.size - 1)]
+                        val veiled = if (wScrim != 0) {
+                            WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
+                        } else fr
+                        rv.setImageViewBitmap(id, WidgetArt.fade(veiled, wAlpha))
+                        rv.setViewVisibility(id, View.VISIBLE)
+                    }
                 }
                 // 2026-10-19 真正的根因（自检里终于露出原话）：
                 //   android.widget.RemoteViews$ActionException: view: android.widget.ViewFlipper

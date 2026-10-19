@@ -652,6 +652,38 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             }
         }
     }
+    // ---- 动态主题画质（2026-10-19 用户："小控件的动态主题画质太糊了"）----
+    // 糊的根因不是"没有矢量图"，而是位图要走 binder：4 帧共享 ~1MB 预算，
+    // 880×443 的格子只能按 300 多像素宽渲染，桌面再放大 2~3 倍。改成把帧文件交给桌面
+    // 自己按原分辨率解码（setImageViewUri），画质只受内存限制。
+    val hdOn = remember(wSpec, pvKey) { WidgetThemes.hdFrames(ctx) }
+    Spacer(Modifier.height(10.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("动态主题画质", fontSize = 11.sp, color = C.txt3)
+            Text(
+                if (hdOn) "高画质：帧按卡片真实分辨率给桌面（清晰）"
+                else "省内存：帧压小后交给桌面（可能发糊，兼容性最好）",
+                fontSize = 9.5.sp, color = C.txt3, lineHeight = 13.sp,
+            )
+        }
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (hdOn) C.violet.copy(alpha = 0.22f) else C.card)
+                .border(1.dp, if (hdOn) C.violet.copy(alpha = 0.6f) else C.line, RoundedCornerShape(14.dp))
+                .clickable {
+                    WidgetThemes.setHdFrames(ctx, !hdOn)
+                    WidgetFrames.clear()
+                    pvKey++
+                    TodayWidgetProvider.refresh(ctx)
+                }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(if (hdOn) "高画质" else "省内存", color = if (hdOn) C.violet else C.txt2, fontSize = 10.5.sp)
+        }
+    }
+
     // ---- 真 60 帧：动态壁纸（2026-10-19 用户：「小部件的主题依旧没有做到流畅播放，
     //      我希望能够做到 60 帧播放」）----
     // 实话：桌面小组件的每一帧都要跨进程把位图交给桌面，框架上不存在 60fps 这条路，

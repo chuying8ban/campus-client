@@ -61,9 +61,15 @@ class WidgetStaticBranchTest {
     }
 
     @Test
-    fun `动态规格反过来只用帧`() {
+    fun `动态规格用帧，并且底下压一张兜底底图`() {
+        // 3.4.43 起：高画质帧走 setImageViewUri（桌面自己读文件）。binder 里只有一个字符串，
+        // 但万一某个桌面读不了 content URI，就会整块空白 —— 所以底下仍然垫一张静态底图兜底。
+        // 断言改的是"帧亮着 + 底图也亮着"，不是"底图必须藏起来"。
         val v = viewOf(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF39D3C0.toInt()))
         assertEquals(View.VISIBLE, v.findViewById<View>(R.id.widget_flip).visibility)
-        assertEquals(View.GONE, v.findViewById<View>(R.id.widget_bg_img).visibility)
+        assertEquals(
+            "兜底底图应该可见（URI 读不到时不至于只剩文字）",
+            View.VISIBLE, v.findViewById<View>(R.id.widget_bg_img).visibility,
+        )
     }
 }
