@@ -198,7 +198,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 用来验证"主题到底有没有铺上去"——真机上看不到的画面，测试里能一项项断言。
          */
         internal fun themeViews(ctx: Context, wPx: Int, hPx: Int, specOverride: String? = null): RemoteViews {
-            val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
+            val rv = RemoteViews(ctx.packageName, top.ccbase.campus.ui.theme.WidgetFont.layoutFor(ctx))
             applyTheme(ctx, rv, wPx, hPx, specOverride)
             return rv
         }
@@ -593,7 +593,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
             h: Int,
             specOverride: String?,
         ): RemoteViews {
-            val rv = RemoteViews(ctx.packageName, R.layout.widget_today)
+            val rv = RemoteViews(ctx.packageName, top.ccbase.campus.ui.theme.WidgetFont.layoutFor(ctx))
             val theme = WidgetThemes.of(specOverride ?: WidgetThemes.spec(ctx))
             rv.setTextViewText(R.id.widget_status, model.status)
             rv.setTextViewText(R.id.widget_date, model.dateLine)

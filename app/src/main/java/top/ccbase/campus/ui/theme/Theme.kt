@@ -265,6 +265,30 @@ private val CampusType = Typography().let { base ->
     )
 }
 
+/**
+ * 把用户选的字体铺到**所有**排版样式上（2026-10-19 用户："新增一个更改字体功能"）。
+ *
+ * 只改 App：小组件走它自己的 layout 变体（见 `WidgetFont`），两边各存各的 pref。
+ * 注意 `Digits`（时间/数字）**不受影响** —— 它必须等宽，否则并排的数字会跳。
+ */
+private fun Typography.withFamily(f: androidx.compose.ui.text.font.FontFamily): Typography = copy(
+    displayLarge = displayLarge.copy(fontFamily = f),
+    displayMedium = displayMedium.copy(fontFamily = f),
+    displaySmall = displaySmall.copy(fontFamily = f),
+    headlineLarge = headlineLarge.copy(fontFamily = f),
+    headlineMedium = headlineMedium.copy(fontFamily = f),
+    headlineSmall = headlineSmall.copy(fontFamily = f),
+    titleLarge = titleLarge.copy(fontFamily = f),
+    titleMedium = titleMedium.copy(fontFamily = f),
+    titleSmall = titleSmall.copy(fontFamily = f),
+    bodyLarge = bodyLarge.copy(fontFamily = f),
+    bodyMedium = bodyMedium.copy(fontFamily = f),
+    bodySmall = bodySmall.copy(fontFamily = f),
+    labelLarge = labelLarge.copy(fontFamily = f),
+    labelMedium = labelMedium.copy(fontFamily = f),
+    labelSmall = labelSmall.copy(fontFamily = f),
+)
+
 private val CampusShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(10.dp),
@@ -318,9 +342,11 @@ fun CampusTheme(content: @Composable () -> Unit) {
         if (scrim != 0) {
             Box(Modifier.fillMaxSize().background(Color(scrim)))
         }
-        MaterialTheme(
+        val appFamily = AppFont.state.value.compose
+        val type = androidx.compose.runtime.remember(appFamily) { CampusType.withFamily(appFamily) }
+    MaterialTheme(
             colorScheme = schemeFor(p),
-            typography = CampusType,
+            typography = type,
             shapes = CampusShapes,
             content = content,
         )

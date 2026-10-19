@@ -44,6 +44,11 @@ open class CampusApplication : Application() {
         runCatching { top.ccbase.campus.widget.ScreenWatcher.register(this) }
         // 前台/后台：前台时不推桌面帧（用户看得见 App 时桌面根本看不见，推帧 = 白烧主线程 → 卡顿）
         runCatching { top.ccbase.campus.widget.AppForeground.register(this) }
+        // 字体：App 与小组件各存各的（外观页改，见 ui/theme/Fonts.kt）
+        runCatching {
+            top.ccbase.campus.ui.theme.AppFont.bind(this)
+            top.ccbase.campus.ui.theme.WidgetFont.bind(this)
+        }
         db = CampusDb.get(this)
         // 兜底：#静音后手机重启/被清后台，下课那条恢复闹钟就没了。
         // 每次进程起来先还一次铃声（只在"我们按着静音、且已过该恢复的时间"时才动）。

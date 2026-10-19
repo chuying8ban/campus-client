@@ -619,6 +619,16 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         pvKey++                              // 预览立刻重画
         TodayWidgetProvider.refresh(ctx)      // 桌面跟着换
     }
+    Spacer(Modifier.height(14.dp))
+
+    // ---- 字体（2026-10-19 用户："app 和小部件要分开"）----
+    // 换字体要重新充气布局（RemoteViews 只能认 layout 里的 fontFamily），
+    // 所以这里除了刷新桌面，还要清掉帧缓存里的旧图（字是画在位图上的吗？不是 ——
+    // 但预览卡片是按 spec 缓存的，picked 后 pvKey++ 就够）。
+    top.ccbase.campus.ui.theme.FontPicker(widget = true) {
+        pvKey++
+        TodayWidgetProvider.refresh(ctx)
+    }
     Spacer(Modifier.height(12.dp))
 
     // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----

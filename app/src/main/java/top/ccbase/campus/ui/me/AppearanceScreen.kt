@@ -287,6 +287,12 @@ private fun AppThemePane(
     // 和小组件主题页共用同一个控件与同一份偏好，改哪边都是整机一致。
     SectionLabel("文字颜色")
     top.ccbase.campus.ui.theme.TextTintPicker(ctx)
+    Spacer(Modifier.height(18.dp))
+
+    // 字体（2026-10-19 用户："新增一个更改字体功能（app 和小部件要分开）"）。
+    // 这一页只改 App 的字；小组件那一份在「桌面小组件」页，两个 pref 互不相干。
+    SectionLabel("字体")
+    top.ccbase.campus.ui.theme.FontPicker(widget = false)
     Spacer(Modifier.height(20.dp))
 
     SectionLabel("页面背景")
