@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -73,17 +74,26 @@ fun parseAnim(spec: String): Pair<DynKind, Int>? {
     return kind to argb
 }
 
-/** 30fps：这些运动没有一处快到需要 60fps */
-private const val FRAME_MS = 33L
+/**
+ * 2026-10-19 用户："小控件和 app 的动态主题要足够流畅"。
+ *
+ * 原来是 `while(true){ t = …; delay(33) }` —— 固定 30fps + 线程计时，跟屏幕刷新不同步：
+ * 手机 60/120Hz，33ms 的 tick 会不断和 vsync 错位，看起来就是"一顿一顿"。
+ * 改成 `withFrameNanos`：**跟着 vsync 走**，能 60fps 就 60fps，掉帧时自然少画几帧（不会越拖越远）。
+ */
+private const val FRAME_MS = 0L
 
 @Composable
 fun DynamicBackground(kind: DynKind, accent: Color, modifier: Modifier = Modifier) {
     var t by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(kind, accent) {
-        val start = System.currentTimeMillis()
+        // 读 t 的地方是 Canvas 的 draw lambda —— 只触发重绘，不重组整棵树
+        var start = -1L
         while (true) {
-            t = (System.currentTimeMillis() - start) / 1000f
-            delay(FRAME_MS)
+            withFrameNanos { now ->
+                if (start < 0L) start = now
+                t = (now - start) / 1_000_000_000f
+            }
         }
     }
     val argb = accent.toArgb()
@@ -120,10 +130,12 @@ fun DynamicPhotoBackground(
 ) {
     var t by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(bitmap, effect) {
-        val start = System.currentTimeMillis()
+        var start = -1L
         while (true) {
-            t = (System.currentTimeMillis() - start) / 1000f
-            delay(FRAME_MS)
+            withFrameNanos { now ->
+                if (start < 0L) start = now
+                t = (now - start) / 1_000_000_000f
+            }
         }
     }
     val argb = accent.toArgb()

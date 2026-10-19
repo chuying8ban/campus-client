@@ -292,7 +292,9 @@ private fun AppThemePane(
     // 让它动起来：动态壁纸那种（微推近 + 樱瓣/雪/光斑…），作用在选中的那张图上
     if (photoSet) {
         Spacer(Modifier.height(12.dp))
-        Text("让它动起来", color = C.txt3, fontSize = 11.sp)
+        // 2026-10-19 用户："客户端主题和小控件主题功能串了"。两页各有一排一模一样的芯片，
+        // 点错了一整屏就变 —— 所以标题必须写清"只影响谁"。
+        Text("动效（只影响 App 背景，不动桌面小组件）", color = C.txt3, fontSize = 11.sp)
         Spacer(Modifier.height(7.dp))
         MotionChips(currentEffectId = parseAnimPhoto(AppearanceStore.background.value)?.id) { id ->
             val effect = WidgetFrames.ImgEffect.of(id)

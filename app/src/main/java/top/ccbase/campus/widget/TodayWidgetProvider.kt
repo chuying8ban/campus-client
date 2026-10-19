@@ -191,7 +191,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
             }
-            if (dyn == null) {
+            // ⚠️ 这里原来写的是 `if (dyn == null)` —— dyn 是 Boolean，`== null` 恒为 false，
+            // 于是**静态分支从来没执行过**：纯色/图片/我的图全都没有底图，只剩文字和深色底。
+            // 这就是"静止时总是不显示，点微动就有了"的根因（微动走的是上面 frames 那条路）。
+            if (!dyn) {
                 // 静态底：图片主题 / 媒体封面帧 / 纯色渐变，统一在 backgroundBitmapFor 里挑
                 val bmp = backgroundBitmapFor(ctx, spec, wPx, hPx)
                 if (bmp != null) {
@@ -346,6 +349,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
             //    用户看到的就是"换了主题没有反应"）；
             // ② 广播再发一次，兜住"进程刚好被系统拉起"的情况。
             CoroutineScope(Dispatchers.IO).launch {
+                // ① 先立刻推一版，不等预热 —— 换主题后桌面应该几百毫秒内就变
+                //    （用户 2026-10-19："小控件切换主题后的显示不够实时"）。
+                runCatching {
+                    val mgr = AppWidgetManager.getInstance(ctx)
+                    val ids = mgr.getAppWidgetIds(ComponentName(ctx, TodayWidgetProvider::class.java))
+                    if (ids.isNotEmpty()) render(ctx, ids, null)
+                }
+                // ② 再把帧/底图预热好，推第二版（动态主题的首帧需要解码，慢一点，但第二版更稳）
                 runCatching { warmFrames(ctx) }
                 runCatching {
                     val mgr = AppWidgetManager.getInstance(ctx)

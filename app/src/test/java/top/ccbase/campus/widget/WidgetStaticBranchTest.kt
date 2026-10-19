@@ -1,0 +1,58 @@
+package top.ccbase.campus.widget
+
+import android.content.Context
+import android.view.View
+import android.widget.FrameLayout
+import android.widget.ImageView
+import top.ccbase.campus.R
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * 静态主题必须真的把底图塞进 RemoteViews（2026-10-19 用户："静止时总是不显示，点微动就有了"）。
+ *
+ * 真因：`applyTheme` 里写的是 `if (dyn == null)`，而 `dyn` 是 Boolean —— `== null` 恒为 false，
+ * 静态分支一次都没跑过。纯色 / 随包图片 / 我的图 全都没有底图，只剩文字。
+ *
+ * 盯的是"静态规格一定显示 bg_img、隐藏 flip"，不是图好不好看（那归 WidgetDarkImageTest）。
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class WidgetStaticBranchTest {
+
+    private val ctx: Context get() = ApplicationProvider.getApplicationContext()
+
+    private fun viewOf(spec: String?): View {
+        val rv = TodayWidgetProvider.themeViews(ctx, 900, 400, spec)
+        return rv.apply(ctx, FrameLayout(ctx))
+    }
+
+    @Test
+    fun `纯色主题必须真的画上底图`() {
+        val v = viewOf(WidgetThemes.presets.first().id)
+        // 断言 drawable 非空，而不是 visibility：布局里 bg_img 默认就 VISIBLE，
+        // 只看可见性的话，`if (dyn == null)` 那个 bug 下这条测试照样绿 —— 等于没测。
+        assertNotNull("纯色主题没生成底图 —— 静态分支没走到",
+            v.findViewById<ImageView>(R.id.widget_bg_img).drawable)
+        assertEquals("静态主题不该用帧轮播", View.GONE, v.findViewById<View>(R.id.widget_flip).visibility)
+    }
+
+    @Test
+    fun `我的图也走静态分支`() {
+        val v = viewOf(WidgetThemes.USER_IMAGE_SPEC)
+        assertNotNull("我的图没生成底图", v.findViewById<ImageView>(R.id.widget_bg_img).drawable)
+        assertEquals(View.GONE, v.findViewById<View>(R.id.widget_flip).visibility)
+    }
+
+    @Test
+    fun `动态规格反过来只用帧`() {
+        val v = viewOf(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF39D3C0.toInt()))
+        assertEquals(View.VISIBLE, v.findViewById<View>(R.id.widget_flip).visibility)
+        assertEquals(View.GONE, v.findViewById<View>(R.id.widget_bg_img).visibility)
+    }
+}

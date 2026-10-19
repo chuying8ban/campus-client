@@ -346,6 +346,17 @@ fun MeScreen(
             if (!updCheck.isNullOrBlank()) {
                 KV("更新检查", updCheck + fmtCheckedAt(updCheckAt))
             }
+            // 3.4.21：已经下好的包摆在这儿。
+            // 底部那条浮条点了「稍后」就不该再拦着人，但包不能丢 —— 想装的时候有地方点。
+            val readyName = top.ccbase.campus.update.SilentUpdate.readyVersion(ctx)
+            if (readyName != null) {
+                Spacer(Modifier.height(8.dp))
+                Action(
+                    "安装 v$readyName（已经下好）",
+                    "不用再等下载；点一下走系统安装，装完回到原来那一页",
+                    onClick = { top.ccbase.campus.update.SilentUpdate.installReady(ctx) },
+                )
+            }
             Spacer(Modifier.height(10.dp))
             if (busy) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

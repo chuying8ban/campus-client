@@ -201,10 +201,13 @@ fun CampusApp(version: String) {
 
 @Composable
 fun CampusShell(version: String, onLogin: () -> Unit) {
-    // rememberSaveable：转屏/系统杀进程重建后还停在原来那个 tab
-    var idx by rememberSaveable { mutableIntStateOf(0) }
-
     val appCtx = LocalContext.current
+    // rememberSaveable：转屏/系统杀进程重建后还停在原来那个 tab。
+    // 但**装完新版是全新进程**，存档也不保证还在 → 再落一次盘：
+    // 更新完重进 App 仍停在原来那一页（用户 2026-10-19：更新时也要能正常用）。
+    val uiPrefs = remember { appCtx.getSharedPreferences("ui_state", android.content.Context.MODE_PRIVATE) }
+    var idx by rememberSaveable { mutableIntStateOf(uiPrefs.getInt("tab", 0)) }
+    LaunchedEffect(idx) { uiPrefs.edit().putInt("tab", idx).apply() }
     // 监控那一格按服务端给的 can_grab 显隐（就在下面构造底部栏那里读）。
     // （2026-10-07 起没有"只进作者包"的东西了：包只有一个，后台搬去了网页端。）
 
@@ -320,7 +323,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         // 只有真发出去了才记「已提醒」：通知权限没开时不该白白吞掉这次提醒
                         if (posted) UpdatePrefs.markNotified(appCtx, m.versionCode)
                     }
-                    update = UpdateUi.Offer(m, outcome.forced, outcome.why)
+                    // 只有"他自己点的检查"或"服务端强制"才弹框。
+                    // 进 App 自动查的那次一律静默（用户 2026-10-19：更新时也要能正常用），
+                    // 否则一进 App 就被一个下载框盖住课表 —— 那正是他要免掉的东西。
+                    if (force || outcome.forced) update = UpdateUi.Offer(m, outcome.forced, outcome.why)
                 }
                 // 静默的自动检查不打扰；手动点的必须给回话，否则用户以为按钮坏了
                 CheckOutcome.Latest -> updHint = if (force) "已经是最新版本（$version）" else null
@@ -595,6 +601,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 静默下载（用户 2026-10-19："另外加一个静默下载功能"）：
     // 进 App 就在后台查 + 下，全程不弹界面；下好了这里浮一条"点一下安装"。
     var readyApk by remember { mutableStateOf(top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)) }
+    // 「稍后」只隐藏这条浮条，**不删包**（用户 2026-10-19：更新时也要能正常用）。
+    // 包留在本地，「我的 → 安装 vX（已经下好）」随时能装，不用再下一次 8MB。
+    var barHidden by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // 背景自愈：设的是视频/gif 主题、但文件被清掉或下载被截断（放不出来）时，
         // 别让用户对着整屏黑 —— 直接退回预设配色，并把坏文件删掉。
@@ -619,7 +628,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             readyApk = top.ccbase.campus.update.SilentUpdate.readyApk(appCtx)
         }
     }
-    readyApk?.let { apk ->
+    readyApk?.takeIf { !barHidden }?.let { apk ->
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -639,17 +648,16 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 Text("新版本已下好", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    UpdatePrefs.availableName(appCtx)?.let { "v$it · 点这里安装" } ?: "点这里安装",
+                    UpdatePrefs.availableName(appCtx)?.let { "v$it · 点这里安装，回来还在这一页" }
+                        ?: "点这里安装，回来还在这一页",
                     color = C.violet, fontSize = 12.sp, modifier = Modifier.weight(1f),
                 )
                 Text(
                     "稍后",
                     color = C.txt3, fontSize = 11.sp,
                     modifier = Modifier.clickable {
-                        // 用户明确不要这一版：清掉包，别一直躺在那儿占 7MB
-                        runCatching { apk.delete() }
-                        top.ccbase.campus.update.SilentUpdate.clearReady(appCtx)
-                        readyApk = null
+                        // 只是"现在不想装"：收起浮条，包留着 —— 在「我的」里还能点安装。
+                        barHidden = true
                     }.padding(start = 10.dp),
                 )
             }

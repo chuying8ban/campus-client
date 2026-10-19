@@ -736,7 +736,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     val curTheme = remember(wSpec) { WidgetThemes.of(wSpec) }
     if (curTheme.hasImage || media != null) {
         Spacer(Modifier.height(14.dp))
-        Text("动效（作用在你选中的那张图上）", fontSize = 11.sp, color = C.txt3)
+        Text("动效（只影响桌面小组件，不动 App 背景）", fontSize = 11.sp, color = C.txt3)
         Spacer(Modifier.height(7.dp))
         MotionChips(currentEffectId = WidgetDyn.parseImage(wSpec)?.id) { id ->
             val effect = WidgetFrames.ImgEffect.of(id)
