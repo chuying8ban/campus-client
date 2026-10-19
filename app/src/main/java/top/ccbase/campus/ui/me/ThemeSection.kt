@@ -229,8 +229,11 @@ fun AccentSection() {
  * 「桌面小组件」那一页的全部内容（App 主题与它分开，各存各的）。
  */
 @Composable
-fun WidgetSection(onOpenGallery: () -> Unit = {}) {
-    WidgetBlock(onOpenGallery)
+fun WidgetSection(
+    onOpenGallery: () -> Unit = {},
+    onOpenFontLib: () -> Unit = {},
+) {
+    WidgetBlock(onOpenGallery, onOpenFontLib)
 }
 
 /**
@@ -378,7 +381,7 @@ private fun hsv(h: Float, s: Float, v: Float = 0.9f): Color =
  * 用户自己就能看出到底成了没有。
  */
 @Composable
-private fun WidgetBlock(onOpenGallery: () -> Unit) {
+private fun WidgetBlock(onOpenGallery: () -> Unit, onOpenFontLib: () -> Unit) {
     val ctx = LocalContext.current
     var wSpec by remember { mutableStateOf(WidgetThemes.spec(ctx)) }
     // 透明度是"预览的一部分"：声明必须在预览之前，滑块拖的时候预览当场跟着变
@@ -461,10 +464,14 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // 换字体要重新充气布局（RemoteViews 只能认 layout 里的 fontFamily），
     // 所以这里除了刷新桌面，还要清掉帧缓存里的旧图（字是画在位图上的吗？不是 ——
     // 但预览卡片是按 spec 缓存的，picked 后 pvKey++ 就够）。
-    top.ccbase.campus.ui.theme.FontPicker(widget = true) {
-        pvKey++
-        TodayWidgetProvider.refresh(ctx)
-    }
+    top.ccbase.campus.ui.theme.FontPicker(
+        widget = true,
+        onPicked = {
+            pvKey++
+            TodayWidgetProvider.refresh(ctx)
+        },
+        onOpenLibrary = onOpenFontLib,
+    )
     Spacer(Modifier.height(12.dp))
 
     // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----

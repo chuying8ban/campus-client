@@ -267,7 +267,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 根因：桌面这边 HD 文件还没就绪时，我们先在主线程画 24 张位图帧顶上去，
             // 文件一就绪又立刻 apply 一次 → 桌面短时间内被"重建"两回，观感就是小组件被删了又加回来。
             // 现在只有**预览**才现场画帧（进程内、不进桌面）；桌面等文件就绪后一次性上。
-            val frames = if (preview && dynSpec && hdFiles == null) {
+            // 预览永远现场画帧（低分辨率位图，进程内用）：不能只在"没有 HD 文件"时才算 ——
+            // HD 文件存在时 preview 走不到 URI 分支，frames 为 null 会直接 NPE（真机报"RemoteViews 渲染失败: null"）
+            val frames = if (preview && dynSpec) {
                 runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
             } else null
             // 桌面上没有帧文件时先按静态底显示（一次 apply，不闪）

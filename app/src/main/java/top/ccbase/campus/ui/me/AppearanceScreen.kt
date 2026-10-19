@@ -1,5 +1,7 @@
 package top.ccbase.campus.ui.me
 
+import android.content.Context
+
 import android.net.Uri
 import top.ccbase.campus.widget.TodayWidgetProvider
 import top.ccbase.campus.widget.WidgetThemes
@@ -108,10 +110,18 @@ fun AppearanceScreen(
     onOpenGallery: (String, String) -> Unit = { _, _ -> },
     /** 打开动态主题库；参数 = "app" / "widget" */
     onOpenDynLibrary: (String) -> Unit = {},
+    /** 打开字体库；参数 = "app" / "widget" */
+    onOpenFontLib: (String) -> Unit = {},
     /** 作为底部导航的一格时传 true：不画标题和「关闭」（那两样只在整屏浮层里有意义） */
     embedded: Boolean = false,
 ) {
-    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
+    // 2026-10-19 用户："进入外观时的主面板改为上次进入的那个，而不是每次都切成 app 主题"。
+    // 存本地 pref，不存 rememberSaveable —— 后者只活到进程结束，用户第二天进来还是会被拽回第一页。
+    // 第一次进（没有这个键）才落到"App 主题"。
+    val appearancePrefs = LocalContext.current.getSharedPreferences("campus_appearance", Context.MODE_PRIVATE)
+    var tab by rememberSaveable {
+        mutableIntStateOf(if (initialTab in 0..1) initialTab else appearancePrefs.getInt("appearance_tab", 0))
+    }
     var showPresetBoard by rememberSaveable { mutableStateOf(false) }
 
     // 空白处的触摸由 `overlaySurface` 统一吃掉（见 Theme.kt），这里不用再挂
@@ -147,8 +157,8 @@ fun AppearanceScreen(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            PaneTab("App 主题", tab == 0) { tab = 0 }
-            PaneTab("桌面小组件", tab == 1) { tab = 1 }
+            PaneTab("App 主题", tab == 0) { tab = 0; appearancePrefs.edit().putInt("appearance_tab", 0).apply() }
+            PaneTab("桌面小组件", tab == 1) { tab = 1; appearancePrefs.edit().putInt("appearance_tab", 1).apply() }
         }
 
         Column(
@@ -164,9 +174,10 @@ fun AppearanceScreen(
                     onOpenGallery = onOpenGallery,
                     onOpenPresets = { showPresetBoard = true },
                     onOpenDyn = { onOpenDynLibrary("app") },
+                    onOpenFontLib = { onOpenFontLib("app") },
                 )
             } else {
-                WidgetPane(onOpenGallery, onOpenDyn = { onOpenDynLibrary("widget") })
+                WidgetPane(onOpenGallery, onOpenDyn = { onOpenDynLibrary("widget") }, onOpenFontLib = { onOpenFontLib("widget") })
             }
         }
     }
@@ -212,6 +223,7 @@ private fun AppThemePane(
     onOpenGallery: (String, String) -> Unit,
     onOpenPresets: () -> Unit = {},
     onOpenDyn: () -> Unit = {},
+    onOpenFontLib: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -292,7 +304,7 @@ private fun AppThemePane(
     // 字体（2026-10-19 用户："新增一个更改字体功能（app 和小部件要分开）"）。
     // 这一页只改 App 的字；小组件那一份在「桌面小组件」页，两个 pref 互不相干。
     SectionLabel("字体")
-    top.ccbase.campus.ui.theme.FontPicker(widget = false)
+    top.ccbase.campus.ui.theme.FontPicker(widget = false, onPicked = {}, onOpenLibrary = { onOpenFontLib() })
     Spacer(Modifier.height(20.dp))
 
     SectionLabel("页面背景")
@@ -442,7 +454,11 @@ private fun AppThemePane(
 // ────────────────────────────── 桌面小组件 ──────────────────────────────
 
 @Composable
-private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () -> Unit = {}) {
+private fun WidgetPane(
+    onOpenGallery: (String, String) -> Unit,
+    onOpenDyn: () -> Unit = {},
+    onOpenFontLib: () -> Unit = {},
+) {
     Text(
         "这里改的只是桌面上那张卡的配色。App 里看到什么颜色跟它无关 —— 两边各存各的。",
         color = C.txt2, fontSize = 12.sp, lineHeight = 18.sp,
@@ -482,7 +498,10 @@ private fun WidgetPane(onOpenGallery: (String, String) -> Unit, onOpenDyn: () ->
     }
 
     Spacer(Modifier.height(16.dp))
-    WidgetSection(onOpenGallery = { onOpenGallery("landscape", "widget") })
+    WidgetSection(
+        onOpenGallery = { onOpenGallery("landscape", "widget") },
+        onOpenFontLib = { onOpenFontLib() },
+    )
 }
 
 // ────────────────────────────── 公用小件 ──────────────────────────────

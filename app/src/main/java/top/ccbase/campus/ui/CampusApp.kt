@@ -228,6 +228,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     var showPlan by remember { mutableStateOf<Boolean?>(null) }
     // 动态主题库：null = 不显示；"app" / "widget" = 给谁挑
     var dynTarget by remember { mutableStateOf<String?>(null) }
+    var fontTarget by remember { mutableStateOf<String?>(null) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
     var artKind by remember { mutableStateOf("landscape") }
     var artTarget by remember { mutableStateOf("widget") }
@@ -497,6 +498,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     initialTab = appearanceTab,
                     embedded = true,
                     onOpenDynLibrary = { dynTarget = it },
+                    onOpenFontLib = { fontTarget = it },
                     onOpenGallery = { kind, target ->
                         artKind = kind
                         artTarget = target
@@ -577,6 +579,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     dynTarget?.let { t ->
         top.ccbase.campus.ui.me.DynLibraryScreen(target = t, onClose = { dynTarget = null })
+    }
+    fontTarget?.let { t ->
+        // 关掉时把桌面刷一次：小组件换字体要重新充气布局
+        top.ccbase.campus.ui.me.FontLibraryScreen(target = t, onClose = {
+            fontTarget = null
+            runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(appCtx) }
+        })
     }
     if (showArtGallery) {
         top.ccbase.campus.ui.me.ArtGalleryScreen(

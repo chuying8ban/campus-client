@@ -38,6 +38,14 @@ FONTS = [
     ("casual", "手写", "casual", 0),
     ("cursive", "连笔", "cursive", 0),
     ("smallcaps", "小型大写", "sans-serif-smallcaps", 0),
+    # ── 打包进来的艺术字体（@font/ = 我们自己的 res/font 资源，桌面充气时按包名解析） ──
+    ("kuaile", "快乐体", "@font/zcool_kuaile", 0),
+    ("qingke", "庆科黄油", "@font/zcool_qingke", 0),
+    ("xiaowei", "小薇书卷", "@font/zcool_xiaowei", 0),
+    ("maozheng", "毛笔楷", "@font/ma_shanzheng", 0),
+    ("longcang", "龙藏狂草", "@font/long_cang", 0),
+    ("mangxing", "莽行书", "@font/zhi_mangxing", 0),
+    ("maocao", "毛草体", "@font/liu_jianmaocao", 0),
 ]
 
 

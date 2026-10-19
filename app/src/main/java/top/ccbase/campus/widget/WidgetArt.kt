@@ -90,9 +90,12 @@ object WidgetArt {
      * 而且纯色预置走的是 XML 里写死的 20dp —— 两条路各说各话，所以"有的主题圆、有的方"。
      * 现在位图和 XML 都对齐 25dp；只有矮格子（<125dp）按 20% 收一下，免得削成药丸。
      */
-    const val RADIUS_DP = 25f
+    const val RADIUS_DP = 16f
 
     fun radiusFor(h: Int, density: Float): Float {
+        // 2026-10-20 用户看真机截图："这里的圆角太明显了，改小一点"。
+        // 25dp 是按小米天气卡 r/h≈0.157 反推的，但我们这张卡更高（4 行课表），
+        // 同样的比例在视觉上更"圆"。16dp（r/h≈0.10）才和旁边那张天气卡站在一起不突兀。
         val want = RADIUS_DP * density
         return minOf(want, h * 0.20f)
     }

@@ -24,7 +24,7 @@ import top.ccbase.campus.R
  *   · 动态帧 → `WidgetFrames` 里传 `density = 1f`，圆角只剩 24px（≈9dp），方得明显。
  * 结果同一屏上三种圆角。
  *
- * 现在统一成 `WidgetArt.RADIUS_DP = 25f`（= 天气卡实测 r/h≈0.157 换算到 161dp）。
+ * 现在统一成 `WidgetArt.RADIUS_DP = 16f`（= 天气卡实测 r/h≈0.157 换算到 161dp）。
  * 这条测试从**位图里量**圆角，不是读常量 —— 常量对了但某条路没走它，照样会红。
  */
 @RunWith(RobolectricTestRunner::class)

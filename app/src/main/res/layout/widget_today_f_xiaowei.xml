@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 今日课表小组件 v2（2026-10-18 重排，用户原话："太简陋了"）。
+
+     三层：图底（渐变或预设/用户图片）→ 蒙版（只对图片主题）→ 内容。
+     层次：状态（色点+小字）→ 课程名（唯一的大字）→ 时间地点 → 后几节 → 页脚。
+     颜色全部由 TodayWidgetProvider.applyTheme() 按主题写，这里只给默认值。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 动态主题的帧轮播。
+         ⚠️ 2026-10-18 用户装 3.0.x 后桌面直接报「载入窗口小部件时出现问题」——根因是用
+         `AdapterViewFlipper` + `RemoteViewsService`：那套要桌面去 bind 一个 RemoteViewsService，
+         MIUI 的桌面不认，整个 RemoteViews 充气失败（不是我们崩，是它的 inflater 崩）。
+         现在换成 **ViewFlipper + 12 个现成的 ImageView**：只用到 ImageView/ViewFlipper 这两个
+         最基础的支持列表成员，帧由 provider 直接 setImageViewBitmap 灌进去，不需要任何 Service。
+         12 帧 × 120ms ≈ 1.44 秒一个循环。 -->
+    <!-- 动画交给桌面自己跑：ViewFlipper 在 inflate 时读到 autoStart / flipInterval /
+         inAnimation / outAnimation 就开始轮播，**不需要**我们跨进程一帧一帧推。
+         2026-10-19 用户："小控件动画极其生硬" —— 根因是我们每 250ms 广播一次、每帧硬切。
+         现在 24 帧 + 200ms 交叉溶解，跑起来是连续的光影流动，不是幻灯片。 -->
+    <ViewFlipper
+        android:id="@+id/widget_flip"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:autoStart="true"
+        android:flipInterval="250"
+        android:inAnimation="@anim/widget_frame_in"
+        android:outAnimation="@anim/widget_frame_out"
+        android:visibility="gone">
+        <!-- ⚠️ 帧位数量必须**等于**实际帧数（现在 24）。ViewAnimator 按子 View 下标轮播，
+             不看可见性；留空位就会翻到空白帧，屏幕上表现为"主题黑/在闪"。 -->
+        <ImageView android:id="@+id/f0" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f1" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f2" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f3" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f4" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f5" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f6" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f7" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f8" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f9" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f10" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f11" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f12" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f13" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f14" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f15" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f16" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f17" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f18" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f19" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f20" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f21" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f22" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+        <ImageView android:id="@+id/f23" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
+    </ViewFlipper>
+
+    <ImageView
+        android:id="@+id/widget_bg_img"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/widget_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#7A000000"
+        android:contentDescription="@null"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="11dp">
+
+        <!-- ① 状态行：色点 + 状态，右侧 日期 / 周次 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/widget_dot"
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:src="@drawable/widget_dot"
+                android:contentDescription="@null" />
+
+            <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+                android:id="@+id/widget_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:singleLine="true"
+                android:textSize="11sp"
+                android:textColor="#A06BFF" />
+
+            <!-- 必须是 View：android.widget.Space 没有 @RemoteView 注解，
+                 RemoteViews 充气时会被拒，桌面直接显示「载入窗口小部件时出现问题」。 -->
+            <ImageView
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:contentDescription="@null" />
+
+            <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+                android:id="@+id/widget_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:textSize="10.5sp"
+                android:textColor="#8A84A0" />
+
+            <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+                android:id="@+id/widget_week"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:singleLine="true"
+                android:textSize="10.5sp"
+                android:textColor="#8A84A0" />
+        </LinearLayout>
+
+        <!-- ② 唯一的大字：课程名 / 今天没有课 -->
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_head"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:textColor="#F2EFFB" />
+
+        <!-- ③ 时间 · 地点 -->
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#B3ACC6" />
+
+        <ImageView
+            android:id="@+id/widget_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="9dp"
+            android:background="#1FFFFFFF"
+            android:contentDescription="@null" />
+
+        <!-- ④ 后几节 -->
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_row1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#C8C2D8" />
+
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_row2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#C8C2D8" />
+
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_row3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:textSize="11.5sp"
+            android:textColor="#C8C2D8" />
+
+        <ImageView
+            android:layout_width="1dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:fontFamily="@font/zcool_xiaowei"
+            android:id="@+id/widget_foot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:textSize="10sp"
+            android:textColor="#7E7793" />
+    </LinearLayout>
+</FrameLayout>

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import top.ccbase.campus.R
 
@@ -82,7 +85,23 @@ enum class FontOpt(
     CASUAL("casual", "手写", FontFamily.Cursive, "casual"),
     CURSIVE("cursive", "连笔", FontFamily.Cursive, "cursive"),
     SMALLCAPS("smallcaps", "小型大写", FontFamily.SansSerif, "sans-serif-smallcaps"),
+
+    // ── 随包带的艺术字体（res/font）。为什么能进小组件：资源的解析方是**我们自己的包**，
+    //    桌面充气 `RemoteViews` 时用的仍是我们的 Resources，所以 `@font/x` 照样生效。──────
+    KUAILE("kuaile", "快乐体", FontFamily(Font(R.font.zcool_kuaile)), "@font/zcool_kuaile"),
+    QINGKE("qingke", "庆科黄油", FontFamily(Font(R.font.zcool_qingke)), "@font/zcool_qingke"),
+    XIAOWEI("xiaowei", "小薇书卷", FontFamily(Font(R.font.zcool_xiaowei)), "@font/zcool_xiaowei"),
+    MAOZHENG("maozheng", "毛笔楷", FontFamily(Font(R.font.ma_shanzheng)), "@font/ma_shanzheng"),
+    LONGCANG("longcang", "龙藏狂草", FontFamily(Font(R.font.long_cang)), "@font/long_cang"),
+    MANGXING("mangxing", "莽行书", FontFamily(Font(R.font.zhi_mangxing)), "@font/zhi_mangxing"),
+    MAOCAO("maocao", "毛草体", FontFamily(Font(R.font.liu_jianmaocao)), "@font/liu_jianmaocao"),
     ;
+
+    /** 是不是随包带的艺术字体（字体库里单独归一组） */
+    val art: Boolean get() = system.startsWith("@font/")
+
+    /** 字体库里的分组名 */
+    val group: String get() = if (art) "艺术字体" else "系统字体"
 
     /** 小组件那份布局的资源名：默认用基础布局，其余按 id 找生成的变体 */
     val layoutName: String
@@ -170,54 +189,56 @@ object WidgetFont : FontStore {
  * 这里刻意**不共用状态**：`widget = true` 只碰 `widget_font`，`false` 只碰 `app_font`。
  * 用户 2026-10-19 的原话："app 和小部件要分开"。
  */
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * 字体入口（2026-10-19 用户："字体专门搞一个字体库"）。
+ *
+ * 这里是**门**，不是货架：设置页只显示"现在用的是哪款"，点进去才是整页 [FontLibraryScreen]。
+ * 20 多款挤在这里既看不出差别（卡片全用同一款字渲染），也会把设置页撑成两屏。
+ */
 @Composable
 fun FontPicker(
     widget: Boolean,
     onPicked: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    val store = if (widget) WidgetFont else AppFont
-    var sel by remember(widget) { mutableStateOf(store.read(ctx)) }
+    val sel = remember(widget) {
+        mutableStateOf(if (widget) WidgetFont.read(ctx) else AppFont.read(ctx))
+    }
     Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                if (widget) "小组件字体" else "App 字体",
-                fontSize = 11.sp, color = C.txt3,
-            )
-            Spacer(Modifier.weight(1f))
-            Text("只改这一边", fontSize = 9.5.sp, color = C.txt3)
-        }
-        Spacer(Modifier.height(6.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FontOpt.entries.forEach { opt ->
-                val on = opt.id == sel.id
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(if (widget) "小组件字体" else "App 字体", fontSize = 11.sp, color = C.txt3)
+                    Spacer(Modifier.width(8.dp))
+                    Text("只改这一边", fontSize = 9.5.sp, color = C.txt3)
+                }
+                Spacer(Modifier.height(3.dp))
                 Text(
-                    opt.label,
-                    fontSize = 11.sp,
-                    fontFamily = opt.compose,
-                    // 胶囊自己也要"像它承诺的那样"显示：不写字重的话，
-                    // 20 多个胶囊长得一模一样，选哪个全凭猜（2026-10-19 真机走查发现）
-                    fontWeight = if (opt.weight > 0) FontWeight(opt.weight) else null,
-                    color = if (on) C.violet else C.txt2,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (on) C.violet.copy(alpha = 0.16f) else C.card)
-                        .border(
-                            1.dp,
-                            if (on) C.violet.copy(alpha = 0.5f) else C.line,
-                            RoundedCornerShape(8.dp),
-                        )
-                        .clickable {
-                            store.set(ctx, opt)
-                            sel = opt
-                            onPicked()
-                        }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    sel.value.label,
+                    fontSize = 15.sp,
+                    fontFamily = sel.value.compose,
+                    fontWeight = if (sel.value.weight > 0) FontWeight(sel.value.weight) else null,
+                    color = C.txt,
                 )
+            }
+            Text(
+                "字体库 ›",
+                fontSize = 12.sp,
+                color = C.violet,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(C.violet.copy(alpha = 0.14f))
+                    .clickable { onOpenLibrary() }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+        // 从库里回来时把"现在用的是哪款"对上（返回不重建 Composable，得自己重读）
+        LaunchedEffect(widget) {
+            while (true) {
+                val now = if (widget) WidgetFont.read(ctx) else AppFont.read(ctx)
+                if (now != sel.value) { sel.value = now; onPicked() }
+                kotlinx.coroutines.delay(400)
             }
         }
     }
