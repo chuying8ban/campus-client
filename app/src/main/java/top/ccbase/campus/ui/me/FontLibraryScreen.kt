@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +60,7 @@ fun FontLibraryScreen(
     val widget = target == "widget"
     val store = if (widget) WidgetFont else AppFont
     var sel by remember(target) { mutableStateOf(store.read(ctx)) }
+    var appOnlyHint by remember(target) { mutableStateOf(false) }
     val art = FontOpt.entries.filter { it.art }
     val sys = FontOpt.entries.filter { !it.art }
 
@@ -82,6 +84,13 @@ fun FontLibraryScreen(
             )
         }
 
+        if (appOnlyHint) {
+            Text(
+                "这几款是随 App 打包的字体文件，桌面进程读不到，所以只能在 App 里生效。",
+                color = C.txt2, fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 32.dp),
@@ -97,20 +106,42 @@ fun FontLibraryScreen(
                     )
                 }
                 items(list, key = { it.id }) { opt ->
-                    FontCard(opt, on = opt.id == sel.id) {
-                        store.set(ctx, opt)
-                        sel = opt
+                    // 2026-10-20 真机验证：系统族（22 款）在桌面上真的生效；
+                    // 但桌面包里没有我们的 @font 资源 —— MIUI 桌面是用自己的 Resources 充气 RemoteViews 的，
+                    // 我们包里的 ttf 它找不到，会静默回落成默认字体（用户看到"选了没反应"）。
+                    // 所以小组件库里先把艺术字体标成"仅 App"，不让它假装能选。
+                    val appOnly = widget && opt.art
+                    FontCard(opt, on = opt.id == sel.id, appOnly = appOnly) {
+                        if (!appOnly) {
+                            store.set(ctx, opt)
+                            sel = opt
+                        }
                     }
                 }
             }
-            section("艺术字体", art)
+            if (widget) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        "艺术字体 · ${art.size} 款（桌面不支持自带字体，这几款只在 App 里生效）",
+                        color = C.txt3, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                    )
+                }
+                items(art, key = { it.id }) { opt ->
+                    FontCard(opt, on = opt.id == sel.id, appOnly = true) {
+                        appOnlyHint = true
+                    }
+                }
+            } else {
+                section("艺术字体", art)
+            }
             section("系统字体", sys)
         }
     }
 }
 
 @Composable
-private fun FontCard(opt: FontOpt, on: Boolean, onClick: () -> Unit) {
+private fun FontCard(opt: FontOpt, on: Boolean, appOnly: Boolean = false, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -122,6 +153,7 @@ private fun FontCard(opt: FontOpt, on: Boolean, onClick: () -> Unit) {
                 RoundedCornerShape(14.dp),
             )
             .clickable { onClick() }
+            .then(if (appOnly) Modifier.alpha(0.45f) else Modifier)
             .padding(horizontal = 12.dp, vertical = 11.dp),
     ) {
         // 样张：就两行真会出现的字，一眼看出适不适合课表
@@ -147,6 +179,7 @@ private fun FontCard(opt: FontOpt, on: Boolean, onClick: () -> Unit) {
             Text(opt.label, color = if (on) C.violet else C.txt2, fontSize = 11.sp)
             Spacer(Modifier.weight(1f))
             if (on) Text("已选", color = C.violet, fontSize = 10.sp)
+            else if (appOnly) Text("仅 App", color = C.txt3, fontSize = 10.sp)
         }
     }
 }

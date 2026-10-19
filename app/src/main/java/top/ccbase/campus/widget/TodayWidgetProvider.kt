@@ -262,7 +262,13 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             // 同上：画质开关已删，固定走高画质（URI，绕开 binder 位图上限）
             val hdEnabled = true
-            val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed) else null
+            // 帧数必须和布局里的帧位**一样多**才算就绪。2026-10-20 用户截图"RemoteViews 渲染失败: null"：
+            // 手机上还留着上一版（12 帧）的帧目录，被当成"完整"交上来，但布局里是 24 个帧位，
+            // 数量不够 → 两个分支都不成立 → 走到 `frames!!` 的空指针。
+            val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) {
+                WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed)
+                    ?.takeIf { it.size >= FRAME_IDS.size }
+            } else null
             // 2026-10-19 用户："小组件一直在删来删去"。
             // 根因：桌面这边 HD 文件还没就绪时，我们先在主线程画 24 张位图帧顶上去，
             // 文件一就绪又立刻 apply 一次 → 桌面短时间内被"重建"两回，观感就是小组件被删了又加回来。
@@ -338,8 +344,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     // 等 HD 帧文件就绪后的下一次刷新再切到 URI 动画。静态 2 秒，好过整块丢掉。
                     if (preview) {
                         // 预览：小位图逐帧塞进去，24 帧加起来约 3.8MB，进程内不走 binder，也不解码 PNG
+                        val frs = frames ?: emptyList()
                         FRAME_IDS.forEachIndexed { i, id ->
-                            val fr = frames!![i.coerceAtMost(frames!!.size - 1)]
+                            val fr = frs[i.coerceAtMost(frs.size - 1)]
                             val veiled = if (wScrim != 0) {
                                 WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
                             } else fr
@@ -349,7 +356,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                         rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
                         rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
                     } else {
-                        val fr = frames!!.firstOrNull()
+                        // 这里 frames 可能是 null（桌面路径不再现场画帧）。null 就维持静态底，
+                        // 绝不再 `frames!!` —— 一个空指针会让整张卡变成"渲染失败"。
+                        val fr = frames?.firstOrNull()
                         if (fr != null) {
                             rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
                             val veiled = if (wScrim != 0) {
