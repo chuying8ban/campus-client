@@ -107,6 +107,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5, R.id.f6, R.id.f7,
             R.id.f8, R.id.f9, R.id.f10, R.id.f11, R.id.f12, R.id.f13, R.id.f14, R.id.f15,
             R.id.f16, R.id.f17, R.id.f18, R.id.f19, R.id.f20, R.id.f21, R.id.f22, R.id.f23,
+            R.id.f24, R.id.f25, R.id.f26, R.id.f27, R.id.f28, R.id.f29, R.id.f30, R.id.f31,
+            R.id.f32, R.id.f33, R.id.f34, R.id.f35, R.id.f36, R.id.f37, R.id.f38, R.id.f39,
         )
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250

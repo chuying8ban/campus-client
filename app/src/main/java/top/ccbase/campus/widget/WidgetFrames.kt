@@ -47,16 +47,22 @@ object WidgetFrames {
      * 而中间还夹着"几乎为 0"的帧 —— 说明关键帧之间跨度太大，交叉淡入变成了两张图的溶解，
      * 不是运动。24 帧把关键帧密度翻倍，单帧位移减半，淡入才能读成"连续流动"。
      */
-    const val FRAMES = 24
+    const val FRAMES = 40
 
     /**
      * 帧架构戳。帧数、像素预算这类"画法"一变，旧的帧文件就必须作废 ——
      * 否则桌面上会一直复用上次那批高分辨率帧，改了预算等于没改。
      * 每次动 [FRAMES] / `frameSize` 的预算就把这里 +1。
      */
-    private const val ARCH = "a5"
-    // 0.25s 一帧 × 24 帧 = 6 秒一个循环；配合 200ms 交叉淡入，桌面看到的是连续的光影流动。
-    const val STEP_SEC = 0.25f
+    private const val ARCH = "b1"
+    // 0.20s 一帧 × 40 帧 = 8 秒一个循环；配合 110ms 淡入，整段更像"呼吸"而不是"幻灯片"。
+    //
+    // 为什么从 24/0.25 再抬到 40/0.20（2026-10-20 用户："动态主题总是出现不自然的闪烁"）：
+    // ① 24 帧 × 0.25s = 6s 一循环，眼睛两三个循环就认出"同一段又来了"，这份廉价感会被读成"在闪"；
+    // ② 单帧位移原来约是元素特征尺寸的 1/2（雾带 3% 屏宽 × 6s 里来回 6 次），跨过了"看起来像步进"的阈值；
+    //    40 帧把单帧位移压到 1/3 以下；
+    // ③ 帧间隔越接近淡入时长，双重曝光占比越低（0.20s 间隔 / 0.11s 淡入 = 55%，原来 200/250 = 80%）。
+    const val STEP_SEC = 0.20f
 
     /** 叠在插画上的"动态效果" */
     enum class ImgEffect(val id: String, val label: String, val hint: String) {
@@ -137,8 +143,13 @@ object WidgetFrames {
      * 现在：帧尺寸 = 视图尺寸（或等比缩小后的同比例），ImageView 改成 `fitXY`，
      * 1:1 铺进去，四个角都画在画内。
      */
+    /**
+     * 缓存戳：现在写成 JSON（以前是一行字符串，没有帧数和内核版本，
+     * 换代之后用户会一直看到旧帧）。字段一一对应方案里的 meta.json。
+     */
     internal fun stamp(spec: String, wPx: Int, hPx: Int, speed: Float): String =
-        "$spec|$wPx|$hPx|s$speed"
+        """{"kernel":"canvas2","spec":"$spec","w":$wPx,"h":$hPx,"speed":$speed,""" +
+            """"frames":$FRAMES,"step":$STEP_SEC,"arch":"$ARCH"}"""
 
     /**
      * 只查"帧文件在不在"，**不渲染**。桌面每次刷新都要调；渲染一帧 46 万像素在广播主线程上 = App 卡顿。
@@ -147,8 +158,10 @@ object WidgetFrames {
      * 不核对就会拿上一个主题的帧去铺（表现为"换了主题桌面不变"）。
      */
     fun existingFiles(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<File>? {
-        val dir = File(ctx.cacheDir, "wframes").listFiles()?.firstOrNull { it.isDirectory } ?: return null
-        val meta = runCatching { File(dir, "meta").readText() }.getOrNull() ?: return null
+        val dir = File(ctx.cacheDir, DIR).listFiles()?.firstOrNull { it.isDirectory } ?: return null
+        val meta = runCatching { File(dir, "meta.json").readText() }.getOrNull() ?: return null
+        // 六项全核对（内核/主题/宽/高/帧数/步长）。少核对任何一项，换代之后都会拿旧帧糊弄桌面：
+        // 24 帧目录被当成 40 帧来读，后半段全是空文件 —— 表现就是"播到一半黑一下"。
         if (meta != stamp(spec, wPx, hPx, speed)) return null
         val files = (0 until FRAMES).map { File(dir, "f$it.png") }
         return if (files.all { it.isFile && it.length() > 0L }) files else null
@@ -161,7 +174,7 @@ object WidgetFrames {
             top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null
 
     private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
-        Thread(r, "wframes").apply { isDaemon = true }
+        Thread(r, DIR).apply { isDaemon = true }
     }
     @Volatile private var pending: String? = null
 
@@ -189,7 +202,7 @@ object WidgetFrames {
      * 不需要再算一遍 key —— key 的算法分散在三个分支里，重复实现迟早会漂。
      */
     fun frameFiles(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<File>? {
-        fun dirNow(): File? = File(ctx.cacheDir, "wframes").listFiles()?.firstOrNull { it.isDirectory }
+        fun dirNow(): File? = File(ctx.cacheDir, DIR).listFiles()?.firstOrNull { it.isDirectory }
         fun complete(d: File?, n: Int): Boolean =
             d != null && (0 until n).all { File(d, "f$it.png").let { f -> f.isFile && f.length() > 0L } }
 
@@ -214,8 +227,11 @@ object WidgetFrames {
      * 下次直接读文件，几十毫秒。目录名用 key 的哈希，key 里已经带了视频的修改时间，
      * 换了素材自然就换目录，不会读到旧帧。
      */
+    /** 帧缓存目录。换代直接换名字（wframes → wframes2）：旧内核的帧连"看一眼"的机会都不给。 */
+    private const val DIR = "wframes2"
+
     private fun frameDir(ctx: Context, key: String): java.io.File =
-        java.io.File(ctx.cacheDir, "wframes/" + Integer.toHexString(key.hashCode()))
+        java.io.File(ctx.cacheDir, DIR + "/" + Integer.toHexString(key.hashCode()))
 
     private fun diskLoad(ctx: Context, key: String): List<Bitmap>? = runCatching {
         val dir = frameDir(ctx, key)
@@ -236,7 +252,11 @@ object WidgetFrames {
         dir.mkdirs()
         // 这份帧是"给谁的"：existingFiles 靠它判断主题有没有换过。
         // 没有这一行，换了主题之后 existingFiles 会把上一个主题的帧当成现任（桌面就一直显示旧主题）。
-        runCatching { java.io.File(dir, "meta").writeText(stamp) }
+        runCatching {
+            val tmp = java.io.File(dir, "meta.json.tmp")
+            tmp.writeText(stamp)
+            tmp.renameTo(java.io.File(dir, "meta.json"))   // 原子替换，桌面不会读到半截 meta
+        }
         // 只保留当前这份，别的 spec 的旧帧清掉（桌面只会用一种）
         dir.parentFile?.listFiles()?.forEach { if (it.absolutePath != dir.absolutePath) it.deleteRecursively() }
         frames.forEachIndexed { i, b ->
@@ -261,7 +281,9 @@ object WidgetFrames {
         // 表现就是"小组件一直在删来删去"。总量钉在 320 万像素（24 帧 × 13 万 ≈ 12MB）。
         // 24 帧 × 26 万像素 ≈ 每帧 76% 宽度（960 的卡出 733 宽），放大后肉眼几乎无感；
         // 而不是"每帧满分辨率 × 24"（那是 40MB 解码量，桌面扛不住）。
-        val perFrame = if (fullRes) 6_300_000f / FRAMES else 40_000f
+        // 总解码像素钉在 520 万（方案 01 §3）：40 帧 × 13 万像素 ≈ 每帧 480×270 于 16:9，
+        // 柔焦背景放大 1.5~2 倍看不出来，省下来的像素全换成帧数与循环长度。
+        val perFrame = if (fullRes) 5_200_000f / FRAMES else 40_000f
         val px = wPx.toLong() * hPx
         // 不设下限：预算优先。1200×600 的格子 scale≈0.24 刚好；2475×1375 的格子要 0.108，
         // 原来那个 0.24 下限会让 4 帧加起来 3MB，超了 binder 上限 → 桌面整块丢掉（画质换可见）。
@@ -283,6 +305,10 @@ object WidgetFrames {
         stamp: String = "",
     ): List<Bitmap>? {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
+        // 告诉画笔"一次循环有多长"：DynPainter 里所有相位都按它取整，帧 N-1 才接得回帧 0。
+        // 这一行以前只在 diskLoad 里设过 —— 于是"冷启动第一次生成"用的是上一轮留下的 6s，
+        // 而帧时间轴是 0..7.8s，接缝差是相邻帧的 2.5 倍，每 8 秒硬跳一次（用户看到的"不自然闪烁"）。
+        DynPainter.cycle = FRAMES * STEP_SEC
         // 这里以前传 density=1f —— 动态主题的圆角因此只有 24px（还被 clamp 住），
         // 静态主题走真实密度是 69px，同一张卡两种圆角，用户一眼就看出"有的方有的圆"。
         val radius = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density) * scale
@@ -374,6 +400,10 @@ object WidgetFrames {
         draw: (Canvas, Int, Int, Float) -> Unit,
     ): List<Bitmap> {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
+        // 告诉画笔"一次循环有多长"：DynPainter 里所有相位都按它取整，帧 N-1 才接得回帧 0。
+        // 这一行以前只在 diskLoad 里设过 —— 于是"冷启动第一次生成"用的是上一轮留下的 6s，
+        // 而帧时间轴是 0..7.8s，接缝差是相邻帧的 2.5 倍，每 8 秒硬跳一次（用户看到的"不自然闪烁"）。
+        DynPainter.cycle = FRAMES * STEP_SEC
         // 这里以前传 density=1f —— 动态主题的圆角因此只有 24px（还被 clamp 住），
         // 静态主题走真实密度是 69px，同一张卡两种圆角，用户一眼就看出"有的方有的圆"。
         val radius = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density) * scale
@@ -382,7 +412,13 @@ object WidgetFrames {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
             val c = Canvas(bmp)
             draw(c, fw, fh, i * STEP_SEC)
+            // 收尾三道工序：暗角 → 颗粒 → 圆角 → 抖动。
+            // 前三步按"每帧完全一样"的参数做（同一个暗角梯度、同一张噪点图），
+            // 换帧只换主体 —— 颗粒要是每帧重随机，5fps 下就是"沙沙闪"。
+            Painter.vignette(c, fw, fh)
+            Painter.grain(c, fw, fh)
             val rounded = WidgetArt.rounded(bmp, radius)
+            Painter.dither(rounded)
             // 中间那张原始帧立刻回收：6 张一起留就是双倍峰值（真机上这一下最容易 OOM）
             if (rounded !== bmp) bmp.recycle()
             out += rounded

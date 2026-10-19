@@ -53,7 +53,7 @@ class WidgetFramesTest {
     fun `帧会写进磁盘缓存`() {
         val spec = WidgetDyn.spec(DynPainter.Kind.SNOW, 0xFF8FB8FF.toInt())
         requireNotNull(WidgetFrames.forSpec(ctx, spec, 480, 240))
-        val dirs = java.io.File(ctx.cacheDir, "wframes").listFiles() ?: emptyArray()
+        val dirs = java.io.File(ctx.cacheDir, "wframes2").listFiles() ?: emptyArray()
         assertTrue("没有落盘目录", dirs.isNotEmpty())
         val files = dirs.flatMap { it.listFiles()?.toList() ?: emptyList() }
             .filter { it.name.startsWith("f") && it.name.endsWith(".png") }

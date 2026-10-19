@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 帧与帧之间做淡入淡出：ViewFlipper 默认是硬切，桌面上一秒跳 3 次，看着就是"极其生硬"。
-     这两个动画写在布局属性里（android:inAnimation / android:outAnimation），由桌面在
-     inflate 时自己读 —— 不需要我们跨进程调用，远端视图调不了 setInAnimation。 -->
+<!-- 帧与帧之间的淡入：**只淡入，不让旧帧淡出**。
+     2026-10-20 用户："动态主题时总是出现不自然的闪烁" —— 根因就在这两个动画的配合上：
+     旧帧 1→0、新帧 0→1 同时进行时，两张半透明图叠在背景上，中点的合成亮度只有单帧的 7 成，
+     每 250ms 就暗一次 → 眼睛看到的是"整块卡在闪"，不是"画面在流动"。
+     现在新帧淡入、旧帧保持不透明（见 widget_frame_out.xml），中点亮度恒定。
+     110ms 是方案里的数：占 200ms 间隔的 55%，比原来 80% 的双重曝光低一档，边缘更不糊。 -->
 <alpha xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="200"
-    android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+    android:duration="110"
+    android:interpolator="@android:anim/decelerate_interpolator"
     android:fromAlpha="0.0"
     android:toAlpha="1.0" />
