@@ -85,6 +85,11 @@ private object ArtMemo {
         if (v.isEmpty()) return
         synchronized(map) { map[k] = v }
     }
+
+    /** 换排序/换板块时清掉：缓存里的顺序是旧的，留着会让"点了没反应"成立 */
+    fun clear() {
+        synchronized(map) { map.clear() }
+    }
 }
 
 private fun memoKey(q: String, orient: String, anim: Boolean, sort: String = "time") =
@@ -128,6 +133,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 「动图」板块（用户 2026-10-18："图库里专门放一个动图板块专门放动图，app 主题和小控件主题都要有"）：
     // 打开后只问服务端要会动的那批，不再和静态混排。
     var animOnly by remember { mutableStateOf(false) }
+    // 每页大小（2026-10-19 用户："加载多少出来多少，一直往下拉就一直加载"）。
+    // 以前一页 100 条 → 一次拉 100 个缩略图，等得久、也看不出"翻页"；
+    // 现在动图 30 条一页，滑到底部就续，观感是连续的。
+    val pageLimit = if (animOnly) 30 else 60
     // 排序（用户 2026-10-19："给图库加一个排序功能（时间，热门，评分等，与你所选取的图源网站对齐，
     // 默认为时间排序）"）。图源是 safebooru：默认就是最新，另两种用它的 score 现算。
     var sort by remember { mutableStateOf("time") }
@@ -151,7 +160,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         // 预搜索：静态板块进来时顺手把"全部动图"也拉好，点动图不用再等一轮
         if (!animOnly && ArtMemo.get(memoKey("", orientKey, true, sort)) == null) {
             runCatching {
-                withContext(Dispatchers.IO) { ArtRepo.searchLive("", 1, orientKey, animOnly = true, sort = sort) }
+                withContext(Dispatchers.IO) { ArtRepo.searchLive("", 1, orientKey, animOnly = true, limit = pageLimit, sort = sort) }
             }.onSuccess { pg ->
                 ArtMemo.put(memoKey("", orientKey, true, sort), pg.items.filter { it.ofOrient(orientKey) }.ifEmpty { pg.items })
             }
@@ -193,7 +202,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 else -> "正在搜「$q」…（整库查询，第一次要几秒）"
             }
             val r = runCatching {
-                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey, animOnly = animOnly, sort = sort) }
+                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, 1, orientKey, animOnly = animOnly, limit = pageLimit, sort = sort) }
             }
             if (r.isSuccess) {
                 val pg = r.getOrThrow()
@@ -239,7 +248,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         scope.launch {
             val q = query.trim()
             runCatching {
-                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey, animOnly = animOnly, sort = sort) }
+                withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey, animOnly = animOnly, limit = pageLimit, sort = sort) }
             }
                 .onSuccess { pg ->
                     // 同 id 只留一份：翻页衔接处偶有重复，重复的 key 会让网格直接抛异常
@@ -450,6 +459,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                 sort = key
                                 page = 1
                                 hasMore = false
+                                // 立刻清空：不然要等网络回来才有变化，看着像"点了没反应"
+                                live = emptyList()
+                                ArtMemo.clear()
                                 tick += 1
                             }
                         }
@@ -481,8 +493,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         // 而 stage 是第 1 页请求回来时写死的"「原神」找到 10 张动图"，
         // 后面 loadMore 只往 live 里追加、从来没改过它 —— 数字就一直停在第一页。
         val countLine = when {
-            animOnly && query.isBlank() -> "精选动图 ${shown.size} 张 · 点标签可筛"
-            query.isBlank() -> "精选 ${shown.size} 张 · 搜关键词可查整库"
+            animOnly && query.isBlank() -> "动图 ${shown.size} 张"
+            query.isBlank() -> "全部 ${shown.size} 张 · 搜关键词可查整库"
             animOnly -> "「${query.trim()}」找到 ${shown.size} 张动图"
             else -> "「${query.trim()}」找到 ${shown.size} 张"
         } + when {
@@ -597,7 +609,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                             // 别让用户以为是自己点错了。
                                             val prev = WidgetThemes.spec(ctx)
                                             val spec = UserMedia.spec(kind)
-                                            WidgetThemes.set(ctx, spec)
+                                            WidgetThemes.applyNow(ctx, spec)
                                             val frames = runCatching {
                                                 top.ccbase.campus.widget.WidgetFrames
                                                     .forSpec(ctx, spec, 900, 400)

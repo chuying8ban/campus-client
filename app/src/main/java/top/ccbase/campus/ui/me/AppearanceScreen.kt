@@ -283,6 +283,12 @@ private fun AppThemePane(
     AccentSection()
     Spacer(Modifier.height(20.dp))
 
+    // 文字颜色（2026-10-19 用户："更改文字的功能怎么没有出现…文字颜色要包含黑色等基本色"）：
+    // 和小组件主题页共用同一个控件与同一份偏好，改哪边都是整机一致。
+    SectionLabel("文字颜色")
+    top.ccbase.campus.ui.theme.TextTintPicker(ctx)
+    Spacer(Modifier.height(20.dp))
+
     SectionLabel("页面背景")
     // 预设主题收进二级页：这一页只留一块"当前长什么样"的预览 + 一个入口。
     // 12 个色板平铺在这里，等于把「选背景」和「选主题色」挤在同一屏，谁都不显眼。

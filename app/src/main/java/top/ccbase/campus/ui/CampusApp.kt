@@ -687,8 +687,10 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         val pct = top.ccbase.campus.ui.me.MediaJob.pct.value
         val now = top.ccbase.campus.ui.me.MediaJob.bytes.value
         Box(
+            // 用户 2026-10-19："上面的正在下载素材把关闭按钮挡住了，放到下面去"
+            // → 贴底（在导航栏上方），顶部给各页留出自己的标题/关闭区。
             Modifier
-                .align(Alignment.TopCenter)
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .clip(RoundedCornerShape(12.dp))

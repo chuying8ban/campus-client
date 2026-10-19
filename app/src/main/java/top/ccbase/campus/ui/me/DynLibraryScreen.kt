@@ -149,8 +149,7 @@ fun DynLibraryScreen(target: String, onClose: () -> Unit) {
                 items(list, key = { it.id }) { p ->
                     Column(Modifier.clickable {
                         if (target == "widget") {
-                            WidgetThemes.set(ctx, WidgetDyn.spec(p.kind, p.tint.argb))
-                            TodayWidgetProvider.refresh(ctx)
+                            WidgetThemes.applyNow(ctx, WidgetDyn.spec(p.kind, p.tint.argb))
                         } else {
                             AppearanceStore.setBackground(ctx, p.spec)
                         }

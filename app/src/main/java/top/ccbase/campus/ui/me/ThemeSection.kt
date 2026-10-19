@@ -566,7 +566,14 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_RESUME) placed = WidgetPin.placedCount(ctx)
+            if (e == Lifecycle.Event.ON_RESUME) {
+                placed = WidgetPin.placedCount(ctx)
+                // 主题状态自动刷新（2026-10-19 用户："你要自动刷新主题状态"）：
+                // 可能刚在图库里选完主题回来，也可能是别的入口改的 —— 回来就按真实的
+                // pref 重画预览，不要停在进入这一页时的旧值上。
+                wAlpha = WidgetThemes.alpha(ctx)
+                pvKey++
+            }
         }
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs) }
@@ -586,47 +593,9 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // 放在预览正下方、透明度上面：这两个都是"同一张卡上的观感"，挨着改最顺手。
     // 它同时管 App 正文和小组件文字 —— 只挑一个，省得两边打架。
     Spacer(Modifier.height(14.dp))
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("文字颜色", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
-        Text(
-            TextTint.options.firstOrNull { it.first == TextTint.state.value }?.second ?: "默认",
-            fontSize = 11.sp, color = C.violet,
-        )
-    }
-    Spacer(Modifier.height(6.dp))
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextTint.options.forEach { (hex, name) ->
-            val picked = TextTint.state.value == hex
-            val swatch = TextTint.parse(hex) ?: C.txt
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(swatch)
-                        .border(
-                            if (picked) 2.dp else 1.dp,
-                            if (picked) C.violet else C.line,
-                            CircleShape,
-                        )
-                        .clickable {
-                            TextTint.set(ctx, hex)
-                            pvKey++                     // 预览立刻重画
-                            TodayWidgetProvider.refresh(ctx)  // 桌面跟着换
-                        },
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    name,
-                    fontSize = 9.sp,
-                    color = if (picked) C.violet else C.txt3,
-                )
-            }
-        }
+    top.ccbase.campus.ui.theme.TextTintPicker(ctx) {
+        pvKey++                              // 预览立刻重画
+        TodayWidgetProvider.refresh(ctx)      // 桌面跟着换
     }
     Spacer(Modifier.height(12.dp))
 

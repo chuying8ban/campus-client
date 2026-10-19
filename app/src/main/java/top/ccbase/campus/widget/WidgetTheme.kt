@@ -96,6 +96,22 @@ object WidgetThemes {
         prefs(ctx).edit().putString(K_THEME, spec).apply()
     }
 
+    /**
+     * 选主题的唯一正确入口（2026-10-19 用户："更换的主题并没有立刻出现，过了一会才出现，
+     * 你要自动刷新主题状态"）。
+     *
+     * 以前只写 pref 就走人：桌面要等下一次 `refresh()` 的第二次渲染（先渲染一版旧的、
+     * 再预热新帧、再渲染一版），所以"过了一会才出现"。这里把三件事绑成一个动作：
+     *   ① 清帧缓存（旧主题的帧绝不能拿来当新主题的首帧）；
+     *   ② 清底图缓存；
+     *   ③ 立刻让 provider 重画。
+     */
+    fun applyNow(ctx: Context, spec: String) {
+        set(ctx, spec)
+        WidgetFrames.clear()
+        TodayWidgetProvider.refresh(ctx)
+    }
+
     fun hasUserImage(ctx: Context): Boolean = userImageFile(ctx).exists()
 
     /**
