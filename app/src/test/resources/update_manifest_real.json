@@ -1,11 +1,12 @@
 {
-  "version_code": 156,
-  "version_name": "3.4.37",
-  "url": "/updates/campus-3.4.37.apk",
-  "sha256": "9d2a2dfe4aca178c1ba8552bd89d81d5bce79516c3883e52eea4ecd84580cd83",
-  "size": 8396023,
+  "version_code": 157,
+  "version_name": "3.4.38",
+  "url": "/updates/campus-3.4.38.apk",
+  "sha256": "a2b8133fab03c15f7caab425adb5004a6dcbadd316457d16346cd9f565ae84c6",
+  "size": 8396095,
   "notes": [
-    "修了一个可能导致图库闪退的点（列表重复条目 / 无限自动加载）",
-    "崩溃现在会自动上报堆栈，再崩能直接定位"
+    "文字颜色分成两套：App 主题页的只改 App 里的字",
+    "小组件页的只改桌面卡片上的字，互不影响",
+    "小组件字色和底板撞色时自动压一层幕，看得清"
   ]
 }
