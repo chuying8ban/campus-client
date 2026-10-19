@@ -62,7 +62,7 @@ fun FontLibraryScreen(
     val art = FontOpt.entries.filter { it.art }
     val sys = FontOpt.entries.filter { !it.art }
 
-    Column(Modifier.fillMaxSize().background(C.bg).overlaySurface.statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().overlaySurface.statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

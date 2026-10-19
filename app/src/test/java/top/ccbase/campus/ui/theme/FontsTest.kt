@@ -3,6 +3,7 @@ package top.ccbase.campus.ui.theme
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -92,5 +93,26 @@ class FontsTest {
             .edit().putString("app_font", "no-such-font").commit()
         assertEquals(FontOpt.SANS, AppFont.read(ctx))
         assertNotEquals(0, AppFont.read(ctx).id.length)
+    }
+
+    @Test
+    fun `艺术字体布局真的能被充气（@font 引用不空）`() {
+        // @font/xxx 指向我们自己包里 res/font 的 ttf。写错一个字（或漏拷文件）在编译期不报，
+        // 到桌面充气时才崩，表现是"选了字体，卡片空白"。这里真的充气一遍。
+        val inflater = android.view.LayoutInflater.from(ctx)
+        FontOpt.entries.filter { it.art }.forEach { opt ->
+            WidgetFont.set(ctx, opt)
+            val v = inflater.inflate(WidgetFont.layoutFor(ctx), null)
+            val texts = ArrayList<android.widget.TextView>()
+            fun walk(g: android.view.ViewGroup) {
+                for (i in 0 until g.childCount) {
+                    val c = g.getChildAt(i)
+                    if (c is android.widget.TextView) texts += c else if (c is android.view.ViewGroup) walk(c)
+                }
+            }
+            walk(v as android.view.ViewGroup)
+            assertEquals("${opt.id} 布局里的 TextView 数不对", 9, texts.size)
+            assertNotNull("${opt.id} 的 TextView 没拿到非空 typeface", texts.first().typeface)
+        }
     }
 }
