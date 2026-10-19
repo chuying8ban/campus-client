@@ -187,9 +187,12 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         val q = query.trim()
         // 动图板块空着进来 = 看全部动图（服务端按 score 给精选），**不要**拿种子词替他填搜索框
         // ——用户 2026-10-19："搜索点到动图为什么会自动切到少女标签"。标签应该是他点的，不是我们点的。
+        // 2026-10-19 第二轮（用户："图库的排序仍然有问题，你仔细检查一下"）：
+        // 以前「全部」这一档只显示服务端精选清单 [curated]，**根本没走过搜索接口**，
+        // 所以点时间/热门/评分什么都不会变、也永远显示"已经到底了"。
+        // 现在空关键词也走同一个池子（服务端支持空 tag），curated 只当首屏占位。
         if (q.isEmpty() && !animOnly) {
-            live = emptyList(); page = 1; hasMore = false; error = null; hint = null; stage = null
-            return@LaunchedEffect
+            curated?.let { if (live.isEmpty()) live = it }   // 先用清单顶上，别白屏
         }
         if (q.isEmpty() && animOnly) stage = "正在读全部动图…"
         if (tick == 0) delay(400)
@@ -243,7 +246,6 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
 
     fun loadMore() {
         if (loading || loadingMore || !hasMore) return
-        if (query.isBlank() && !animOnly) return
         loadingMore = true
         scope.launch {
             val q = query.trim()
@@ -272,6 +274,9 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     LaunchedEffect(nearEnd) { if (nearEnd) loadMore() }
 
     val shown = when {
+        // live 是"按当前排序从服务端池子拿的"，有它就以它为准；
+        // curated 只在还没拿到第一页时当占位（否则排序永远不生效）。
+        live.isNotEmpty() -> live
         animOnly -> live
         query.isBlank() -> curated ?: emptyList()
         else -> live
@@ -494,7 +499,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         // 后面 loadMore 只往 live 里追加、从来没改过它 —— 数字就一直停在第一页。
         val countLine = when {
             animOnly && query.isBlank() -> "动图 ${shown.size} 张"
-            query.isBlank() -> "全部 ${shown.size} 张 · 搜关键词可查整库"
+            query.isBlank() -> "全部 ${shown.size} 张 · 往下滑继续加载 · 搜关键词可查整库"
             animOnly -> "「${query.trim()}」找到 ${shown.size} 张动图"
             else -> "「${query.trim()}」找到 ${shown.size} 张"
         } + when {
