@@ -177,11 +177,17 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     rv.setImageViewBitmap(id, frames[i.coerceAtMost(frames.size - 1)])
                     rv.setViewVisibility(id, View.VISIBLE)
                 }
-                rv.setInt(
-                    R.id.widget_flip, "setFlipInterval",
-                    (WidgetFrames.STEP_SEC * 1000).toInt(),
-                )
-                rv.setBoolean(R.id.widget_flip, "setAutoStart", true)
+                // 2026-10-19 真正的根因（自检里终于露出原话）：
+                //   android.widget.RemoteViews$ActionException: view: android.widget.ViewFlipper
+                //   can't use method with RemoteViews: setAutoStart(boolean)
+                // `setAutoStart` / `setFlipInterval` 都不是 @RemotableViewMethod，一下就把**整份**
+                // RemoteViews 打成异常 —— 主题、文字、底图全都没送到桌面，所以"换了主题没反应"。
+                // ViewAnimator.setDisplayedChild(int) 是允许的，用它把帧定在某一帧上。
+                // 桌面自己不会翻页（翻页必须靠 Service 或反复 updateAppWidget），
+                // 这里按时间挑帧：每次刷新/重绘看到的是不同一帧，至少不是死图。
+                val idx = ((System.currentTimeMillis() / (WidgetFrames.STEP_SEC * 1000).toLong()) %
+                    frames.size).toInt()
+                runCatching { rv.setInt(R.id.widget_flip, "setDisplayedChild", idx) }
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
             }

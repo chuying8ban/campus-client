@@ -1,12 +1,12 @@
 {
-  "version_code": 135,
-  "version_name": "3.4.16",
-  "url": "/updates/campus-3.4.16.apk",
-  "sha256": "8d68f10a0fd718d9e74f1db1e0fcafecff73fd17546ffa20fd0ee99addcd5145",
-  "size": 8327263,
+  "version_code": 136,
+  "version_name": "3.4.17",
+  "url": "/updates/campus-3.4.17.apk",
+  "sha256": "fbc0909f0f18bce44268c5f50229f9fa02187f1b4d95b7d49b0764efb7e7f246",
+  "size": 8327339,
   "notes": [
-    "新版本半小时内就能发现，悄悄下好",
-    "不弹窗不打断，只留底部一条提示",
-    "下失败等 6 小时再试，不反复烧流量"
+    "桌面小组件换了主题没反应，这回找到真凶",
+    "一张卡的所有内容之前是一起失败的，现在能正常显示",
+    "补了防回归测试，同类毛病先被拦下"
   ]
 }
