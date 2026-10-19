@@ -29,23 +29,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 文字颜色选择器 —— **App 主题页和小组件主题页共用同一个控件、同一份偏好**。
+ * 文字颜色选择器 —— App 主题页和小组件主题页各摆一个，但**互不影响**。
  *
- * 2026-10-19 用户："更改文字的功能怎么没有出现" —— 上一版只挂在了小组件主题页，
- * 而他在「App 主题」这一页找，自然找不到。同一个东西摆两处，但只有一份存储
- * （[TextTint]），改哪边都是整机一致。
+ * 2026-10-19 用户："文字颜色要只改自己的那部分，app主题那里的只改app的，
+ * 小控件那里的只改小控件的"。所以这里不是"同一份设置摆两处"，而是两个独立设置：
+ *  - `widget = false`（App 主题页）→ 只写 `text_tint`，只改 App 里的字；
+ *  - `widget = true`（小组件页）→ 只写 `widget_text_tint`，只改桌面卡片上的字。
  */
 @Composable
 fun TextTintPicker(
     ctx: Context,
-    title: String = "文字颜色",
+    widget: Boolean = false,
+    title: String = if (widget) "小组件文字颜色" else "App 文字颜色",
     onChange: () -> Unit = {},
 ) {
     var tick by remember { mutableIntStateOf(0) }
+    val current = (if (widget) TextTint.widgetState else TextTint.state).value
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
         Text(
-            TextTint.options.firstOrNull { it.first == TextTint.state.value }?.second ?: "默认",
+            TextTint.options.firstOrNull { it.first == current }?.second ?: "默认",
             fontSize = 11.sp, color = C.violet,
         )
     }
@@ -56,7 +59,7 @@ fun TextTintPicker(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TextTint.options.forEach { (hex, name) ->
-            val picked = TextTint.state.value == hex
+            val picked = current == hex
             val swatch = TextTint.parse(hex) ?: C.txt
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
@@ -70,7 +73,7 @@ fun TextTintPicker(
                             CircleShape,
                         )
                         .clickable {
-                            TextTint.set(ctx, hex)
+                            if (widget) TextTint.setWidget(ctx, hex) else TextTint.set(ctx, hex)
                             tick++
                             onChange()
                         },
@@ -82,8 +85,11 @@ fun TextTintPicker(
     }
     Spacer(Modifier.height(4.dp))
     Text(
-        // 深底配浅字、浅底配深字；黑/白都给了，是为了浅色主题或亮照片底下能手动定死。
-        "这排颜色同时管 App 里的字和桌面小组件的字。字看不清时先来这里换一个。",
+        if (widget) {
+            "只改桌面卡片上的字，不影响 App 里的文字。字看不清时先来这里换一个。"
+        } else {
+            "只改 App 里的字，不影响桌面小组件。背景会自动压一层幕保证看得清。"
+        },
         fontSize = 10.sp, lineHeight = 15.sp, color = C.txt3, fontWeight = FontWeight.Normal,
     )
 }

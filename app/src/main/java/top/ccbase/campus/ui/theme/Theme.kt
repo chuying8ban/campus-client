@@ -556,6 +556,7 @@ object AppearanceStore {
         accent.value = accentOf(ctx)
         bgAlpha.value = bgAlphaOf(ctx)
         TextTint.state.value = TextTint.read(ctx)
+        TextTint.widgetState.value = TextTint.readWidget(ctx)
     }
 
     // 默认 50%（2026-10-18 用户："图片浓淡默认改成百分之五十"）：满图的字太糊，太淡又白设了

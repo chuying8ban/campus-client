@@ -189,7 +189,6 @@ class TodayWidgetProvider : AppWidgetProvider() {
             if (frames != null) {
                 rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
                 rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
-                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
                 // 只灌实际生成的帧，多出来的 ImageView 直接 GONE：
                 // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
                 // 帧不够就**重复最后一帧**填满，绝不留空位：ViewAnimator 会把空位也翻出来。
@@ -228,12 +227,22 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
                     rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
                 }
+            }
+
+            // 小组件文字幕：只在"他自己挑过字色"且和底板撞色时才压一层，
+            // 深浅跟 App 那套用同一个算法（深字压白幕 / 浅字压黑幕）。
+            // 他的选择永远优先，可读性由这一层补 —— 不偷偷改字色。
+            val wScrim = TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor)
+            if (wScrim != 0) {
+                rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
+                rv.setInt(R.id.widget_scrim, "setBackgroundColor", wScrim)
+            } else {
                 rv.setViewVisibility(R.id.widget_scrim, View.GONE)
             }
 
             // 文字颜色跟 App 同源（用户在「外观」里挑的那支）。
             // 只动字的颜色，底色/强调色不跟着变 —— 那会变成另一套主题。
-            val tint = TextTint.currentArgb()
+            val tint = TextTint.currentWidgetArgb()   // 只认"小组件"那一份，跟 App 的字色无关
             val headC = TextTint.apply(tint, theme.headColor, theme.bgColor, 0)
             val bodyC = TextTint.apply(tint, theme.bodyColor, theme.bgColor, 1)
             val dimC = TextTint.apply(tint, theme.dimColor, theme.bgColor, 2)

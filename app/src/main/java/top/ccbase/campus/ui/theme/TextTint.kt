@@ -38,8 +38,21 @@ object TextTint {
         "#C8F3D6" to "淡绿",
     )
 
-    /** 组合侧读它 → 选一个当场重组合 */
+    /** App 内的字色（组合侧读它 → 选一个当场重组合） */
     val state = mutableStateOf(AUTO)
+
+    /**
+     * 桌面小组件的字色 —— **和 App 分开存、分开生效**。
+     *
+     * 2026-10-19 用户："文字颜色要只改自己的那部分，app主题那里的只改app的，
+     * 小控件那里的只改小控件的"。上一版一个 pref 管两处：他在 App 主题页挑个黑色，
+     * 桌面上的小组件也跟着变（反过来也是），两个页面互相打架。
+     * 现在两个 key、两个状态：App 页只写 `text_tint`，小组件页只写 `widget_text_tint`。
+     */
+    val widgetState = mutableStateOf(AUTO)
+
+    private const val K_APP = "text_tint"
+    private const val K_WIDGET = "widget_text_tint"
 
     /**
      * 自己解 #RRGGBB —— 不用 `android.graphics.Color.parseColor`。
@@ -58,12 +71,21 @@ object TextTint {
     fun current(): Color? = parse(state.value)
 
     fun read(ctx: Context): String =
-        AppearanceStore.prefs(ctx).getString("text_tint", AUTO) ?: AUTO
+        AppearanceStore.prefs(ctx).getString(K_APP, AUTO) ?: AUTO
 
+    fun readWidget(ctx: Context): String =
+        AppearanceStore.prefs(ctx).getString(K_WIDGET, AUTO) ?: AUTO
+
+    /** 只改 App 内的字色：不碰桌面 */
     fun set(ctx: Context, value: String) {
-        AppearanceStore.prefs(ctx).edit().putString("text_tint", value).apply()
+        AppearanceStore.prefs(ctx).edit().putString(K_APP, value).apply()
         state.value = value
-        // 桌面上的字也立刻跟着换（不然要等 30 分钟那次刷新，两处不一致）
+    }
+
+    /** 只改桌面小组件的字色：不碰 App */
+    fun setWidget(ctx: Context, value: String) {
+        AppearanceStore.prefs(ctx).edit().putString(K_WIDGET, value).apply()
+        widgetState.value = value
         runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx) }
     }
 
@@ -118,6 +140,9 @@ object TextTint {
     // ---- 小组件那侧要的是 ARGB Int（RemoteViews.setTextColor）----
 
     fun currentArgb(): Int? = current()?.toArgb()
+
+    /** 小组件那一路的 ARGB（App 用什么颜色与它无关） */
+    fun currentWidgetArgb(): Int? = parse(widgetState.value)?.toArgb()
 
     /**
      * 背景幕：用户挑了深色字 → 背景要压白；挑了浅色字 → 背景要压暗。

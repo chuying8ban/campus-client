@@ -591,9 +591,9 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // ---- 文字颜色（2026-10-19 用户："要支持更改app内和小控件的文字颜色，
     //      把更改文字颜色的控件放在预览旁边"）----
     // 放在预览正下方、透明度上面：这两个都是"同一张卡上的观感"，挨着改最顺手。
-    // 它同时管 App 正文和小组件文字 —— 只挑一个，省得两边打架。
+    // 只改小组件的字；App 里的字在「App 主题」页，两套互不影响。
     Spacer(Modifier.height(14.dp))
-    top.ccbase.campus.ui.theme.TextTintPicker(ctx) {
+    top.ccbase.campus.ui.theme.TextTintPicker(ctx, widget = true) {
         pvKey++                              // 预览立刻重画
         TodayWidgetProvider.refresh(ctx)      // 桌面跟着换
     }

@@ -271,9 +271,18 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             total > 0 && last >= total - 3
         }
     }
-    LaunchedEffect(nearEnd) { if (nearEnd) loadMore() }
+    // 用户真的滑过一次才允许"滑到底自动加载"。
+    // 2026-10-19 修闪退时补的闸：图片没解码出来时 grid 的 total 很小，
+    // nearEnd 会一直成立 → loadMore 变成连发请求、列表无限增长（内存直接顶爆）。
+    var scrolledOnce by remember { mutableStateOf(false) }
+    LaunchedEffect(grid.isScrollInProgress) {
+        if (grid.isScrollInProgress) scrolledOnce = true
+    }
+    LaunchedEffect(nearEnd) { if (nearEnd && scrolledOnce) loadMore() }
 
-    val shown = when {
+    // id 去重：列表来源有两个（服务端池子切片 + 追加），偶发同 id 两次会让
+    // LazyVerticalGrid 抛 "Key was already used" —— 直接闪退，不值得赌。
+    val shown0 = when {
         // live 是"按当前排序从服务端池子拿的"，有它就以它为准；
         // curated 只在还没拿到第一页时当占位（否则排序永远不生效）。
         live.isNotEmpty() -> live
@@ -281,6 +290,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         query.isBlank() -> curated ?: emptyList()
         else -> live
     }
+    val shown = if (shown0.size <= 1) shown0 else shown0.distinctBy { it.id }
 
     Column(Modifier.fillMaxSize().overlaySurface) {
         Row(
