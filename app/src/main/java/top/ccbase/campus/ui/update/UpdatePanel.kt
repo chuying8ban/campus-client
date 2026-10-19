@@ -231,13 +231,15 @@ private fun DownloadBar(state: UpdateUi.Progress, onHide: () -> Unit) {
     val retrying = (d?.retryInMs ?: 0L) > 0L
     val p = if (state.pct < 0f) 0.02f else state.pct.coerceIn(0f, 1f)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        // 背景必须是**不透明**的：C.cardHi 只有 6% 白（设计体系里的玻璃卡），
+        // 铺在这种浮条上会把底下的"今日日程"透出来，用户看到的就是"标签和 App 重合了"。
         Column(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp)
                 .padding(bottom = 96.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(C.cardHi)
+                .background(C.bgSoft)   // 不透明（C.bg 被 AppearanceGuardTest 禁用于页面底，这里用 bgSoft）
                 .border(1.dp, C.line, RoundedCornerShape(14.dp))
                 .padding(horizontal = 14.dp, vertical = 11.dp),
         ) {

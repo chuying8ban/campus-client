@@ -83,19 +83,44 @@ fun parseAnim(spec: String): Pair<DynKind, Int>? {
  */
 private const val FRAME_MS = 0L
 
+/**
+ * 背景时钟（2026-10-19 用户："目前动态主题还是太卡，做流畅一些"）。
+ *
+ * 跟 vsync 走之后暴露了另一个问题：**每一帧都在占 UI 线程**。滚动时列表和背景抢同一帧的预算，
+ * 中端机上就是"滑动一顿一顿"。所以这里加一层自适应：
+ *  - 正常情况 60fps（gap 16ms）；
+ *  - 一旦实测帧间隔连续偏大（>26ms），自动降到约 30fps（gap 33ms），把预算让给列表和点击；
+ *  - 之后一直保持降档，不再来回切（来回切本身就是抖动源）。
+ */
 @Composable
-fun DynamicBackground(kind: DynKind, accent: Color, modifier: Modifier = Modifier) {
+private fun rememberDynTime(vararg keys: Any?): Float {
     var t by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(kind, accent) {
-        // 读 t 的地方是 Canvas 的 draw lambda —— 只触发重绘，不重组整棵树
+    LaunchedEffect(*keys) {
         var start = -1L
+        var last = -1L
+        var gapNs = 16_000_000L
+        var slowStreak = 0
         while (true) {
             withFrameNanos { now ->
-                if (start < 0L) start = now
-                t = (now - start) / 1_000_000_000f
+                if (start < 0L) { start = now; last = now }
+                val dt = now - last
+                if (dt > 26_000_000L) slowStreak++ else if (slowStreak > 0) slowStreak--
+                // 连续 20 帧都跟不上（约 1 秒），就降一档
+                if (slowStreak >= 20 && gapNs < 33_000_000L) gapNs = 33_000_000L
+                if (now - last >= gapNs) {
+                    last = now
+                    t = (now - start) / 1_000_000_000f
+                }
             }
         }
     }
+    return t
+}
+
+@Composable
+fun DynamicBackground(kind: DynKind, accent: Color, modifier: Modifier = Modifier) {
+    // 读 t 的地方是 Canvas 的 draw lambda —— 只触发重绘，不重组整棵树
+    val t = rememberDynTime(kind, accent)
     val argb = accent.toArgb()
     Canvas(modifier.fillMaxSize()) {
         drawIntoCanvas { canvas ->
@@ -128,16 +153,7 @@ fun DynamicPhotoBackground(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
-    var t by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(bitmap, effect) {
-        var start = -1L
-        while (true) {
-            withFrameNanos { now ->
-                if (start < 0L) start = now
-                t = (now - start) / 1_000_000_000f
-            }
-        }
-    }
+    val t = rememberDynTime(bitmap, effect)
     val argb = accent.toArgb()
     Canvas(modifier.fillMaxSize()) {
         val w = size.width

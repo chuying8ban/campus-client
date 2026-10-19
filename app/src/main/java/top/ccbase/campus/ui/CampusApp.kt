@@ -460,7 +460,14 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     ) { pad ->
         // 每日课表核对：**常驻在最上方的一条细提示**（用户口径：不要弹窗、无感常驻、不挡操作）。
         // 它不是子页、不是对话框：就占一条 34dp 的细带，滚页面、点按钮都不受影响。
-        Column(Modifier.fillMaxSize().padding(pad)) {
+        // 下载中给底部腾出一条的位置：这样浮条是"挤上去"的，不是盖在"今日日程"上
+        // （用户 2026-10-19："正在下载的那个标签和app重合了"）。
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .padding(bottom = if (update is UpdateUi.Progress) 82.dp else 0.dp),
+        ) {
             DailyCheckBanner(appCtx) { showCrawl = true }
             Box(Modifier.weight(1f).fillMaxWidth()) {
             val app = LocalContext.current.applicationContext as CampusApplication

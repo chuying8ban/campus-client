@@ -1,5 +1,6 @@
 package top.ccbase.campus.widget
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -57,27 +58,45 @@ object DynPainter {
         // 原来的 #07060C 在手机上就是纯黑，动效那几团光又都很淡，整屏看着像"没生效"。
         // 掺 18% 的强调色之后，同一个动效立刻有"颜色"可认，和纯黑背景一眼区分开。
         val base = if (dark) mix(DEEP, accent, 0.18f) else 0xFFF4F1EC.toInt()
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        // 复用同一个 Paint：原来每帧 new 一个（60fps → 每秒 60 个），白给 GC 添活
+        val paint = PAINT.get()
+        val rect = RECT.get()
+        paint.reset()
+        paint.isAntiAlias = true
 
+        // 渐变底色是**每帧都一样**的 → 画一次存成 1/4 分辨率的底图，之后每帧只是一张贴图。
+        // 原来每帧都要建 1~3 个 LinearGradient 再涂满整屏，这是"动态主题卡"的主要来源之一。
         fun fillVertical(vararg stops: Pair<Float, Int>) {
             val colors = stops.map { it.second }.toIntArray()
             val pos = stops.map { it.first }.toFloatArray()
-            paint.shader = LinearGradient(0f, 0f, 0f, h, colors, pos, Shader.TileMode.CLAMP)
-            c.drawRect(0f, 0f, w, h, paint)
-            paint.shader = null
+            val key = kind.id + "|" + w.toInt() + "x" + h.toInt() + "|" + base + "|" + colors.contentHashCode()
+            var bmp = baseCache[key]
+            if (bmp == null) {
+                bmp = buildBaseBitmap(key, w, h, colors, pos)
+                baseCache[key] = bmp
+            }
+            rect.set(0f, 0f, w, h)
+            c.drawBitmap(bmp, null, rect, paint)
         }
 
         // 性能：以前每团光都拿渐变 shader **涂满整屏**（星云 18 团、光斑 26 团 = 每帧二十多次全屏渐变填充，
         // 中端机上就是"动态主题卡"。改成只画那个圆本身，观感几乎一样，填充面积降两个数量级。
+        // 光团：原来每团每帧新建一个 RadialGradient（26 团就是 26 个 shader/帧）。
+        // 现在用一张预渲染的白色光晕贴图 + 颜色滤镜，画一个圆就是一次贴图。
         fun glow(cx: Float, cy: Float, r: Float, color: Int, alpha: Float) {
             val rr = r.coerceAtLeast(1f)
-            paint.shader = RadialGradient(
-                cx, cy, rr,
-                intArrayOf(withAlpha(color, alpha), Color.TRANSPARENT),
-                floatArrayOf(0f, 1f), Shader.TileMode.CLAMP,
-            )
-            c.drawCircle(cx, cy, rr, paint)
-            paint.shader = null
+            val sprite = glowSprite()
+            val a = (alpha.coerceIn(0f, 1f) * 255).toInt().coerceIn(1, 255)
+            paint.reset()
+            paint.isAntiAlias = true
+            paint.alpha = a
+            paint.colorFilter = tintCache.getOrPut(color) {
+                android.graphics.PorterDuffColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN)
+            }
+            rect.set(cx - rr, cy - rr, cx + rr, cy + rr)
+            c.drawBitmap(sprite, null, rect, paint)
+            paint.colorFilter = null
+            paint.alpha = 255
         }
 
         when (kind) {
@@ -101,7 +120,7 @@ object DynPainter {
 
             Kind.STARS -> {
                 fillVertical(0f to mix(base, 0xFF0A0A1A.toInt(), 0.44f), 1f to base)
-                val rnd = Random(20261018)
+                val rnd = rnd(20261018)
                 repeat(140) {
                     val x = rnd.nextFloat() * w
                     val y = rnd.nextFloat() * h * 0.92f
@@ -131,7 +150,7 @@ object DynPainter {
 
             Kind.PETALS -> {
                 fillVertical(0f to mix(base, 0xFF120B14.toInt(), 0.39f), 1f to base)
-                val rnd = Random(8)
+                val rnd = rnd(8)
                 repeat(80) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.10f + rnd.nextFloat() * 0.22f
@@ -141,13 +160,14 @@ object DynPainter {
                     val y = ((t * speed + rnd.nextFloat()) % 1.15f) * h - h * 0.08f
                     val x = x0 + sway * sin(t * 0.9f + phase)
                     paint.color = withAlpha(0xFFFFB7D5.toInt(), 0.42f + rnd.nextFloat() * 0.45f)
-                    c.drawOval(RectF(x, y, x + sz * 1.6f, y + sz), paint)
+                    rect.set(x, y, x + sz * 1.6f, y + sz)
+                    c.drawOval(rect, paint)
                 }
             }
 
             Kind.SNOW -> {
                 fillVertical(0f to mix(base, 0xFF0B1220.toInt(), 0.44f), 1f to base)
-                val rnd = Random(31)
+                val rnd = rnd(31)
                 repeat(90) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.06f + rnd.nextFloat() * 0.14f
@@ -163,7 +183,7 @@ object DynPainter {
             Kind.RAIN -> {
                 fillVertical(0f to mix(base, 0xFF0A0F14.toInt(), 0.39f), 1f to base)
                 paint.strokeWidth = Math.max(1f, w * 0.0016f)
-                val rnd = Random(77)
+                val rnd = rnd(77)
                 repeat(110) {
                     val x0 = rnd.nextFloat() * (w * 1.2f) - w * 0.1f
                     val speed = 0.9f + rnd.nextFloat() * 0.9f
@@ -176,7 +196,7 @@ object DynPainter {
 
             Kind.FIREFLIES -> {
                 fillVertical(0f to mix(base, 0xFF0A120C.toInt(), 0.41f), 1f to base)
-                val rnd = Random(2026)
+                val rnd = rnd(2026)
                 repeat(40) {
                     val bx = rnd.nextFloat() * w
                     val by = rnd.nextFloat() * h
@@ -218,7 +238,7 @@ object DynPainter {
 
             Kind.BOKEH -> {
                 fillVertical(0f to mix(base, 0xFF140F0A.toInt(), 0.41f), 1f to base)
-                val rnd = Random(404)
+                val rnd = rnd(404)
                 repeat(26) {
                     val x = rnd.nextFloat() * w
                     val y = rnd.nextFloat() * h
@@ -232,7 +252,7 @@ object DynPainter {
 
             Kind.NEBULA -> {
                 fillVertical(0f to mix(base, 0xFF0B0716.toInt(), 0.5f), 1f to base)
-                val rnd = Random(99)
+                val rnd = rnd(99)
                 repeat(18) {
                     val ph = rnd.nextFloat() * 6.28f
                     val x = w * (0.2f + 0.6f * rnd.nextFloat()) + w * 0.08f * sin(t * 0.12f + ph)
@@ -249,7 +269,7 @@ object DynPainter {
 
             Kind.BUBBLES -> {
                 fillVertical(0f to mix(base, 0xFF08131C.toInt(), 0.44f), 1f to base)
-                val rnd = Random(11)
+                val rnd = rnd(11)
                 paint.style = Paint.Style.STROKE
                 repeat(26) {
                     val x0 = rnd.nextFloat() * w
@@ -270,7 +290,7 @@ object DynPainter {
                 paint.strokeWidth = Math.max(1.5f, w * 0.002f)
                 val cols = Math.max(8, (w / Math.max(18f, w / 30f)).toInt())
                 val colW = w / cols
-                val rnd = Random(20261018)
+                val rnd = rnd(20261018)
                 for (i in 0 until cols) {
                     val speed = 0.25f + rnd.nextFloat() * 0.5f
                     val len = h * (0.10f + rnd.nextFloat() * 0.25f)
@@ -305,12 +325,15 @@ object DynPainter {
      */
     fun particles(c: Canvas, kind: Kind, t: Float, w: Float, h: Float, accent: Int, strength: Float = 0.8f) {
         if (w <= 0f || h <= 0f || strength <= 0f) return
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val paint = PAINT.get()
+        paint.reset()
+        paint.isAntiAlias = true
+        val rect = RECT.get()
         val a0 = strength.coerceIn(0f, 1f)
 
         when (kind) {
             Kind.PETALS -> {
-                val rnd = Random(8)
+                val rnd = rnd(8)
                 repeat(44) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.10f + rnd.nextFloat() * 0.22f
@@ -320,12 +343,13 @@ object DynPainter {
                     val y = ((t * speed + rnd.nextFloat()) % 1.15f) * h - h * 0.08f
                     val x = x0 + sway * sin(t * 0.9f + phase)
                     paint.color = withAlpha(0xFFFFC0D8.toInt(), (0.25f + rnd.nextFloat() * 0.45f) * a0)
-                    c.drawOval(RectF(x, y, x + sz * 1.7f, y + sz), paint)
+                    rect.set(x, y, x + sz * 1.7f, y + sz)
+                    c.drawOval(rect, paint)
                 }
             }
 
             Kind.SNOW -> {
-                val rnd = Random(31)
+                val rnd = rnd(31)
                 repeat(60) {
                     val x0 = rnd.nextFloat() * w
                     val speed = 0.06f + rnd.nextFloat() * 0.14f
@@ -339,7 +363,7 @@ object DynPainter {
             }
 
             Kind.BOKEH -> {
-                val rnd = Random(404)
+                val rnd = rnd(404)
                 repeat(18) {
                     val x = rnd.nextFloat() * w
                     val y = rnd.nextFloat() * h
@@ -357,7 +381,7 @@ object DynPainter {
             }
 
             Kind.STARS -> {
-                val rnd = Random(20261018)
+                val rnd = rnd(20261018)
                 repeat(70) {
                     val x = rnd.nextFloat() * w
                     val y = rnd.nextFloat() * h
@@ -369,7 +393,7 @@ object DynPainter {
             }
 
             Kind.FIREFLIES -> {
-                val rnd = Random(2026)
+                val rnd = rnd(2026)
                 repeat(24) {
                     val bx = rnd.nextFloat() * w
                     val by = rnd.nextFloat() * h
@@ -391,7 +415,7 @@ object DynPainter {
             }
 
             Kind.BUBBLES -> {
-                val rnd = Random(11)
+                val rnd = rnd(11)
                 paint.style = Paint.Style.STROKE
                 repeat(20) {
                     val x0 = rnd.nextFloat() * w
@@ -409,6 +433,57 @@ object DynPainter {
 
             else -> Unit // 其余动效只有底色才成立，叠在照片上没意义
         }
+    }
+
+    // ── 每帧都要用的对象，全部复用 ─────────────────────────────────────
+    // 60fps 下每帧 new Paint / RectF / Gradient，等于每秒给 GC 递几十个对象；
+    // 中端机上一卡就是这么来的。
+    // ThreadLocal：小组件抽帧在 IO 线程跑、App 背景在 UI 线程跑，
+    // 共用同一个 Paint/RectF 会互相踩状态。
+    private val PAINT = ThreadLocal.withInitial { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
+    private val RECT = ThreadLocal.withInitial { android.graphics.RectF() }
+    private val RND = ThreadLocal.withInitial { java.util.Random(0L) }
+
+    /** 每帧重置种子 → 参数序列和原来 `Random(seed)` 完全一致，但不新建对象。 */
+    private fun rnd(seed: Int): java.util.Random = RND.get().also { it.setSeed(seed.toLong()) }
+
+    private val tintCache = HashMap<Int, android.graphics.PorterDuffColorFilter>(8)
+
+    /** 渐变底色缓存：一张 1/4 分辨率的底图，最多留 3 份（主题色/尺寸变了就重建）。 */
+    private val baseCache = object : LinkedHashMap<String, Bitmap>(4, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean = size > 3
+    }
+
+    private fun buildBaseBitmap(
+        key: String, w: Float, h: Float, colors: IntArray, pos: FloatArray,
+    ): Bitmap {
+        val s = 0.25f
+        val bw = (w * s).toInt().coerceAtLeast(1)
+        val bh = (h * s).toInt().coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.shader = LinearGradient(0f, 0f, 0f, bh.toFloat(), colors, pos, Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, bw.toFloat(), bh.toFloat(), p)
+        return bmp
+    }
+
+    /** 白色光晕贴图（中心实、边缘透），用颜色滤镜染成任意色。 */
+    private var glowBmp: Bitmap? = null
+    private fun glowSprite(): Bitmap {
+        glowBmp?.let { return it }
+        val n = 128
+        val bmp = Bitmap.createBitmap(n, n, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.shader = RadialGradient(
+            n / 2f, n / 2f, n / 2f,
+            intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFFFFF.toInt(), Color.TRANSPARENT),
+            floatArrayOf(0f, 0.35f, 1f), Shader.TileMode.CLAMP,
+        )
+        c.drawCircle(n / 2f, n / 2f, n / 2f, p)
+        glowBmp = bmp
+        return bmp
     }
 
     private fun withAlpha(color: Int, a: Float): Int {

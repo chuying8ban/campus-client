@@ -1,11 +1,12 @@
 {
-  "version_code": 143,
-  "version_name": "3.4.24",
-  "url": "/updates/campus-3.4.24.apk",
-  "sha256": "e0e929f8b16f05e6f45d6eb38ab1560c78085c82f0898b095d0263371bf15d5e",
-  "size": 8344295,
+  "version_code": 144,
+  "version_name": "3.4.25",
+  "url": "/updates/campus-3.4.25.apk",
+  "sha256": "f6c690f1570d53c422efaf25a23a22eeb1a81ee1194f6ed53b8ca6b412d78391",
+  "size": 8344407,
   "notes": [
-    "小组件圆角真的圆了，外面不再有黑色矩形",
-    "补了测试，圆角被改坏会先报错"
+    "下载进度条不再压在内容上，页面会自己让出一条",
+    "动态主题更省力：底色只画一次、光晕改成贴图",
+    "滑动跟不上时背景自动降帧，把预算让给列表"
   ]
 }
