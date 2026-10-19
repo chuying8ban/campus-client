@@ -158,10 +158,7 @@ object WidgetThemes {
      *
      * 默认开。个别桌面对 FileProvider 授权支持不好时，用户可以在外观页关掉退回位图。
      */
-    fun hdFrames(ctx: Context): Boolean = prefs(ctx).getBoolean(K_HD, true)
 
-    fun setHdFrames(ctx: Context, on: Boolean) =
-        prefs(ctx).edit().putBoolean(K_HD, on).apply()
 
     fun speed(ctx: Context): Float =
         prefs(ctx).getFloat(K_SPEED, 1f).coerceIn(0.35f, 3f)

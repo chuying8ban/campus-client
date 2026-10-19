@@ -653,109 +653,14 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
     )
 
-    // ---- 播放速度（2026-10-19 用户："小控件要支持更改播放速度"）----
-    Spacer(Modifier.height(10.dp))
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("播放速度", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(0.5f to "慢", 0.75f to "稍慢", 1f to "正常", 1.5f to "稍快", 2f to "快").forEach { (v, name) ->
-                val on = kotlin.math.abs(WidgetThemes.speed(ctx) - v) < 0.01f
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (on) C.violet.copy(alpha = 0.20f) else C.card)
-                        .border(1.dp, if (on) C.violet.copy(alpha = 0.55f) else C.line, RoundedCornerShape(12.dp))
-                        .clickable {
-                            WidgetThemes.setSpeed(ctx, v)
-                            WidgetFrames.clear()             // 帧按旧速度渲染的，得重做
-                            pvKey++
-                            TodayWidgetProvider.refresh(ctx)
-                        }
-                        .padding(horizontal = 9.dp, vertical = 4.dp),
-                ) {
-                    Text(name, color = if (on) C.violet else C.txt2, fontSize = 10.sp)
-                }
-            }
-        }
-    }
-    // ---- 动态主题画质（2026-10-19 用户："小控件的动态主题画质太糊了"）----
-    // 糊的根因不是"没有矢量图"，而是位图要走 binder：4 帧共享 ~1MB 预算，
-    // 880×443 的格子只能按 300 多像素宽渲染，桌面再放大 2~3 倍。改成把帧文件交给桌面
-    // 自己按原分辨率解码（setImageViewUri），画质只受内存限制。
-    val hdOn = remember(wSpec, pvKey) { WidgetThemes.hdFrames(ctx) }
-    Spacer(Modifier.height(10.dp))
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text("动态主题画质", fontSize = 11.sp, color = C.txt3)
-            Text(
-                if (hdOn) "高画质：帧按卡片真实分辨率给桌面（清晰）"
-                else "省内存：帧压小后交给桌面（可能发糊，兼容性最好）",
-                fontSize = 9.5.sp, color = C.txt3, lineHeight = 13.sp,
-            )
-        }
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (hdOn) C.violet.copy(alpha = 0.22f) else C.card)
-                .border(1.dp, if (hdOn) C.violet.copy(alpha = 0.6f) else C.line, RoundedCornerShape(14.dp))
-                .clickable {
-                    WidgetThemes.setHdFrames(ctx, !hdOn)
-                    WidgetFrames.clear()
-                    pvKey++
-                    TodayWidgetProvider.refresh(ctx)
-                }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-        ) {
-            Text(if (hdOn) "高画质" else "省内存", color = if (hdOn) C.violet else C.txt2, fontSize = 10.5.sp)
-        }
-    }
-
-    // ---- 真 60 帧：动态壁纸（2026-10-19 用户：「小部件的主题依旧没有做到流畅播放，
-    //      我希望能够做到 60 帧播放」）----
-    // 实话：桌面小组件的每一帧都要跨进程把位图交给桌面，框架上不存在 60fps 这条路，
-    // 硬推只会被桌面丢帧 + 耗电。能真 60 帧的只有动态壁纸 —— 同一支画笔、同一套主题。
-    Spacer(Modifier.height(10.dp))
-    Row(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(C.card)
-            .clickable {
-                val comp = android.content.ComponentName(ctx, top.ccbase.campus.widget.DynWallpaperService::class.java)
-                val i = android.content.Intent(android.app.WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
-                    .putExtra(android.app.WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, comp)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                val ok = runCatching { ctx.startActivity(i) }.isSuccess
-                if (!ok) {
-                    runCatching {
-                        ctx.startActivity(
-                            android.content.Intent(android.app.WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
-                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
-                }
-            }
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .testTag(WP_BTN),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("设为动态壁纸 · 真 60 帧", fontSize = 12.5.sp, color = C.txt, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(3.dp))
-            Text(
-                "桌面小组件的画面要跨进程交给桌面，60 帧在框架上做不到；" +
-                    "把同一支主题铺满整屏才真的每秒 60 帧。点这里在系统壁纸里确认。",
-                fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
-            )
-        }
-        Text("›", fontSize = 18.sp, color = C.cyan)
-    }
+    // 2026-10-19 用户：「播放速度、动态主题画质、设为动态壁纸的功能一点用都没，直接全删了」——
+    // 三块已删。速度/画质不再暴露开关，走固定值（1×、高画质）。
 
     Text(
-        if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
-        else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",
+        if (wAlpha >= 0.995f) "100% 完全不透明。"
+        else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余透出桌面。",
         fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
     )
-
 
     // ---- 再给动作：把卡片放到桌面（这是这一页最常用的意图） ----
     Row(verticalAlignment = Alignment.CenterVertically) {

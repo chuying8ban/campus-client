@@ -220,7 +220,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
             // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
-            val speed = runCatching { WidgetThemes.speed(ctx) }.getOrDefault(1f)
+            // 2026-10-19 用户："播放速度…一点用都没，直接全删了"。开关已删，这里走固定 1×；
+            // 之前用户在旧版本里设过的值不再生效（否则会出现"删了但看起来还是慢"）。
+            val speed = 1f
             // 2026-10-19 用户："动图不动，而且 app 有明显卡顿"
             // 两个根因：① 每次刷新都在**广播主线程**上渲染 4 帧 × 46 万像素高画质帧 + PNG 编码；
             //           ② 高画质帧其实早在磁盘上，又重新算了一遍（还被当成"有没有动态主题"的判据）。
@@ -237,7 +239,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val density = ctx.resources.displayMetrics.density
             val veilRadius = WidgetArt.radiusFor(hPx, density)
 
-            val hdEnabled = runCatching { WidgetThemes.hdFrames(ctx) }.getOrDefault(true)
+            // 同上：画质开关已删，固定走高画质（URI，绕开 binder 位图上限）
+            val hdEnabled = true
             val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed) else null
             // 高画质文件已就绪时，连位图帧都不生成（省掉最贵的一步）
             val frames = if (dynSpec && hdFiles == null) {

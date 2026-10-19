@@ -1,11 +1,11 @@
 {
-  "version_code": 166,
-  "version_name": "3.4.47",
-  "url": "/updates/campus-3.4.47.apk",
-  "sha256": "74da76796810626ec44ec847fd18639905f8998299d629b1be3f4af8e2dcb6f7",
-  "size": 8415663,
+  "version_code": 167,
+  "version_name": "3.4.48",
+  "url": "/updates/campus-3.4.48.apk",
+  "sha256": "cbbaf190e5fc7f73e7e943fbccaede5de9319190969880465dc9de3e75a342ba",
+  "size": 8399311,
   "notes": [
-    "新增字体设置：默认 / 等宽 / 衬线",
-    "App 字体与小组件字体分开，改一边不影响另一边"
+    "小组件页删掉「播放速度」「动态主题画质」「设为动态壁纸」三块",
+    "速度固定正常、画质固定高画质；以前设过慢速/省内存的也一并恢复"
   ]
 }

@@ -84,10 +84,14 @@ class WidgetHdFramesTest {
     }
 
     @Test
-    fun `高画质默认开启`() {
-        assertTrue("默认应该是高画质", WidgetThemes.hdFrames(ctx))
-        WidgetThemes.setHdFrames(ctx, false)
-        assertTrue("关掉之后应当读回 false", !WidgetThemes.hdFrames(ctx))
-        WidgetThemes.setHdFrames(ctx, true)
+    fun `画质开关已删，永远走高画质`() {
+        // 3.4.48：用户在界面上找不到"动态主题画质"，但我们要保证行为就是高画质那条路，
+        // 不能因为"删了开关"就悄悄退回低分辨率位图。
+        val files = WidgetFrames.frameFiles(ctx, spec, 960, 480, 1f)
+        assertNotNull(files)
+        val bmp = android.graphics.BitmapFactory.decodeFile(files!!.first().absolutePath)
+        assertTrue("帧必须接近真实分辨率", bmp.width >= 900)
+        bmp.recycle()
     }
+
 }
