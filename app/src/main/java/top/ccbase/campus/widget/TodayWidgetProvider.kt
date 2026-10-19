@@ -258,13 +258,29 @@ class TodayWidgetProvider : AppWidgetProvider() {
                         }
                     }
                     val authority = ctx.packageName + ".fileprovider"
+                    // 显式把读权限授给桌面（launcher）：`setImageViewUri` 的 URI 是**桌面进程**去读的，
+                    // 而桌面对我们的 FileProvider 没有任何权限。系统在多数 ROM 上会替我们转授，
+                    // 但不是所有版本/所有桌面都这么做（MIUI 尤其不保证）——
+                    // 所以这里主动 grant 给所有桌面应用，别把成败押在系统心情上。
+                    val homes = runCatching {
+                        ctx.packageManager.queryIntentActivities(
+                            android.content.Intent(android.content.Intent.ACTION_MAIN)
+                                .addCategory(android.content.Intent.CATEGORY_HOME),
+                            0,
+                        ).map { it.activityInfo.packageName }.distinct()
+                    }.getOrDefault(emptyList())
                     FRAME_IDS.forEachIndexed { i, id ->
                         val f = hdFiles!![i.coerceAtMost(hdFiles.size - 1)]
                         runCatching {
-                            rv.setImageViewUri(
-                                id,
-                                androidx.core.content.FileProvider.getUriForFile(ctx, authority, f),
-                            )
+                            val uri = androidx.core.content.FileProvider.getUriForFile(ctx, authority, f)
+                            homes.forEach { pkg ->
+                                runCatching {
+                                    ctx.grantUriPermission(
+                                        pkg, uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                    )
+                                }
+                            }
+                            rv.setImageViewUri(id, uri)
                             // 透明度：走 URI 后不能在位图上做，交给 ImageView 自己的 alpha
                             runCatching {
                                 rv.setInt(id, "setImageAlpha", (wAlpha.coerceIn(0f, 1f) * 255).toInt())
