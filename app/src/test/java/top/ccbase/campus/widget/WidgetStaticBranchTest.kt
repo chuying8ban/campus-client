@@ -61,15 +61,18 @@ class WidgetStaticBranchTest {
     }
 
     @Test
-    fun `动态规格只留一层（底图必须藏起来）`() {
+    fun `动态规格只留一层`() {
         // 2026-10-19 用户："圆角矩形的显示为什么有两个，只留内侧的那个"。
-        // 兜底底图是低分辨率渲染再拉伸，圆角弧度和帧对不上，就露出第二个圆角矩形 + 一圈灰边。
-        // URI 在真机上已验证能读到（他截图里那张清晰的二次元照片就是帧本身），兜底撤掉。
+        // 两层同时可见 → 低分辨率底图被拉伸后圆角和帧对不上，露出第二个圆角矩形 + 一圈灰边。
+        //
+        // 2026-10-19 晚（12 帧 + 缓动那版）改了兜底策略：12 帧位图塞不进 binder 的 1MB，
+        // 所以 HD 帧文件没就绪时**只放第 0 帧当静态底**（flip GONE、bg_img VISIBLE）；
+        // 就绪之后的下一次刷新才切到 URI 轮播（flip VISIBLE、bg_img GONE）。
+        // 不变量没变 —— **任何时刻只有一层可见**，所以断言改成"恰好一个可见"。
         val v = viewOf(WidgetDyn.spec(DynPainter.Kind.entries.first(), 0xFF39D3C0.toInt()))
-        assertEquals(View.VISIBLE, v.findViewById<View>(R.id.widget_flip).visibility)
-        assertEquals(
-            "底图必须藏起来，否则会有两层圆角",
-            View.GONE, v.findViewById<View>(R.id.widget_bg_img).visibility,
-        )
+        val flip = v.findViewById<View>(R.id.widget_flip).visibility
+        val bg = v.findViewById<View>(R.id.widget_bg_img).visibility
+        val visibleLayers = listOf(flip, bg).count { it == View.VISIBLE }
+        assertEquals("动态规格必须恰好一层可见（flip=$flip, bg=$bg）", 1, visibleLayers)
     }
 }

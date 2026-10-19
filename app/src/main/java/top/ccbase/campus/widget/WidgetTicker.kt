@@ -53,6 +53,14 @@ object WidgetTicker {
                 return
             }
             val ctx = appCtx ?: run { stop(); return }
+            // 动态主题现在是**桌面自己轮播**（布局里 autoStart + flipInterval + 交叉淡入）。
+            // 我们再推一次 RemoteViews，就等于把 ViewFlipper 打回第 0 帧、动画从头开始 ——
+            // 用户看到的就是"一顿一顿地跳"。所以动态主题期间这条通道彻底让开。
+            val spec = runCatching { WidgetThemes.spec(ctx) }.getOrDefault("")
+            if (WidgetFrames.isDynamic(spec)) {
+                handler.postDelayed(this, 1000L)
+                return
+            }
             runCatching {
                 ctx.sendBroadcast(
                     Intent(ctx, TodayWidgetProvider::class.java)

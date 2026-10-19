@@ -117,7 +117,21 @@ object WidgetThemes {
 
     fun set(ctx: Context, spec: String) {
         prefs(ctx).edit().putString(K_THEME, spec).apply()
+        bump()
     }
+
+    /**
+     * 「主题/透明度改过了」的版本号。
+     *
+     * 界面里读 prefs 是**不可观察**的：Compose 看输入没变化就直接跳过重组，
+     * 于是在二级页（图库/动态库）选完主题回来，预览还停在旧的那张 —— 真机上就是这个毛病，
+     * 试穿过一次「纯色」之后更明显（试穿状态也没机会清）。
+     * 任何写主题/透明度的地方都 [bump] 一下，界面 collect 它，谁改的都能立刻重画。
+     */
+    private val _rev = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val rev: kotlinx.coroutines.flow.StateFlow<Int> = _rev
+
+    fun bump() { _rev.value = _rev.value + 1 }
 
     /**
      * 选主题的唯一正确入口（2026-10-19 用户："更换的主题并没有立刻出现，过了一会才出现，
@@ -157,6 +171,7 @@ object WidgetThemes {
 
     fun setAlpha(ctx: Context, v: Float) {
         prefs(ctx).edit().putFloat(K_ALPHA, v.coerceIn(0.35f, 1f)).apply()
+        bump()
     }
 
     private const val K_SPEED = "play_speed"

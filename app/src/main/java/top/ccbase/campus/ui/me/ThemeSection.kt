@@ -418,14 +418,19 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // 这张卡就是桌面那份 RemoteViews，自检只剩下面这排读数。
     // 「试穿」规格（纯色/随包图片/我的图）也只改这张卡，不写回设置。
     var trySpec by remember { mutableStateOf<String?>(null) }
-    // 用户换掉真主题时，试穿状态作废 —— 否则会拿旧试穿规格盖住新选的
-    LaunchedEffect(wSpec) { trySpec = null }
     val stage = rememberWidgetStageInfo(ctx, refreshKey = pvKey)
     // 图库 / 动态主题库是盖在同一个 Activity 上的浮层（不是新的 Activity），关掉它不会
     // 触发 ON_RESUME；只靠上面的生命周期回调，真机上会出现"图库里选完，桌面变了、预览没变"。
     // prefs 读的是内存缓存，每次重组重读一遍几乎零成本，就按真实 prefs 画。
-    val liveSpec = WidgetThemes.spec(ctx)
-    val liveAlpha = WidgetThemes.alpha(ctx)
+    // 订阅"主题改过了"的版本号：二级页里选完主题，这里才会真的重组
+    val themeRev by WidgetThemes.rev.collectAsState()
+    val liveSpec = remember(themeRev) { WidgetThemes.spec(ctx) }
+    val liveAlpha = remember(themeRev) { WidgetThemes.alpha(ctx) }
+    // 用户换掉真主题时，试穿状态作废 —— 否则会拿旧试穿规格盖住新选的。
+    // ⚠️ 必须盯**每次重组重读的 liveSpec**，不是 wSpec：二级页（图库/动态库）选完主题
+    // 不会触发 ON_RESUME，wSpec 不更新、LaunchedEffect(wSpec) 也不跑 —— 真机上的表现是
+    // "试穿过一次纯色之后，后面换什么动态主题，预览都还是那口紫色"。
+    LaunchedEffect(liveSpec) { if (trySpec != null) trySpec = null }
     val effSpec = trySpec ?: liveSpec
 
     WidgetStageCard(stage, spec = effSpec, alpha = liveAlpha, refreshKey = pvKey)

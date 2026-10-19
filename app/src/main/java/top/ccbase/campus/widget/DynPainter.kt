@@ -54,6 +54,29 @@ object DynPainter {
     private const val DEEP = 0xFF07060C.toInt()
 
     /**
+     * 一个"循环"的秒数 = 帧数 × 帧间隔，由 [WidgetFrames] 在抽帧前设进来。
+     *
+     * 2026-10-19 用户："动画的重点在缓动，类似 wallpaper 里的动态壁纸"。
+     * 小组件做不到 60 帧，只能预渲染 N 帧让桌面轮播 —— 那"像壁纸"的关键就变成两件事：
+     *   1. **循环必须闭合**：帧 N-1 接回帧 0 时画面要接得上，否则每 6 秒硬跳一下，
+     *      再慢再柔也一眼看出是幻灯片（以前周期是 20~40 秒、只抽 1.28 秒，必然跳）；
+     *   2. **每段位移都要有缓动**：统一用 sin/cos（两端速度为 0）驱动，
+     *      而不是线性 `t * speed % 1` 那种匀速直线。
+     * 所以这里所有周期都按 [cycle] 的整数倍/约数来，配合交叉淡入就是连续的光影流动。
+     */
+    @Volatile
+    var cycle: Float = 6f
+
+    /** 归一化相位：0→1，t 走完 [cycle] 正好回 0（[cycles] 个来回）。 */
+    private fun lf(t: Float, cycles: Int, off: Float): Float {
+        val v = (t / cycle) * cycles + off
+        return v - kotlin.math.floor(v)
+    }
+
+    /** 同上，但返回弧度：可直接喂 sin/cos，两端天然是缓动的。 */
+    private fun lp(t: Float, cycles: Int, off: Float): Float = lf(t, cycles, off) * 2f * PI.toFloat()
+
+    /**
      * 画一帧。
      *
      * @param t 秒（可以很大，内部只取模）
@@ -109,18 +132,23 @@ object DynPainter {
         when (kind) {
             Kind.AURORA -> {
                 fillVertical(0f to base, 0.5f to mix(base, 0xFF0C0A18.toInt(), 0.33f), 1f to base)
+                // 周期原来是 21/27/34 秒：4 帧只覆盖 1.28 秒，等于整个周期走了 6% ——
+                // 真机上"极光"看着就是一张静态渐变（实测两帧之间最大只差 3% 亮度），
+                // 而图库里写的是"会动的小组件背景"。改成 5/7.5/10 秒，1.28 秒能走出 1/4 周期，
+                // 幅度也抬了一档，肉眼能看出光带在漂。
+                // 三条光带：一条循环走完一次，相位错开 —— 闭合、无跳、全正弦（两端速度为 0）
                 val bands = listOf(
-                    Triple(accent, 21f, 0.0f),
-                    Triple(mix(accent, 0xFF39D3C0.toInt(), 0.55f), 27f, 2.1f),
-                    Triple(mix(accent, 0xFFFF7BC0.toInt(), 0.5f), 34f, 4.2f),
+                    accent to 0.0f,
+                    mix(accent, 0xFF39D3C0.toInt(), 0.55f) to 0.34f,
+                    mix(accent, 0xFFFF7BC0.toInt(), 0.5f) to 0.68f,
                 )
-                bands.forEachIndexed { i, (col, period, phase) ->
-                    val p = (t / period) * 2f * PI.toFloat() + phase
+                bands.forEachIndexed { i, (col, off) ->
+                    val p = lp(t, 1, off)
                     glow(
                         w * (0.5f + 0.34f * sin(p)),
-                        h * (0.30f + 0.12f * cos(p * 1.3f) + i * 0.16f),
-                        w * (0.55f + 0.10f * sin(p * 0.7f)),
-                        col, 0.34f,
+                        h * (0.30f + 0.18f * cos(p) + i * 0.17f),
+                        w * (0.55f + 0.13f * sin(p * 2f)),
+                        col, 0.42f,
                     )
                 }
             }
@@ -133,12 +161,11 @@ object DynPainter {
                     val y = rnd.nextFloat() * h * 0.92f
                     val phase = rnd.nextFloat() * 6.28f
                     val b = 0.35f + rnd.nextFloat() * 0.5f
-                    val a = (b * (0.55f + 0.45f * sin(t * 1.6f + phase))).coerceIn(0f, 1f)
+                    val a = (b * (0.55f + 0.45f * sin(lp(t, 6, phase)))).coerceIn(0f, 1f)
                     paint.color = withAlpha(Color.WHITE, a * (if (dark) 1f else 0.5f))
                     c.drawCircle(x, y, 0.7f + rnd.nextFloat() * 1.5f, paint)
                 }
-                val p = (t / 40f) * 2f * PI.toFloat()
-                val cx = w * (0.5f + 0.25f * sin(p))
+                val cx = w * (0.5f + 0.25f * sin(lp(t, 1, 0f)))
                 paint.shader = LinearGradient(
                     cx - w * 0.6f, h * 0.75f, cx + w * 0.6f, h * 0.15f,
                     intArrayOf(Color.TRANSPARENT, withAlpha(accent, 0.18f), Color.TRANSPARENT),
@@ -150,7 +177,7 @@ object DynPainter {
 
             Kind.BREATHE -> {
                 fillVertical(0f to base, 1f to mix(base, 0xFF0B0913.toInt(), 0.44f))
-                val k = 0.5f + 0.5f * sin((t / 9f) * 2f * PI.toFloat())
+                val k = 0.5f + 0.5f * sin(lp(t, 1, 0f))
                 glow(w * 0.5f, h * 0.34f, w * (0.55f + 0.18f * k), accent, 0.22f + 0.16f * k)
                 glow(w * 0.5f, h, w * 0.8f, accent, 0.10f - 0.05f * k)
             }
@@ -160,12 +187,12 @@ object DynPainter {
                 val rnd = rnd(8)
                 repeat(80) {
                     val x0 = rnd.nextFloat() * w
-                    val speed = 0.10f + rnd.nextFloat() * 0.22f
+                    val drop = 1 + rnd.nextInt(2)          // 一个循环落 1~2 趟，闭合
                     val sway = 18f + rnd.nextFloat() * 40f
-                    val phase = rnd.nextFloat() * 6.28f
+                    val phase = rnd.nextFloat()
                     val sz = 4f + rnd.nextFloat() * 6f
-                    val y = ((t * speed + rnd.nextFloat()) % 1.15f) * h - h * 0.08f
-                    val x = x0 + sway * sin(t * 0.9f + phase)
+                    val y = (lf(t, drop, phase) * 1.15f - 0.08f) * h
+                    val x = x0 + sway * sin(lp(t, 1, phase))
                     paint.color = withAlpha(0xFFFFB7D5.toInt(), 0.42f + rnd.nextFloat() * 0.45f)
                     rect.set(x, y, x + sz * 1.6f, y + sz)
                     c.drawOval(rect, paint)
@@ -177,11 +204,11 @@ object DynPainter {
                 val rnd = rnd(31)
                 repeat(90) {
                     val x0 = rnd.nextFloat() * w
-                    val speed = 0.06f + rnd.nextFloat() * 0.14f
-                    val phase = rnd.nextFloat() * 6.28f
+                    val drop = 1 + rnd.nextInt(2)
+                    val phase = rnd.nextFloat()
                     val sz = 1.8f + rnd.nextFloat() * 3.2f
-                    val y = ((t * speed + rnd.nextFloat()) % 1.1f) * h - h * 0.05f
-                    val x = x0 + (10f + rnd.nextFloat() * 20f) * sin(t * 0.5f + phase)
+                    val y = (lf(t, drop, phase) * 1.1f - 0.05f) * h
+                    val x = x0 + (10f + rnd.nextFloat() * 20f) * sin(lp(t, 1, phase))
                     paint.color = withAlpha(Color.WHITE, 0.35f + rnd.nextFloat() * 0.5f)
                     c.drawCircle(x, y, sz, paint)
                 }
@@ -193,9 +220,9 @@ object DynPainter {
                 val rnd = rnd(77)
                 repeat(110) {
                     val x0 = rnd.nextFloat() * (w * 1.2f) - w * 0.1f
-                    val speed = 0.9f + rnd.nextFloat() * 0.9f
+                    val drop = 2 + rnd.nextInt(2)
                     val len = h * (0.03f + rnd.nextFloat() * 0.05f)
-                    val y = ((t * speed + rnd.nextFloat() * 2f) % 1.2f) * h - h * 0.1f
+                    val y = (lf(t, drop, rnd.nextFloat()) * 1.2f - 0.1f) * h
                     paint.color = withAlpha(0xFFBFD8E8.toInt(), 0.10f + rnd.nextFloat() * 0.16f)
                     c.drawLine(x0, y, x0 - len * 0.25f, y + len, paint)
                 }
@@ -210,9 +237,9 @@ object DynPainter {
                     val ax = 20f + rnd.nextFloat() * 60f
                     val ay = 15f + rnd.nextFloat() * 45f
                     val ph = rnd.nextFloat() * 6.28f
-                    val x = bx + ax * sin(t * 0.35f + ph)
-                    val y = by + ay * cos(t * 0.27f + ph * 1.7f)
-                    val a = (0.35f + 0.65f * (0.5f + 0.5f * sin(t * 1.1f + ph))).coerceIn(0f, 1f)
+                    val x = bx + ax * sin(lp(t, 1, ph))
+                    val y = by + ay * cos(lp(t, 1, ph * 0.5f))
+                    val a = (0.35f + 0.65f * (0.5f + 0.5f * sin(lp(t, 2, ph)))).coerceIn(0f, 1f)
                     glow(x, y, 26f + 22f * a, 0xFFB7FF8A.toInt(), 0.30f * a)
                     paint.color = withAlpha(0xFFE8FFC8.toInt(), a)
                     c.drawCircle(x, y, 1.8f, paint)
@@ -230,9 +257,9 @@ object DynPainter {
                 )
                 // 四条丝带：相位错开，横向缓慢蛇行
                 for (i in 0 until 4) {
-                    val ph = i * 1.7f
-                    val y = h * (0.22f + i * 0.19f) + h * 0.06f * sin(t * 0.12f + ph)
-                    val x = w * (0.5f + 0.30f * sin(t * 0.08f + ph * 1.3f))
+                    val ph = i * 0.25f
+                    val y = h * (0.22f + i * 0.19f) + h * 0.06f * sin(lp(t, 1, ph))
+                    val x = w * (0.5f + 0.30f * sin(lp(t, 1, ph + 0.33f)))
                     glow(x, y, w * 0.62f, mix(accent, 0xFFF3E7FF.toInt(), 0.25f + i * 0.12f), 0.16f)
                     glow(w - x, h - y, w * 0.5f, mix(accent, 0xFF9BE7FF.toInt(), 0.3f), 0.10f)
                 }
@@ -245,7 +272,7 @@ object DynPainter {
                     1f to mix(base, 0xFF03020A.toInt(), 0.45f),
                 )
                 // 地平线一团慢光，30 秒一呼一吸
-                val breathe = 0.5f + 0.5f * sin(t * (2f * PI.toFloat() / 30f))
+                val breathe = 0.5f + 0.5f * sin(lp(t, 1, 0f))
                 glow(w * 0.5f, h * (0.60f + 0.03f * breathe), w * (0.55f + 0.08f * breathe),
                     mix(accent, 0xFFFFC98A.toInt(), 0.45f), 0.16f + 0.10f * breathe)
                 // 高空一层很淡的冷色，压住整屏不让它发灰
@@ -256,10 +283,10 @@ object DynPainter {
                 fillVertical(0f to mix(base, 0xFF061018.toInt(), 0.4f), 1f to base)
                 // 同心圆一圈圈推开，各自 24 秒一个周期、错开起跑
                 paint.style = Paint.Style.STROKE
-                val cx = w * (0.5f + 0.04f * sin(t * 0.05f))
-                val cy = h * (0.55f + 0.03f * cos(t * 0.04f))
+                val cx = w * (0.5f + 0.04f * sin(lp(t, 1, 0f)))
+                val cy = h * (0.55f + 0.03f * cos(lp(t, 1, 0.25f)))
                 for (i in 0 until 6) {
-                    val phase = ((t / 24f + i / 6f) % 1f)
+                    val phase = lf(t, 1, i / 6f)
                     val r = (0.08f + phase * 0.75f) * Math.max(w, h)
                     val a = (1f - phase) * 0.16f
                     paint.strokeWidth = Math.max(1.2f, h * 0.0045f)
@@ -278,7 +305,7 @@ object DynPainter {
                 for (i in 0 until rows) {
                     val yBase = h * (0.30f + i * 0.11f)
                     val amp = h * (0.020f + i * 0.006f)
-                    val period = 7f + i * 2.5f
+                    val cycles = 1 + i % 2
                     paint.strokeWidth = Math.max(1.2f, h * 0.004f)
                     paint.color = withAlpha(mix(accent, 0xFF7FD4FF.toInt(), 0.4f), 0.30f - i * 0.03f)
                     var x = 0f
@@ -286,7 +313,7 @@ object DynPainter {
                     val path = android.graphics.Path()
                     var first = true
                     while (x <= w) {
-                        val y = yBase + amp * sin((x / w) * 3.2f + t * (1.6f / period) * 2f * PI.toFloat() + i)
+                        val y = yBase + amp * sin((x / w) * 3.2f + lp(t, cycles, i * 0.08f))
                         if (first) { path.moveTo(x, y); first = false } else path.lineTo(x, y)
                         x += step
                     }
@@ -303,7 +330,7 @@ object DynPainter {
                     val y = rnd.nextFloat() * h
                     val r = w * (0.04f + rnd.nextFloat() * 0.12f)
                     val ph = rnd.nextFloat() * 6.28f
-                    val a = 0.08f + 0.10f * (0.5f + 0.5f * sin(t * 0.6f + ph))
+                    val a = 0.08f + 0.10f * (0.5f + 0.5f * sin(lp(t, 1, ph)))
                     val col = if (rnd.nextBoolean()) accent else 0xFFFFC46B.toInt()
                     glow(x, y, r, col, a)
                 }
@@ -314,8 +341,8 @@ object DynPainter {
                 val rnd = rnd(99)
                 repeat(18) {
                     val ph = rnd.nextFloat() * 6.28f
-                    val x = w * (0.2f + 0.6f * rnd.nextFloat()) + w * 0.08f * sin(t * 0.12f + ph)
-                    val y = h * rnd.nextFloat() + h * 0.05f * cos(t * 0.10f + ph)
+                    val x = w * (0.2f + 0.6f * rnd.nextFloat()) + w * 0.08f * sin(lp(t, 1, ph))
+                    val y = h * rnd.nextFloat() + h * 0.05f * cos(lp(t, 1, ph * 0.5f))
                     val r = w * (0.18f + rnd.nextFloat() * 0.35f)
                     val col = when (rnd.nextInt(3)) {
                         0 -> accent
@@ -332,11 +359,11 @@ object DynPainter {
                 paint.style = Paint.Style.STROKE
                 repeat(26) {
                     val x0 = rnd.nextFloat() * w
-                    val speed = 0.05f + rnd.nextFloat() * 0.12f
+                    val rise = 1 + rnd.nextInt(2)
                     val r = 6f + rnd.nextFloat() * 26f
-                    val ph = rnd.nextFloat() * 6.28f
-                    val y = h - ((t * speed + rnd.nextFloat()) % 1.1f) * h
-                    val x = x0 + 12f * sin(t * 0.7f + ph)
+                    val ph = rnd.nextFloat()
+                    val y = h - lf(t, rise, ph) * 1.1f * h
+                    val x = x0 + 12f * sin(lp(t, 1, ph))
                     paint.strokeWidth = Math.max(1.2f, r * 0.10f)
                     paint.color = withAlpha(0xFFBFE9FF.toInt(), 0.22f + rnd.nextFloat() * 0.20f)
                     c.drawCircle(x, y, r, paint)
@@ -351,10 +378,10 @@ object DynPainter {
                 val colW = w / cols
                 val rnd = rnd(20261018)
                 for (i in 0 until cols) {
-                    val speed = 0.25f + rnd.nextFloat() * 0.5f
+                    val drop = 2 + rnd.nextInt(2)
                     val len = h * (0.10f + rnd.nextFloat() * 0.25f)
-                    val off = rnd.nextFloat() * 2f
-                    val y = ((t * speed + off) % 1.4f) * (h + len) - len
+                    val off = rnd.nextFloat()
+                    val y = (lf(t, drop, off) * 1.4f - 0.2f) * (h + len) - len
                     val x = colW * (i + 0.5f)
                     paint.color = withAlpha(0xFF7BFFA8.toInt(), 0.30f)
                     c.drawLine(x, y, x, y + len, paint)

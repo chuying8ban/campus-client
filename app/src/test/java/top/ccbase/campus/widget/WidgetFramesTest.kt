@@ -36,11 +36,16 @@ class WidgetFramesTest {
      * 这条预算从 8MB 收到 **1MB**（2026-10-19），因为 8MB 那版实测在 MIUI 上表现就是"桌面只剩文字"。
      */
     @Test
-    fun `所有帧加起来不超过 1MB`() {
+    /**
+     * 位图兜底现在只交 1 帧（12 帧塞不进 binder 的 1MB），所以这里改成钉"每帧都小、帧数对得上"，
+     * 而不是钉整组 ≤1MB —— 整组是落盘给桌面按 URI 读的，不走 binder。
+     */
+    fun `每帧都压在位图预算内`() {
         val spec = WidgetDyn.spec(DynPainter.Kind.PETALS, 0xFFFF7BC0.toInt())
         val frames = requireNotNull(WidgetFrames.forSpec(ctx, spec, 1200, 600))
-        val bytes = frames.sumOf { it.width.toLong() * it.height * 4 }
-        assertTrue("帧太大：${bytes / 1024}KB", bytes <= 1024L * 1024)
+        assertEquals("帧数固定", WidgetFrames.FRAMES, frames.size)
+        val perFrame = frames.maxOf { it.width.toLong() * it.height }
+        assertTrue("单帧 ${perFrame} 像素太肥", perFrame <= 40_000)
     }
 
     /** 帧要落盘：provider 被系统杀掉重建后不该重画一遍（换主题那几秒就是花在重画上） */

@@ -39,8 +39,10 @@ object WidgetFrames {
      * ~1MB 就会被 launcher 整块丢掉（MIUI 更是静默丢 → 桌面只剩文字，2026-10-19 用户截图）。
      * 6 帧 × 17 万像素 = 4MB，正是"主题显示不上"的元凶。现在 4 帧 × 5 万像素 ≈ 800KB。
      */
-    const val FRAMES = 4
-    const val STEP_SEC = 0.32f
+    // 12 帧：4 帧在桌面上就是幻灯片（每 320ms 硬跳一格），12 帧 + 交叉淡入才连得起来。
+    const val FRAMES = 12
+    // 0.5s 一帧 × 12 帧 = 6 秒一个循环；配合 420ms 交叉淡入，桌面看到的是连续的光影流动。
+    const val STEP_SEC = 0.5f
 
     /** 叠在插画上的"动态效果" */
     enum class ImgEffect(val id: String, val label: String, val hint: String) {
@@ -204,6 +206,8 @@ object WidgetFrames {
     private fun diskLoad(ctx: Context, key: String): List<Bitmap>? = runCatching {
         val dir = frameDir(ctx, key)
         if (!dir.isDirectory) return null
+        // 告诉画布"一次循环有多长"：所有周期都按它取整，帧 N-1 才接得回帧 0
+        DynPainter.cycle = FRAMES * STEP_SEC
         val out = ArrayList<Bitmap>(FRAMES)
         for (i in 0 until FRAMES) {
             val f = java.io.File(dir, "f$i.png")

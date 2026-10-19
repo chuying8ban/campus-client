@@ -43,11 +43,21 @@ class WidgetBudgetTest {
         assertTrue("底图不许超预算", bmp!!.width.toLong() * bmp.height <= 130_000)
     }
 
+    /**
+     * 2026-10-19：帧数从 4 抬到 12（缓动），而且**改动了一条架构**：
+     * 桌面那边只走 `setImageViewUri` 读文件，像素不进 binder；位图兜底只放第 0 帧当静态底。
+     * 所以约束变成两条：
+     *   1. 单帧像素仍要压在预算内（内存和落盘都靠它）；
+     *   2. 整组帧的总量按帧数放宽，天花板是 12 × 单帧预算。
+     */
     @Test
-    fun `动态帧在超大尺寸下总量不超过1MB`() {
+    fun `动态帧在超大尺寸下每帧都在预算内`() {
         val frames = WidgetFrames.forSpec(ctx, "dynw:aurora:${0xFF8AE9D6.toInt()}", 2475, 1375)
         assertNotNull("动效规格必须出帧", frames)
-        val bytes = frames!!.sumOf { it.width.toLong() * it.height * 4 }
-        assertTrue("4 帧加起来 $bytes 字节，超过 binder 的 1MB", bytes <= 1_000_000)
+        assertEquals("帧数固定", WidgetFrames.FRAMES, frames!!.size)
+        val perFrame = frames.maxOf { it.width.toLong() * it.height }
+        assertTrue("单帧 $perFrame 像素超预算", perFrame <= 40_000)
+        val bytes = frames.sumOf { it.width.toLong() * it.height * 4 }
+        assertTrue("整组 $bytes 字节，超了 12 帧的上限", bytes <= 12L * 40_000 * 4)
     }
 }

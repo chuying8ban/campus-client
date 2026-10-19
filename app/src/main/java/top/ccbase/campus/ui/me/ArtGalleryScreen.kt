@@ -142,6 +142,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     var sort by remember { mutableStateOf("time") }
     var busyId by remember { mutableStateOf<String?>(null) }
     var msg by remember { mutableStateOf<String?>(null) }
+    // 现在屏幕上这批图是**哪个词**搜出来的。以前计数行按 query 写，清空关键词后
+    // 旧结果还挂在网格上，标题却已经说"全部 47 张" —— 真机上看到的就是"明明全是原神，
+    // 上面写全部"。计数一律跟着结果走，和搜索框不一致时明说"正在换成…"。
+    var shownQuery by remember { mutableStateOf("") }
     val grid = rememberLazyGridState()
     // 翻到第二行以后就算"在往下看"：收起搜索栏，给图片腾地方
     val scrolled by remember { derivedStateOf { grid.firstVisibleItemIndex > 2 } }
@@ -153,6 +157,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         ArtMemo.get(memoKey("", orientKey, animOnly, sort))?.let {
             if (it.isNotEmpty() && live.isEmpty()) {
                 live = it
+                shownQuery = ""
                 loading = false
                 stage = "先显示上次的结果（${it.size} 张），正在后台刷新…"
             }
@@ -219,6 +224,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 val relaxed = if (kept.isEmpty() && pg.items.isNotEmpty()) pg.items else kept
                 ArtMemo.put(memoKey(q, orientKey, animOnly, sort), relaxed)
                 live = relaxed; page = 1; hasMore = pg.hasMore; hint = pg.hint
+                shownQuery = q
                 if (kept.isEmpty() && pg.items.isNotEmpty()) {
                     stage = "接口返回 ${pg.items.size} 条，但方向标记对不上（${pg.items.map { it.orient }.distinct()}）—— 已先全部显示"
                     loading = false
@@ -249,6 +255,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         loadingMore = true
         scope.launch {
             val q = query.trim()
+            // 词换了还按旧词翻页 → 会把两批不同关键词的图拼在一起
+            if (q != shownQuery) { loadingMore = false; return@launch }
             runCatching {
                 withContext(Dispatchers.IO) { ArtRepo.searchLive(q, page + 1, orientKey, animOnly = animOnly, limit = pageLimit, sort = sort) }
             }
@@ -414,7 +422,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         val hotWords = if (portrait) {
             listOf("原神", "少女", "樱花", "校服", "星空", "赛博", "和服", "猫")
         } else {
-            listOf("原神", "风景", "城市", "夜景", "海", "赛博", "天空", "机甲")
+            // 横版老少了「樱花」，可他自己的桌面图就是樱花 —— 补上，顺手也方便换回来
+            listOf("原神", "风景", "樱花", "城市", "夜景", "海", "赛博", "天空", "机甲")
         }
         AnimatedVisibility(
             visible = !scrolled,
@@ -508,11 +517,12 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
         // 而 stage 是第 1 页请求回来时写死的"「原神」找到 10 张动图"，
         // 后面 loadMore 只往 live 里追加、从来没改过它 —— 数字就一直停在第一页。
         val countLine = when {
-            animOnly && query.isBlank() -> "动图 ${shown.size} 张"
-            query.isBlank() -> "全部 ${shown.size} 张 · 往下滑继续加载 · 搜关键词可查整库"
-            animOnly -> "「${query.trim()}」找到 ${shown.size} 张动图"
-            else -> "「${query.trim()}」找到 ${shown.size} 张"
+            animOnly && shownQuery.isBlank() -> "动图 ${shown.size} 张"
+            shownQuery.isBlank() -> "全部 ${shown.size} 张 · 往下滑继续加载 · 搜关键词可查整库"
+            animOnly -> "「$shownQuery」找到 ${shown.size} 张动图"
+            else -> "「$shownQuery」找到 ${shown.size} 张"
         } + when {
+            query.trim() != shownQuery -> if (query.isBlank()) " · 正在换回全部…" else " · 正在换成「${query.trim()}」…"
             loadingMore -> " · 正在加载更多…"
             hasMore -> " · 往下滑继续加载"
             shown.isNotEmpty() -> " · 已经到底了"

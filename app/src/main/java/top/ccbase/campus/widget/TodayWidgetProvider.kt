@@ -103,7 +103,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * ViewAnimator 是按**子 View 下标**轮播的，不看可见性 —— 轮到一个空白 ImageView 就整卡空白。
          * 12 个位子只有 4 个有图 = 卡片 2/3 的时间是空的，用户看到的就是"动态主题一片黑"。
          */
-        private val FRAME_IDS = intArrayOf(R.id.f0, R.id.f1, R.id.f2, R.id.f3)
+        private val FRAME_IDS = intArrayOf(
+            R.id.f0, R.id.f1, R.id.f2, R.id.f3, R.id.f4, R.id.f5,
+            R.id.f6, R.id.f7, R.id.f8, R.id.f9, R.id.f10, R.id.f11,
+        )
         private const val MAX_ROWS = 3
         private const val FALLBACK_W_DP = 250
         private const val FALLBACK_H_DP = 110
@@ -320,30 +323,27 @@ class TodayWidgetProvider : AppWidgetProvider() {
                         }.onFailure { rv.setViewVisibility(id, View.GONE) }
                     }
                 } else {
-                    FRAME_IDS.forEachIndexed { i, id ->
-                        // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
-                        val fr = frames!![i.coerceAtMost(frames!!.size - 1)]
+                    // ⚠️ 这里以前把 12 帧位图全塞进 RemoteViews。12 × 40 万像素 × 4B 早就超过
+                    // binder 单次事务的 1MB 上限 —— 一旦不是高画质模式，桌面会把**整份** RemoteViews
+                    // 丢掉（表现就是"主题没反应/卡片空一块"）。所以兜底只放第 0 帧当静态底，
+                    // 等 HD 帧文件就绪后的下一次刷新再切到 URI 动画。静态 2 秒，好过整块丢掉。
+                    val fr = frames!!.firstOrNull()
+                    if (fr != null) {
+                        rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
                         val veiled = if (wScrim != 0) {
                             WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
                         } else fr
-                        rv.setImageViewBitmap(id, WidgetArt.fade(veiled, wAlpha))
-                        rv.setViewVisibility(id, View.VISIBLE)
+                        rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(veiled, wAlpha))
                     }
+                    rv.setViewVisibility(R.id.widget_flip, View.GONE)
                 }
-                // 2026-10-19 真正的根因（自检里终于露出原话）：
-                //   android.widget.RemoteViews$ActionException: view: android.widget.ViewFlipper
-                //   can't use method with RemoteViews: setAutoStart(boolean)
-                // `setAutoStart` / `setFlipInterval` 都不是 @RemotableViewMethod，一下就把**整份**
-                // RemoteViews 打成异常 —— 主题、文字、底图全都没送到桌面，所以"换了主题没反应"。
-                // ViewAnimator.setDisplayedChild(int) 是允许的，用它把帧定在某一帧上。
-                // 桌面自己不会翻页（翻页必须靠 Service 或反复 updateAppWidget），
-                // 这里按时间挑帧：每次刷新/重绘看到的是不同一帧，至少不是死图。
-                // 播放速度：帧序列不变，只是"多久轮到下一帧"按 speed 缩放
-                val stepMs = ((WidgetFrames.STEP_SEC * 1000) / speed.coerceAtLeast(0.2f)).toLong()
-                    .coerceAtLeast(60L)
-                val frameCount = hdFiles?.size ?: frames!!.size
-                val idx = ((System.currentTimeMillis() / stepMs) % frameCount).toInt()
-                runCatching { rv.setInt(R.id.widget_flip, "setDisplayedChild", idx) }
+                // 帧由桌面自己轮播（layout 里的 autoStart + flipInterval + in/out 动画）。
+                // 2026-10-19 用户："极其生硬" —— 原来是我们在 WidgetTicker 里每 250ms 广播一次、
+                // 每次 setDisplayedChild 硬切一格：既赶不上 60 帧，又会被桌面节流成一跳一跳。
+                // RemoteViews 调不了 setAutoStart/setFlipInterval（会抛 ActionException），
+                // 但**布局属性**是桌面 inflate 时自己读的，所以把它写在 XML 里就自动跑起来了。
+                // 这里只需把起始帧定在最前面，之后不要再去动它，动了就打断动画。
+                if (hdOk) runCatching { rv.setInt(R.id.widget_flip, "setDisplayedChild", 0) }
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
             }
