@@ -276,7 +276,8 @@ object WidgetFrames {
      * 两件事叠起来才像动态壁纸：① 图自己在缓慢推近（Ken Burns，幅度只有 4%，但人眼立刻能看出"活的"）；
      * ② 画面前面再飘一层粒子（樱瓣/雪/光斑…）。只做粒子会像"贴纸在动"，只做推近又太闷。
      */
-    private fun drawCinemagraph(
+    // internal：动态壁纸（DynWallpaperService）也走这一支，两处画法必须一致
+    internal fun drawCinemagraph(
         c: Canvas,
         src: Bitmap,
         effect: ImgEffect,

@@ -1,5 +1,7 @@
 package top.ccbase.campus.ui.me
 
+
+
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -20,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import kotlin.math.roundToInt
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -674,6 +677,46 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             }
         }
     }
+    // ---- 真 60 帧：动态壁纸（2026-10-19 用户：「小部件的主题依旧没有做到流畅播放，
+    //      我希望能够做到 60 帧播放」）----
+    // 实话：桌面小组件的每一帧都要跨进程把位图交给桌面，框架上不存在 60fps 这条路，
+    // 硬推只会被桌面丢帧 + 耗电。能真 60 帧的只有动态壁纸 —— 同一支画笔、同一套主题。
+    Spacer(Modifier.height(10.dp))
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(C.card)
+            .clickable {
+                val comp = android.content.ComponentName(ctx, top.ccbase.campus.widget.DynWallpaperService::class.java)
+                val i = android.content.Intent(android.app.WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
+                    .putExtra(android.app.WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, comp)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                val ok = runCatching { ctx.startActivity(i) }.isSuccess
+                if (!ok) {
+                    runCatching {
+                        ctx.startActivity(
+                            android.content.Intent(android.app.WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .testTag(WP_BTN),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("设为动态壁纸 · 真 60 帧", fontSize = 12.5.sp, color = C.txt, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                "桌面小组件的画面要跨进程交给桌面，60 帧在框架上做不到；" +
+                    "把同一支主题铺满整屏才真的每秒 60 帧。点这里在系统壁纸里确认。",
+                fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
+            )
+        }
+        Text("›", fontSize = 18.sp, color = C.cyan)
+    }
+
     Text(
         if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
         else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",
@@ -1014,3 +1057,7 @@ private fun toast(ctx: android.content.Context, msg: String) {
         android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 }
+
+
+/** 用例抓手：动态壁纸入口 */
+const val WP_BTN = "theme-wallpaper-entry"

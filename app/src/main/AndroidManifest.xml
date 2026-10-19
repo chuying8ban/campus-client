@@ -95,6 +95,21 @@
                 android:resource="@xml/widget_today_info" />
         </receiver>
 
+        <!-- 动态壁纸：真 60 帧只存在于"自己拿 Surface 画"这条路上（RemoteViews 没有连续动画）。
+             主题跟随小组件主题，设置入口在 App 外观 → 小组件主题页。 -->
+        <service
+            android:name=".widget.DynWallpaperService"
+            android:exported="true"
+            android:label="@string/widget_label"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper_dyn" />
+        </service>
+
         <!-- 自动更新：把 cacheDir/update/*.apk 交给系统安装器（Android 7 起必须走 FileProvider） -->
         <provider
             android:name="androidx.core.content.FileProvider"

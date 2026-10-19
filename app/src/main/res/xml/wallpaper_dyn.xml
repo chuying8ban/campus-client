@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 动态壁纸的描述：系统壁纸选择器里显示的名字与说明。
+     2026-10-19：真 60 帧只有这条路（RemoteViews 没有连续动画）。 -->
+<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/wallpaper_dyn_desc"
+    android:thumbnail="@drawable/ic_launcher" />

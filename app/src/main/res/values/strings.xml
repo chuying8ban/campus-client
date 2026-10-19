@@ -5,4 +5,6 @@
     <string name="widget_desc">今日课表</string>
     <!-- 小部件在系统列表里显示的名字：和小部件页标题一致，用户一眼认得 -->
     <string name="widget_label">校园助手 · 今日课表</string>
+    <!-- 动态壁纸在系统壁纸选择器里的说明 -->
+    <string name="wallpaper_dyn_desc">把正在用的主题铺满整屏，60 帧流动。主题跟随「桌面小组件主题」里选的那一支。</string>
 </resources>
