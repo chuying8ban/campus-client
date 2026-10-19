@@ -523,6 +523,10 @@ private fun WidgetSelfCheck() {
     val bmp = remember(spec) {
         runCatching { TodayWidgetProvider.backgroundBitmapFor(ctx, spec, 900, 400) }.getOrNull()
     }
+    // 走"4 帧轮播"还是"一张静态底图"，一眼要能看出来 —— 排查时这两个分支完全不同
+    val frames = remember(spec) {
+        runCatching { top.ccbase.campus.widget.WidgetFrames.forSpec(ctx, spec, 900, 400) }.getOrNull()
+    }
     val center = remember(bmp) {
         bmp?.let { Integer.toHexString(it.getPixel(it.width / 2, it.height / 2)) } ?: "-"
     }
@@ -578,6 +582,11 @@ private fun WidgetSelfCheck() {
         Spacer(Modifier.height(8.dp))
         Text(
             WidgetThemes.userImageInfo(ctx) + " · 中心像素 #$center · " + brightnessOf(bmp),
+            color = C.txt3, fontSize = 10.sp,
+        )
+        Text(
+            if (frames != null) "走轮播：${frames.size} 帧 · ${frames.first().width}×${frames.first().height}"
+            else "走静态底图：" + (bmp?.let { "${it.width}×${it.height} ≈ ${it.byteCount / 1024}KB" } ?: "无"),
             color = C.txt3, fontSize = 10.sp,
         )
         Text(

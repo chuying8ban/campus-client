@@ -183,7 +183,8 @@ object WidgetFrames {
                 RectF((fw - dw) / 2f, (fh - dh) / 2f, (fw + dw) / 2f, (fh + dh) / 2f),
                 paint,
             )
-            out += WidgetArt.rounded(bmp, radius)
+            // 暗到看不出画面的素材先抬一档（用户那张"我的图"只有 20/255）
+            out += WidgetArt.rounded(ImgLift.lift(bmp), radius)
         }
 
         when (media.kind) {
@@ -224,7 +225,8 @@ object WidgetFrames {
                         movie.setTime((i * dur / FRAMES) % dur)
                         movie.draw(c, 0f, 0f)
                         c.restore()
-                        out += WidgetArt.rounded(bmp, radius)
+                        // 暗到看不出画面的素材先抬一档（用户那张"我的图"只有 20/255）
+            out += WidgetArt.rounded(ImgLift.lift(bmp), radius)
                     }
                 } else {
                     // Movie 解不了（有的 gif 是 PNG 伪装）：退回单帧

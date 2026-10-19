@@ -3,6 +3,8 @@ package top.ccbase.campus.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
 import java.io.File
 import top.ccbase.campus.R
 
@@ -128,7 +130,15 @@ object WidgetThemes {
      * 保存用户选的图：**先等比缩到 1200px 内再存**。
      * 理由有两个：原图动辄 8~12MB 会拖慢每次刷新；RemoteViews 传 bitmap 还有 1MB 的 binder 上限。
      */
-    fun saveUserImage(ctx: Context, bmp: Bitmap): Boolean {
+    /**
+     * 太暗的图先提亮再落盘。
+     *
+     * 2026-10-19 用户："使用图片主题也只显示为黑色"。他那张"我的图"实测平均亮度 20/255
+     * （中心像素 #010c29）—— 是从一段暗色动图里抽的帧。这种图铺到小组件上，跟黑色没区别。
+     * 这里按亮度自动抬一档（不超过 3 倍），让它至少能看出画面。
+     */
+    fun saveUserImage(ctx: Context, src: Bitmap): Boolean {
+        val bmp = ImgLift.lift(src)
         // 落了盘还要**回读验一遍**：compress 失败时文件是 0 字节，但 write 本身不报错。
         // 2026-10-19 的坑正是这个 —— 文件"存在"、规格也设成 `user`，解码却是 null，
         // 卡片就退成深色渐变，用户看到的是"换了主题没反应 / 一片黑"。
