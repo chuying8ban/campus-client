@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -231,7 +232,12 @@ fun AccentSection() {
  * 窄到 210dp 以下会收起日期/周次 —— 预览按满宽画，也就是"最宽松的那种格子"。
  */
 @Composable
-private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
+private fun WidgetPreviewCard(
+    ctx: android.content.Context,
+    spec: String,
+    alpha: Float = 1f,
+    refreshKey: Int = 0,
+) {
     val theme = remember(spec) { WidgetThemes.of(spec) }
     val density = LocalDensity.current
     var model by remember { mutableStateOf<WidgetModel?>(null) }
@@ -258,7 +264,7 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
         val hPx = with(density) { maxHeight.toPx() }.toInt().coerceAtLeast(100)
         val f = maxWidth.value / 320f            // 320dp = 常见 4×2 宽度
         // 预览也要"所见即所得"：gif/视频主题取一帧当封面，别退回成纯色渐变
-        val art = remember(spec) {
+        val art = remember(spec, refreshKey) {
             if (top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null) {
                 top.ccbase.campus.ui.theme.UserMedia.stillBitmap(
                     ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
@@ -268,7 +274,7 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
             }
         }
         var bg by remember(spec, wPx, hPx, art) { mutableStateOf<android.graphics.Bitmap?>(null) }
-        LaunchedEffect(spec, wPx, hPx) {
+        LaunchedEffect(spec, wPx, hPx, refreshKey) {
             if (art == null) {
                 bg = withContext(Dispatchers.IO) {
                     WidgetArt.background(
@@ -280,19 +286,30 @@ private fun WidgetPreviewCard(ctx: android.content.Context, spec: String) {
                 }
             }
         }
+        // 预览底下的"假桌面壁纸"：不透明主题看不到它，一旦把透明度拉下来，
+        // 底下这块就会透上来 —— 效果和桌面上一致，不用回桌面验证。
+        Box(Modifier.fillMaxSize().background(Color(0xFF3A3550))) {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF5B6FA8)))
+                Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF7A5A8C)))
+            }
+        }
+        val layer = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.coerceIn(0.05f, 1f) }
         if (art != null) {
             Image(
                 bitmap = art.asImageBitmap(), contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = layer,
             )
-            Box(Modifier.fillMaxSize().background(Color(0x7A000000)))
+            // 蒙版也一起跟着透明度走，否则拉透明时卡片反而更黑
+            Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.coerceIn(0.05f, 1f) }
+                .background(Color(0x7A000000)))
         } else {
             bg?.let {
                 Image(
                     bitmap = it.asImageBitmap(), contentDescription = null,
                     contentScale = ContentScale.FillBounds,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = layer,
                 )
             }
         }
@@ -528,6 +545,10 @@ private fun hsv(h: Float, s: Float, v: Float = 0.9f): Color =
 private fun WidgetBlock(onOpenGallery: () -> Unit) {
     val ctx = LocalContext.current
     var wSpec by remember { mutableStateOf(WidgetThemes.spec(ctx)) }
+    // 透明度是"预览的一部分"：声明必须在预览之前，滑块拖的时候预览当场跟着变
+    var wAlpha by remember { mutableFloatStateOf(WidgetThemes.alpha(ctx)) }
+    // 换过图之后 spec 没变（还是 user 这条），但位图变了 —— 用这个键把预览踢一下
+    var pvKey by remember { mutableIntStateOf(0) }
     var placed by remember { mutableIntStateOf(WidgetPin.placedCount(ctx)) }
     // 自动添加是否被挡住（小米/HyperOS 常见）；决定"手动步骤"要不要默认摊开
     var showManual by remember { mutableStateOf(!WidgetPin.supported(ctx)) }
@@ -547,14 +568,42 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
-    // ---- 先看预览：完整一张 4×2，换色立刻反映在它身上 ----
-    WidgetPreviewCard(ctx, wSpec)
+    // ---- 先看预览：完整一张 4×2，换色/换图/拖透明度都当场反映在它身上 ----
+    WidgetPreviewCard(ctx, wSpec, alpha = wAlpha, refreshKey = pvKey)
     Spacer(Modifier.height(8.dp))
     Text(
         "按 4×2 画；桌面上格子更窄时会自动收起日期/周次。",
         fontSize = 10.sp, color = C.txt3,
     )
     Spacer(Modifier.height(14.dp))
+
+    // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----
+    // 把所有主题通用的一个滑块放在"动效"之后、"配色"之前：
+    // 它管的是"这张卡有多透"，和选哪张图、哪个配色都无关。
+    Spacer(Modifier.height(16.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("主题透明度", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
+        Text(
+            (wAlpha * 100).roundToInt().toString() + "%",
+            fontSize = 11.sp, color = C.violet,
+        )
+    }
+    androidx.compose.material3.Slider(
+        value = wAlpha,
+        onValueChange = { wAlpha = it },          // 拖的时候预览当场跟着变
+        onValueChangeFinished = {
+            WidgetThemes.setAlpha(ctx, wAlpha)
+            TodayWidgetProvider.refresh(ctx)      // 松手推一次到桌面
+        },
+        valueRange = 0.35f..1f,
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+    )
+    Text(
+        if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
+        else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",
+        fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
+    )
+
 
     // ---- 再给动作：把卡片放到桌面（这是这一页最常用的意图） ----
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -733,60 +782,6 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         )
     }
 
-    // 让选中的那张图动起来（小组件也能动：12 帧轮播，见 WidgetFrames）
-    val curTheme = remember(wSpec) { WidgetThemes.of(wSpec) }
-    if (curTheme.hasImage || media != null) {
-        Spacer(Modifier.height(14.dp))
-        Text("动效（只影响桌面小组件，不动 App 背景）", fontSize = 11.sp, color = C.txt3)
-        Spacer(Modifier.height(7.dp))
-        MotionChips(currentEffectId = WidgetDyn.parseImage(wSpec)?.id) { id ->
-            val effect = WidgetFrames.ImgEffect.of(id)
-            val next = if (effect == null) curTheme.id else WidgetDyn.imageSpec(effect)
-            val err = WidgetThemes.apply(ctx, next)
-            if (err == null) {
-                wSpec = next
-                TodayWidgetProvider.refresh(ctx)
-            } else toast(ctx, err)
-        }
-        Spacer(Modifier.height(6.dp))
-        // 2026-10-19：原文案写"会自己动 / 4 帧循环"—— 那是做不到的（桌面不会翻页，
-        // ViewFlipper 的 setAutoStart 也不允许走 RemoteViews）。文案必须跟着选择变，且说实话。
-        val eff = WidgetDyn.parseImage(wSpec)
-        Text(
-            if (eff == null) "现在是静止的。选一种之后，桌面每次刷新会换一帧 —— 不动的时候最省电。"
-            else "「${eff.label}」${eff.hint}。桌面不会连续播放（系统限制），每次刷新换一帧。",
-            fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
-        )
-    }
-
-    // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----
-    // 把所有主题通用的一个滑块放在"动效"之后、"配色"之前：
-    // 它管的是"这张卡有多透"，和选哪张图、哪个配色都无关。
-    Spacer(Modifier.height(16.dp))
-    var wAlpha by remember { mutableFloatStateOf(WidgetThemes.alpha(ctx)) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("主题透明度", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
-        Text(
-            (wAlpha * 100).roundToInt().toString() + "%",
-            fontSize = 11.sp, color = C.violet,
-        )
-    }
-    androidx.compose.material3.Slider(
-        value = wAlpha,
-        onValueChange = { wAlpha = it },
-        onValueChangeFinished = {
-            WidgetThemes.setAlpha(ctx, wAlpha)
-            TodayWidgetProvider.refresh(ctx)   // 松手就推一次，桌面上立刻能看到
-        },
-        valueRange = 0.35f..1f,
-        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-    )
-    Text(
-        if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
-        else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",
-        fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
-    )
-
     Spacer(Modifier.height(16.dp))
     Text("配色", fontSize = 11.sp, color = C.txt3)
     Spacer(Modifier.height(8.dp))
@@ -847,42 +842,6 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         }
     }
 
-    // ---- 图片（2026-10-19：这四张以前是程序画的渐变色块，被用户当场指出"怎么还是渐变色"；
-    //      3.4.9 换成真照片 960×420，理由就没了，重新摆回这一页。更多图去上面的在线图库。）----
-    Spacer(Modifier.height(12.dp))
-    Text("图片", color = C.txt2, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    Spacer(Modifier.height(8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        WidgetThemes.imageThemes.forEach { t ->
-            val on = wSpec == t.id
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .clickable {
-                        val err = WidgetThemes.apply(ctx, t.id)
-                        if (err == null) {
-                            wSpec = t.id
-                            TodayWidgetProvider.refresh(ctx)
-                            toast(ctx, "已应用：${t.name}")
-                        } else toast(ctx, err)
-                    },
-            ) {
-                Box(
-                    Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(10.dp))
-                        .border(if (on) 2.dp else 1.dp, if (on) C.violet else C.line, RoundedCornerShape(10.dp)),
-                ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(t.imageRes),
-                        contentDescription = t.name,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(t.name, color = if (on) C.violet else C.txt3, fontSize = 10.sp, maxLines = 1)
-            }
-        }
-    }
-
     // 在线图库入口已经挪到这一页最上面（和「动态主题库」并排），这里不再放第二个入口 ——
     // 同一件事留两个入口，用户反而不知道点哪个。
 
@@ -897,6 +856,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 toast(ctx, "这张图读不出来，换一张试试")
             } else if (WidgetThemes.saveUserImage(ctx, bmp)) {
                 wSpec = WidgetThemes.USER_IMAGE_SPEC
+                pvKey++
                 runCatching { WidgetThemes.apply(ctx, wSpec) }.getOrNull()?.let { toast(ctx, it) }
                 TodayWidgetProvider.refresh(ctx)
                 toast(ctx, "已应用到桌面")

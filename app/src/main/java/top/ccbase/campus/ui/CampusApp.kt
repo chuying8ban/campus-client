@@ -218,6 +218,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     val scope = rememberCoroutineScope()
     val versionCode = top.ccbase.campus.BuildConfig.VERSION_CODE
     var update by remember { mutableStateOf<UpdateUi?>(null) }
+    // 浮条被「隐藏」之后要**记住**：原来 onHideProgress 只是把 update 置空，而下载协程
+    // 每次进度回调又把 update 塞回 Progress，浮条立刻又冒出来 —— 用户说"点了没用"。
+    var barHidden by remember { mutableStateOf(false) }
     var updHint by remember { mutableStateOf<String?>(null) }
     // 网络自检浮层：连不上服务器时用户自己跑一次，把「断在哪一层」摆出来
     var showDiag by remember { mutableStateOf(false) }
@@ -252,6 +255,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             update = UpdateUi.AskPermission(m, forced)
             return
         }
+        barHidden = false
         update = UpdateUi.Progress(m, -1f)
         var lastPct = -2
         scope.launch {
@@ -261,6 +265,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     val pct = if (p < 0f) -1 else (p * 100).toInt()
                     if (pct != lastPct) {
                         lastPct = pct
+                        UpdateNotify.progress(appCtx, m.versionName, pct)   // 状态栏那条常驻通知
                         scope.launch { update = UpdateUi.Progress(m, p) }
                     }
                 }, onState = { st ->
@@ -269,6 +274,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     scope.launch { update = UpdateUi.Progress(m, st.fraction, st) }
                 })
             }
+            UpdateNotify.clearProgress(appCtx)
             update = r.fold(
                 onSuccess = { f -> UpdateUi.Ready(m, f, needPermission = !Updater.canInstall(appCtx)) },
                 onFailure = { e ->
@@ -466,7 +472,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(bottom = if (update is UpdateUi.Progress) 82.dp else 0.dp),
+                .padding(bottom = if (update is UpdateUi.Progress && !barHidden) 82.dp else 0.dp),
         ) {
             DailyCheckBanner(appCtx) { showCrawl = true }
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -707,13 +713,19 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onClose = { showFeedback = false },
         )
     }
-    update?.let { st ->
+    // 隐藏后不再画浮条：update 仍然是 Progress（下载在跑），但界面不显示
+    update?.takeIf { !(it is UpdateUi.Progress && barHidden) }?.let { st ->
         UpdateOverlay(
             state = st,
             currentVersion = version,
             onStart = { (st as? UpdateUi.Offer)?.let { startDownload(it.m, it.forced) } },
             // 收起进度条：只把界面藏了，下载协程照跑（它在 CampusShell 的 scope 里）
-            onHideProgress = { update = null },
+            onHideProgress = {
+                // 只收浮条，不动下载：协程还在跑，状态栏那条常驻通知接手显示进度
+                barHidden = true
+                val m = (update as? UpdateUi.Progress)?.m
+                if (m != null) UpdateNotify.progress(appCtx, m.versionName, -1)
+            },
             onInstall = {
                 val r = st as? UpdateUi.Ready
                 if (r != null) {

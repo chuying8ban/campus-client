@@ -113,6 +113,41 @@ object UpdateNotify {
         }
     }
 
+    /** 「正在后台下载」那条（用户 2026-10-19：关掉浮条后要能在状态栏看到进度） */
+    private const val ID_PROGRESS = 30_003
+
+    /**
+     * 下载进度通知：常驻、不响、点开回 App。
+     *
+     * 为什么要有：浮条是可以关掉的，可关了以后用户就**完全看不见下载还在不在走**。
+     * 这条通知就是那个"还在下"的凭证，下完自动换成 [postReady]。
+     */
+    fun progress(ctx: Context, versionName: String, pct: Int) {
+        ensureChannel(ctx)
+        if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return
+        val open = PendingIntent.getActivity(
+            ctx, 2,
+            Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val text = if (pct < 0) "正在下载 v$versionName…" else "正在下载 v$versionName · $pct%"
+        val b = NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("校园助手正在后台下载")
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+        if (pct in 0..100) b.setProgress(100, pct, false) else b.setProgress(0, 0, true)
+        runCatching { NotificationManagerCompat.from(ctx).notify(ID_PROGRESS, b.build()) }
+    }
+
+    fun clearProgress(ctx: Context) {
+        runCatching { NotificationManagerCompat.from(ctx).cancel(ID_PROGRESS) }
+    }
+
     /** 更新成功后把提醒撤掉，别让过期信息一直躺在通知栏 */
     fun clear(ctx: Context) {
         runCatching { NotificationManagerCompat.from(ctx).cancel(ID) }

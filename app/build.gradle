@@ -48,8 +48,8 @@ android {
         buildConfigField "String", "UPDATE_PATH", '"/updates/manifest.json"'
         minSdk 26
         targetSdk 34
-        versionCode 145
-        versionName "3.4.26"
+        versionCode 146
+        versionName "3.4.27"
     }
 
     // 独立 keystore（包名与网页版不同，本来就不能互相升级，所以不复用 TWA 那份）

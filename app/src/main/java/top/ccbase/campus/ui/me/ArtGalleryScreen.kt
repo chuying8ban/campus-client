@@ -104,7 +104,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 系统返回键 = 回上一级（用户 2026-10-18："在图库等子页面按返回键要回退到上一级，而不是回桌面"）
     androidx.activity.compose.BackHandler { onClose() }
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
+    // 关键：**不要**用 rememberCoroutineScope（它随页面销毁一起取消）。
+    // 用户明确要求"点关闭后仍然在后台继续下载"，所以这里的 scope 活到进程结束，
+    // 离开图库、甚至切到桌面，下载都会走完并落盘。
+    val scope = remember { kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main.immediate) }
     val portrait = kind == "portrait"
     val orientKey = if (portrait) "portrait" else "landscape"
 
@@ -341,6 +344,14 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 color = C.txt3, fontSize = 10.5.sp,
                 modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
             )
+            // 质量交代（用户 2026-10-19："要在图库里说明主题质量参差不齐，需要自行甄别"）：
+            // 这是第三方素材库，我们不做人工审核，也不该假装每张都好看。
+            Text(
+                "素材来自第三方图库，画质和风格参差不齐，用在桌面前先看一眼；" +
+                    "选中的图只保存在这台手机上。",
+                color = C.txt3, fontSize = 10.sp, lineHeight = 14.5.sp,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 3.dp),
+            )
             }
         }
 
@@ -476,10 +487,15 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                             busyId = item.id
                             // 动态要点下载整段视频（1~10MB），不给一句话用户会以为卡死
                             msg = if (item.animated) {
-                                "正在下载这段动图…选中的是高画质原片，请耐心等几秒"
+                                "正在后台下载这段动图…可以离开这一页，下载不会中断"
                             } else {
                                 null
                             }
+                            MediaNotify.start(
+                                ctx,
+                                if (item.animated) "正在保存动图到本机（关掉 App 也会继续）" else "正在保存图片到本机",
+                                "校园助手 · 素材下载",
+                            )
                             var bad = false
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) {
@@ -547,7 +563,13 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                     }
                                 }
                                 busyId = null
-                                if (ok) onClose() else msg =
+                                if (ok) {
+                                    MediaNotify.done(ctx, if (item.animated) "动图已保存到本机" else "图片已保存")
+                                    onClose()
+                                } else {
+                                    MediaNotify.cancel(ctx)
+                                }
+                                if (ok) Unit else msg =
                                     if (bad) "这段动图没下完整，再点一次试试" else "这张图没下下来，换一张试试"
                             }
                         },
