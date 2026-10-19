@@ -28,6 +28,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -45,6 +50,9 @@ import top.ccbase.campus.ui.theme.overlaySurface
 /** 用例里的抓手（和项目其它页面一致，用 testTag 而不是按文案点） */
 const val FB_INPUT = "fb-input"
 const val FB_SUBMIT = "fb-submit"
+/** 附图入口 / 去掉附图 */
+const val FB_PICK = "fb-pick"
+const val FB_UNPICK = "fb-unpick"
 
 /** 「我提过的」里那条作者回复（有回复才画） */
 const val FB_REPLY = "fb-reply"
@@ -78,6 +86,33 @@ fun FeedbackScreen(
     var mine by remember { mutableStateOf<List<FeedbackItem>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
+    // 附图（2026-10-19 用户：「建议功能增加一个上传图片的功能」）——
+    // 只留**压好的 base64 和一张缩略图**，不持有原图 Bitmap：这页在内存里活很久。
+    var picB64 by remember { mutableStateOf("") }
+    var picThumb by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var picBusy by remember { mutableStateOf(false) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri: android.net.Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        picBusy = true
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val bmp = ImgB64.decode(ctx, uri)
+            if (bmp == null) {
+                picBusy = false
+                bad = true
+                msg = "这张图读不出来，换一张试试"
+                return@launch
+            }
+            val b64 = ImgB64.toBase64(bmp)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                picB64 = b64
+                picThumb = bmp
+                picBusy = false
+            }
+        }
+    }
+
     BackHandler { onClose() }
 
     // 进来先把我提过的拉出来。拉不到**不打断**提建议这件事本身 —— 没历史不影响写。
@@ -101,9 +136,11 @@ fun FeedbackScreen(
         busy = true
         msg = null
         scope.launch {
-            when (val r = api.submitFeedback(token, t, version)) {
+            when (val r = api.submitFeedback(token, t, version, picB64)) {
                 is ApiResult.Ok -> {
                     text = ""
+                    picB64 = ""
+                    picThumb = null
                     bad = false
                     msg = r.value.note.ifBlank { "收到了，谢谢 —— 我会看" }
                     (api.myFeedback(token) as? ApiResult.Ok)?.let { mine = it.value.items }
@@ -159,6 +196,26 @@ fun FeedbackScreen(
                 if (text.length > FB_MAX - 200) {
                     Text("${text.length}/$FB_MAX", color = C.txt3, fontSize = 11.sp)
                 }
+                // 附图入口：一张就够（建议里要的是"你看这个"，不是图集）
+                if (picThumb == null) {
+                    Box(
+                        Modifier.background(C.card, RoundedCornerShape(10.dp))
+                            .clickable(enabled = !busy && !picBusy) {
+                                picker.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                    ),
+                                )
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .testTag(FB_PICK),
+                    ) {
+                        Text(
+                            if (picBusy) "处理中…" else "＋ 加张图",
+                            color = C.txt2, fontSize = 12.sp,
+                        )
+                    }
+                }
                 Spacer(Modifier.weight(1f))
                 val can = text.isNotBlank() && !busy
                 Box(
@@ -173,6 +230,33 @@ fun FeedbackScreen(
                         color = if (can) C.bg else C.txt3,
                         fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
                     )
+                }
+            }
+
+            picThumb?.let { bmp ->
+                Spacer(Modifier.height(9.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "附的图",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(9.dp)),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("已经带上这张图", color = C.txt2, fontSize = 11.5.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "换一张 / 去掉",
+                            color = C.txt3, fontSize = 11.5.sp,
+                            modifier = Modifier.clickable(enabled = !busy) {
+                                picB64 = ""
+                                picThumb = null
+                            }.testTag(FB_UNPICK),
+                        )
+                    }
                 }
             }
 

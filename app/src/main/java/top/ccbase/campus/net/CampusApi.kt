@@ -701,11 +701,14 @@ class CampusApi(
         token: String,
         text: String,
         appVer: String = "",
+        /** base64(jpeg)，已压到 ≤400KB；空串 = 不带图 */
+        image: String = "",
     ): ApiResult<FeedbackAck> {
         val body = JsonObject(
             mapOf(
                 "text" to JsonPrimitive(text),
                 "app_ver" to JsonPrimitive(appVer),
+                "image" to JsonPrimitive(image),
             ),
         ).toString()
         return when (val r = call("POST", "/api/v2/feedback", token = token, payload = body)) {

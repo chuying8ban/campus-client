@@ -37,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -186,6 +187,9 @@ class PageGate {
 }
 
 @SuppressLint("SetJavaScriptEnabled")
+/** 用例抓手：主/备登录入口切换 */
+const val SWITCH_ENTRY = "school-switch-entry"
+
 @Composable
 fun SchoolWebLogin(
     onTimetableJson: (String) -> Unit,
@@ -212,6 +216,8 @@ fun SchoolWebLogin(
     var softwareRender by remember { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
     var readError by remember { mutableStateOf<String?>(null) }
+    // 主入口 = 融合门户统一身份认证；备用 = 教务直登（2026-10-19 用户拍板）
+    var useBackup by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pageGate = remember { PageGate() }
 
@@ -342,7 +348,11 @@ fun SchoolWebLogin(
                                 return true
                             }
                         }
-                        loadUrl(profile.origin + if (SchoolSession.remembered(ctx,profile)) profile.timetablePath else profile.loginPath)
+                        loadUrl(
+                            if (SchoolSession.remembered(ctx, profile)) profile.origin + profile.timetablePath
+                            else if (useBackup) profile.backupLoginUrl
+                            else profile.loginUrl
+                        )
                     }
                 },
                 update = {},
@@ -434,8 +444,29 @@ fun SchoolWebLogin(
                 }
             }
             Spacer(Modifier.height(10.dp))
+            // 主/备切换（2026-10-19）：默认走融合门户的统一身份认证；
+            // 门户抽风或 CAS 改版时，一键切回教务直登，不用等发版。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (useBackup) "现在走的是教务直登（备用入口）" else "现在走的是融合门户统一身份认证",
+                    fontSize = 11.5.sp, color = C.txt3, modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (useBackup) "改用融合门户" else "改用教务直登",
+                    fontSize = 11.5.sp, color = C.cyan,
+                    modifier = Modifier
+                        .testTag(SWITCH_ENTRY)
+                        .clickable {
+                            useBackup = !useBackup
+                            webView?.loadUrl(if (useBackup) profile.backupLoginUrl else profile.loginUrl)
+                            step = ""
+                        }
+                        .padding(start = 10.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             Text(
-                "只打开 ${profile.origin}。密码在学校的登录页里输入，App 不读取、不保存。",
+                "只打开 ${profile.origin} 与统一身份认证（cas.cupk.edu.cn）。密码在学校的登录页里输入，App 不读取、不保存。",
                 fontSize = 13.sp, lineHeight = 19.sp, color = C.txt2,
             )
         }
@@ -516,6 +547,31 @@ private fun configureSecureWebView(
                 view.evaluateJavascript(fix, null)
                 view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 1000)
                 view.postDelayed({ if (profile.allows(view.url.orEmpty()) && android.net.Uri.parse(view.url).path == "/student/login") view.evaluateJavascript(fix, null) }, 4000)
+            }
+            // 统一身份认证（CAS）登录页：填账号密码，**不自动提交**（有验证码）。
+            // 口令仍然只从本机 Keystore 密文里取，跨到 cas 这个 origin 填也是用户勾了"记住密码"才发生。
+            if (profile.allows(url) && runCatching { java.net.URI(url).host }.getOrNull()
+                    ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
+            ) {
+                val cred = CredentialVault.load(view.context)
+                if (cred != null) {
+                    val js = CredentialVault.ssoAutofillJs(cred.first, cred.second)
+                    listOf(600L, 1800L, 4200L).forEach { at ->
+                        view.postDelayed({
+                            if (runCatching { java.net.URI(view.url.orEmpty()).host }.getOrNull()
+                                    ?.equals("cas.cupk.edu.cn", ignoreCase = true) != true
+                            ) return@postDelayed
+                            view.evaluateJavascript(js) { r ->
+                                when {
+                                    r?.contains("filled-need-captcha") == true ->
+                                        onDiagnostic("已填好账号密码，请输入验证码")
+                                    r?.contains("clicked") == true ->
+                                        onDiagnostic("已用记住的账号自动登录")
+                                }
+                            }
+                        }, at)
+                    }
+                }
             }
             // 记住账号密码的用户：会话过期落到登录页时自动填表并提交。
             // 默认没有存凭据，这里就什么都不做（行为和以前一样）。

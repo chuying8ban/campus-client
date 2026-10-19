@@ -86,6 +86,41 @@ object CredentialVault {
      * `HTMLInputElement.prototype` 的原生 setter 写值 —— 直接 `el.value = x` 不会触发 Vue 的
      * 双向绑定，点登录时提交的仍然是空串（这是这类自动填充最常见的坑）。
      */
+    /**
+     * 统一身份认证（CAS）登录页的自动填充（2026-10-19 融合门户改造）。
+     *
+     * 与教务直登的区别只有两点，但都很要紧：
+     *  ① CAS 页有**稳定 id**（`#username` / `#password`），不用按 placeholder 猜；
+     *  ② CAS **强制验证码**（`enableCaptcha=Y`）—— 所以**绝不自动提交**，
+     *    填完就把光标送进验证码框。自动点「登录」只会被驳回，还会白攒失败次数。
+     */
+    fun ssoAutofillJs(user: String, pass: String): String {
+        fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'")
+            .replace("\n", "\\n").replace("\r", "\\r")
+        return """
+        (function(){
+          try {
+            var U = '${esc(user)}', P = '${esc(pass)}';
+            var u = document.getElementById('username') || document.querySelector('input[name=username]');
+            var p = document.getElementById('password') || document.querySelector('input[name=password]');
+            if (!u || !p) return 'noform';
+            var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
+            set.call(u, U); u.dispatchEvent(new Event('input',{bubbles:true}));
+            u.dispatchEvent(new Event('change',{bubbles:true}));
+            set.call(p, P); p.dispatchEvent(new Event('input',{bubbles:true}));
+            p.dispatchEvent(new Event('change',{bubbles:true}));
+            var c = document.getElementById('captcha');
+            if (c) { c.focus(); return 'filled-need-captcha'; }
+            // 没验证码框（学校偶尔关掉）才允许提交
+            var btns = Array.prototype.slice.call(document.querySelectorAll('button,input[type=submit]'));
+            var b = btns.filter(function(e){ return /登\s*录|login/i.test(e.innerText||e.value||''); })[0];
+            if (b) { b.click(); return 'clicked'; }
+            return 'filled';
+          } catch (e) { return 'err:' + e.message; }
+        })()
+        """.trimIndent()
+    }
+
     fun autofillJs(user: String, pass: String): String {
         fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'")
             .replace("\n", "\\n").replace("\r", "\\r")

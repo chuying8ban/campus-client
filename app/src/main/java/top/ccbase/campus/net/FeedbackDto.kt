@@ -29,6 +29,8 @@ data class FeedbackItem(
     @SerialName("replied_at") val repliedAt: String = "",
     /** reply 非空 —— 服务端算好，省得各端各写一遍判空 */
     val replied: Boolean = false,
+    /** 我提建议时附的图（base64 jpeg，2026-10-19 用户要的「上传图片」）。没图是空串。 */
+    val image: String = "",
 )
 
 @Serializable
