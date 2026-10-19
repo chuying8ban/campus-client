@@ -60,13 +60,20 @@ object WidgetFrames {
     // 只留一份：一屏小组件只会用一种 spec，存 4 份等于白占 4 倍内存
     private val cache = LruCache<String, List<Bitmap>>(1)
 
+    /** 换了播放速度/尺寸就得重做：帧是按旧"时间轴"画的，缓存里那批会跟不上 */
+    fun clear() {
+        cache.evictAll()
+    }
+
     /** 按 spec 生成 [FRAMES] 帧；返回 null = 不是动态 spec（调用方走静态分支）。 */
-    fun forSpec(ctx: Context, spec: String, wPx: Int, hPx: Int): List<Bitmap>? {
+    fun forSpec(ctx: Context, spec: String, wPx: Int, hPx: Int, speed: Float = 1f): List<Bitmap>? {
         WidgetDyn.parse(spec)?.let { (kind, accent) ->
-            val key = "p|${kind.id}|$accent|$wPx|$hPx"
+            val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed"
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return render(ctx, key, wPx, hPx) { c, fw, fh, t ->
+            return render(ctx, key, wPx, hPx) { c, fw, fh, t0 ->
+                // 播放速度：把"时间轴"走快/走慢，不是简单抽帧 —— 慢放时粒子真的更慢
+                val t = t0 / speed.coerceAtLeast(0.2f)
                 DynPainter.frame(c, kind, t, fw.toFloat(), fh.toFloat(), accent)
             }
         }
@@ -74,12 +81,12 @@ object WidgetFrames {
             val file = WidgetThemes.userImageFile(ctx)
             if (!file.exists()) return null
             val src = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
-            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx"
+            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx|s$speed"
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
-            return render(ctx, key, wPx, hPx) { c, fw, fh, t ->
-                drawCinemagraph(c, src, effect, t, fw.toFloat(), fh.toFloat(), accent)
+            return render(ctx, key, wPx, hPx) { c, fw, fh, t0 ->
+                drawCinemagraph(c, src, effect, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
             }
         }
         // 用户自己传的 gif / 视频（2026-10-18）：桌面放不了视频，就抽 12 帧轮播。

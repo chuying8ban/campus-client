@@ -37,7 +37,14 @@ object DynPainter {
         BOKEH("bokeh", "光斑", "散景 光斑 虚化 暖 夜景"),
         NEBULA("nebula", "星云", "星云 宇宙 云雾 浩瀚"),
         BUBBLES("bubbles", "气泡", "气泡 上升 水 清透 蓝"),
-        MATRIX("matrix", "流码", "代码 数字雨 黑客 赛博 流动");
+        MATRIX("matrix", "流码", "代码 数字雨 黑客 赛博 流动"),
+
+        // 2026-10-19 用户："我希望小控件主题以及app主题里更多的是缓动的主题，
+        // 类似于 wallpaper 里面的那些壁纸" —— 前面那些（落樱/飘雪/流码）是"贴纸在动"，
+        // 这几支走的是整屏缓缓流动那一挂，几乎不闪、久看不烦。
+        SILK("silk", "绫罗", "丝带 流动 柔和 渐变 极简"),
+        DUSK("dusk", "暮色", "天幕 渐变 呼吸 黄昏 安静"),
+        RIPPLES("ripples", "涟漪", "水波 圆环 扩散 平静 湖面");
 
         companion object {
             fun of(id: String): Kind? = entries.firstOrNull { it.id == id }
@@ -210,6 +217,58 @@ object DynPainter {
                     paint.color = withAlpha(0xFFE8FFC8.toInt(), a)
                     c.drawCircle(x, y, 1.8f, paint)
                 }
+            }
+
+            // ── 缓动三支（2026-10-19）────────────────────────────────────
+            // 共同点：周期 20~40 秒、只用柔光、没有硬边、没有闪烁。
+            // 参照的是"动态壁纸"那种整屏在呼吸的感觉，而不是往画面上撒东西。
+            Kind.SILK -> {
+                fillVertical(
+                    0f to base,
+                    0.45f to mix(base, accent, 0.14f),
+                    1f to mix(base, 0xFF05040A.toInt(), 0.5f),
+                )
+                // 四条丝带：相位错开，横向缓慢蛇行
+                for (i in 0 until 4) {
+                    val ph = i * 1.7f
+                    val y = h * (0.22f + i * 0.19f) + h * 0.06f * sin(t * 0.12f + ph)
+                    val x = w * (0.5f + 0.30f * sin(t * 0.08f + ph * 1.3f))
+                    glow(x, y, w * 0.62f, mix(accent, 0xFFF3E7FF.toInt(), 0.25f + i * 0.12f), 0.16f)
+                    glow(w - x, h - y, w * 0.5f, mix(accent, 0xFF9BE7FF.toInt(), 0.3f), 0.10f)
+                }
+            }
+
+            Kind.DUSK -> {
+                fillVertical(
+                    0f to mix(base, 0xFF120B1E.toInt(), 0.55f),
+                    0.62f to mix(base, accent, 0.26f),
+                    1f to mix(base, 0xFF03020A.toInt(), 0.45f),
+                )
+                // 地平线一团慢光，30 秒一呼一吸
+                val breathe = 0.5f + 0.5f * sin(t * (2f * PI.toFloat() / 30f))
+                glow(w * 0.5f, h * (0.60f + 0.03f * breathe), w * (0.55f + 0.08f * breathe),
+                    mix(accent, 0xFFFFC98A.toInt(), 0.45f), 0.16f + 0.10f * breathe)
+                // 高空一层很淡的冷色，压住整屏不让它发灰
+                glow(w * 0.25f, h * 0.18f, w * 0.5f, mix(accent, 0xFF8FA8FF.toInt(), 0.4f), 0.08f)
+            }
+
+            Kind.RIPPLES -> {
+                fillVertical(0f to mix(base, 0xFF061018.toInt(), 0.4f), 1f to base)
+                // 同心圆一圈圈推开，各自 24 秒一个周期、错开起跑
+                paint.style = Paint.Style.STROKE
+                val cx = w * (0.5f + 0.04f * sin(t * 0.05f))
+                val cy = h * (0.55f + 0.03f * cos(t * 0.04f))
+                for (i in 0 until 6) {
+                    val phase = ((t / 24f + i / 6f) % 1f)
+                    val r = (0.08f + phase * 0.75f) * Math.max(w, h)
+                    val a = (1f - phase) * 0.16f
+                    paint.strokeWidth = Math.max(1.2f, h * 0.0045f)
+                    paint.color = withAlpha(mix(accent, 0xFFA8E6FF.toInt(), 0.35f), a)
+                    rect.set(cx - r, cy - r, cx + r, cy + r)
+                    c.drawOval(rect, paint)
+                }
+                paint.style = Paint.Style.FILL
+                glow(cx, cy, w * 0.35f, mix(accent, 0xFFBFE9FF.toInt(), 0.4f), 0.10f)
             }
 
             Kind.WAVES -> {

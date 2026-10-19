@@ -60,6 +60,9 @@ object SilentUpdate {
         }
     }
 
+    /** 已下好那一版的 versionCode（没有就 0）。用来和当前安装版比大小、以及"只弹一次"去重。 */
+    fun readyCode(ctx: Context): Int = sp(ctx).getInt(K_READY_CODE, 0)
+
     fun readyVersion(ctx: Context): String? {
         val code = sp(ctx).getInt(K_READY_CODE, 0)
         if (code <= 0 || readyApk(ctx) == null) return null

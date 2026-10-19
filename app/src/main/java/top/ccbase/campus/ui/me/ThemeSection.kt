@@ -49,6 +49,7 @@ import top.ccbase.campus.ui.theme.AccentSpec
 import top.ccbase.campus.ui.theme.AppearanceStore
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.Digits
+import top.ccbase.campus.ui.theme.TextTint
 import top.ccbase.campus.ui.theme.palette
 import top.ccbase.campus.ui.theme.paletteWithAccent
 import androidx.compose.foundation.Image
@@ -577,6 +578,55 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     )
     Spacer(Modifier.height(14.dp))
 
+    // ---- 文字颜色（2026-10-19 用户："要支持更改app内和小控件的文字颜色，
+    //      把更改文字颜色的控件放在预览旁边"）----
+    // 放在预览正下方、透明度上面：这两个都是"同一张卡上的观感"，挨着改最顺手。
+    // 它同时管 App 正文和小组件文字 —— 只挑一个，省得两边打架。
+    Spacer(Modifier.height(14.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("文字颜色", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
+        Text(
+            TextTint.options.firstOrNull { it.first == TextTint.state.value }?.second ?: "默认",
+            fontSize = 11.sp, color = C.violet,
+        )
+    }
+    Spacer(Modifier.height(6.dp))
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextTint.options.forEach { (hex, name) ->
+            val picked = TextTint.state.value == hex
+            val swatch = TextTint.parse(hex) ?: C.txt
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(swatch)
+                        .border(
+                            if (picked) 2.dp else 1.dp,
+                            if (picked) C.violet else C.line,
+                            CircleShape,
+                        )
+                        .clickable {
+                            TextTint.set(ctx, hex)
+                            pvKey++                     // 预览立刻重画
+                            TodayWidgetProvider.refresh(ctx)  // 桌面跟着换
+                        },
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    name,
+                    fontSize = 9.sp,
+                    color = if (picked) C.violet else C.txt3,
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+
     // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----
     // 把所有主题通用的一个滑块放在"动效"之后、"配色"之前：
     // 它管的是"这张卡有多透"，和选哪张图、哪个配色都无关。
@@ -598,6 +648,32 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         valueRange = 0.35f..1f,
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
     )
+
+    // ---- 播放速度（2026-10-19 用户："小控件要支持更改播放速度"）----
+    Spacer(Modifier.height(10.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("播放速度", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(0.5f to "慢", 0.75f to "稍慢", 1f to "正常", 1.5f to "稍快", 2f to "快").forEach { (v, name) ->
+                val on = kotlin.math.abs(WidgetThemes.speed(ctx) - v) < 0.01f
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (on) C.violet.copy(alpha = 0.20f) else C.card)
+                        .border(1.dp, if (on) C.violet.copy(alpha = 0.55f) else C.line, RoundedCornerShape(12.dp))
+                        .clickable {
+                            WidgetThemes.setSpeed(ctx, v)
+                            WidgetFrames.clear()             // 帧按旧速度渲染的，得重做
+                            pvKey++
+                            TodayWidgetProvider.refresh(ctx)
+                        }
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
+                ) {
+                    Text(name, color = if (on) C.violet else C.txt2, fontSize = 10.sp)
+                }
+            }
+        }
+    }
     Text(
         if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
         else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",

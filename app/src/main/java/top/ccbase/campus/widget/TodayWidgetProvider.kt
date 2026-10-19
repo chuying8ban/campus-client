@@ -18,6 +18,7 @@ import top.ccbase.campus.MainActivity
 import top.ccbase.campus.R
 import top.ccbase.campus.domain.loadToday
 import top.ccbase.campus.domain.toPlanNow
+import top.ccbase.campus.ui.theme.TextTint
 
 /**
  * 桌面「今日课表」小组件。
@@ -168,7 +169,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
 
             // 动态主题：12 帧灌进布局里的 ViewFlipper（它自己按 flipInterval 翻，不需要 Service）。
             // 拿不到帧（没选图 / 解码失败）就退回静态分支 —— 绝不能整张卡 blank。
-            val frames = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx) }.getOrNull()
+            val speed = runCatching { WidgetThemes.speed(ctx) }.getOrDefault(1f)
+            val frames = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
             val dyn = frames != null
             if (frames != null) {
                 rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
@@ -190,8 +192,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // ViewAnimator.setDisplayedChild(int) 是允许的，用它把帧定在某一帧上。
                 // 桌面自己不会翻页（翻页必须靠 Service 或反复 updateAppWidget），
                 // 这里按时间挑帧：每次刷新/重绘看到的是不同一帧，至少不是死图。
-                val idx = ((System.currentTimeMillis() / (WidgetFrames.STEP_SEC * 1000).toLong()) %
-                    frames.size).toInt()
+                // 播放速度：帧序列不变，只是"多久轮到下一帧"按 speed 缩放
+                val stepMs = ((WidgetFrames.STEP_SEC * 1000) / speed.coerceAtLeast(0.2f)).toLong()
+                    .coerceAtLeast(60L)
+                val idx = ((System.currentTimeMillis() / stepMs) % frames.size).toInt()
                 runCatching { rv.setInt(R.id.widget_flip, "setDisplayedChild", idx) }
             } else {
                 rv.setViewVisibility(R.id.widget_flip, View.GONE)
@@ -213,15 +217,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 rv.setViewVisibility(R.id.widget_scrim, View.GONE)
             }
 
+            // 文字颜色跟 App 同源（用户在「外观」里挑的那支）。
+            // 只动字的颜色，底色/强调色不跟着变 —— 那会变成另一套主题。
+            val tint = TextTint.currentArgb()
+            val headC = TextTint.apply(tint, theme.headColor, theme.bgColor, 0)
+            val bodyC = TextTint.apply(tint, theme.bodyColor, theme.bgColor, 1)
+            val dimC = TextTint.apply(tint, theme.dimColor, theme.bgColor, 2)
             rv.setTextColor(R.id.widget_status, theme.accentColor)
-            rv.setTextColor(R.id.widget_head, theme.headColor)
-            rv.setTextColor(R.id.widget_date, theme.dimColor)
-            rv.setTextColor(R.id.widget_week, theme.dimColor)
-            rv.setTextColor(R.id.widget_meta, theme.bodyColor)
-            rv.setTextColor(R.id.widget_row1, theme.bodyColor)
-            rv.setTextColor(R.id.widget_row2, theme.bodyColor)
-            rv.setTextColor(R.id.widget_row3, theme.bodyColor)
-            rv.setTextColor(R.id.widget_foot, theme.dimColor)
+            rv.setTextColor(R.id.widget_head, headC)
+            rv.setTextColor(R.id.widget_date, dimC)
+            rv.setTextColor(R.id.widget_week, dimC)
+            rv.setTextColor(R.id.widget_meta, bodyC)
+            rv.setTextColor(R.id.widget_row1, bodyC)
+            rv.setTextColor(R.id.widget_row2, bodyC)
+            rv.setTextColor(R.id.widget_row3, bodyC)
+            rv.setTextColor(R.id.widget_foot, dimC)
         }
 
         /**

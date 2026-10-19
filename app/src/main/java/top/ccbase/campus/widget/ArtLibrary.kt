@@ -151,10 +151,18 @@ object ArtRepo {
     /**
      * @param animOnly 图库里的「动图」板块：只要会动的（服务端 `anim=1`，不再混静态）
      */
-    fun searchLive(q: String, page: Int, orient: String, limit: Int = 100, animOnly: Boolean = false): LivePage {
+    fun searchLive(
+        q: String,
+        page: Int,
+        orient: String,
+        limit: Int = 100,
+        animOnly: Boolean = false,
+        sort: String = "time",
+    ): LivePage {
         val enc = java.net.URLEncoder.encode(q, "UTF-8")
         val extra = if (animOnly) "&anim=1" else ""
-        val url = "$BASE/api/art/search?q=$enc&page=$page&orient=$orient&limit=$limit$extra"
+        // sort：time（最新，图源默认）/ hot（score 最高）/ score（点赞密度，score÷天数）
+        val url = "$BASE/api/art/search?q=$enc&page=$page&orient=$orient&limit=$limit$extra&sort=$sort"
         val reply = Net.dial.call("GET", url, mapOf("Accept" to "application/json"), null)
         if (reply.code != 200) throw IllegalStateException("搜索 HTTP ${reply.code}")
         val root = JSONObject(reply.text)
@@ -198,6 +206,57 @@ object ArtRepo {
      * 原始字节（动图/视频用）。静态图仍走 [full] 解码，动态必须保字节 —— 解码成 Bitmap 就只剩一帧。
      */
     fun bytes(item: ArtItem): ByteArray? = downloadBytes(item.url)
+
+    /**
+     * 带进度的原始字节（2026-10-19 用户："在图库页面里也要给下载进度"）。
+     *
+     * 先 HEAD 问一次 `Content-Length`：动图是 1~10MB，没有总量就只能干转圈，
+     * 用户分不清"在下"还是"卡死"。拿不到总量时 pct 回 -1，界面改显示已下载多少 MB。
+     */
+    fun bytes(item: ArtItem, onProgress: (now: Long, total: Long) -> Unit): ByteArray? {
+        val total = runCatching { contentLength(item.url) }.getOrDefault(0L)
+        onProgress(0L, total)
+        val buf = java.io.ByteArrayOutputStream()
+        val ok = runCatching {
+            Net.dial.stream(item.url) { chunk, n, sofar ->
+                buf.write(chunk, 0, n)
+                onProgress(sofar, total)
+            } > 0
+        }.getOrDefault(false)
+        if (ok) return buf.toByteArray()
+        // 退路：普通 HttpURLConnection（同 downloadBytes 的第二条路），顺手报进度
+        return runCatching {
+            val c = java.net.URL(item.url).openConnection() as java.net.HttpURLConnection
+            c.connectTimeout = 15_000
+            c.readTimeout = 60_000
+            c.setRequestProperty("Accept", "*/*")
+            try {
+                if (c.responseCode !in 200..299) return@runCatching null
+                val len = c.contentLengthLong.takeIf { it > 0 } ?: total
+                val b = ByteArray(64 * 1024)
+                var got = 0L
+                c.inputStream.use { ins ->
+                    while (true) {
+                        val n = ins.read(b)
+                        if (n <= 0) break
+                        buf.write(b, 0, n)
+                        got += n
+                        onProgress(got, len)
+                    }
+                }
+                buf.toByteArray()
+            } finally {
+                c.disconnect()
+            }
+        }.getOrNull()
+    }
+
+    private fun contentLength(url: String): Long {
+        val r = Net.dial.call("HEAD", url, mapOf("Accept" to "*/*"), null)
+        if (r.code !in 200..399) return 0
+        val v = r.headers.entries.firstOrNull { it.key.equals("content-length", true) }?.value
+        return v?.trim()?.toLongOrNull() ?: 0
+    }
 
     /** 整张图。调用方负责压缩并落盘（见 WidgetThemes.saveUserImage）。 */
     fun full(item: ArtItem): Bitmap? {

@@ -55,6 +55,9 @@ val DynKind.hint: String
         DynKind.NEBULA -> "慢慢翻涌的星云"
         DynKind.BUBBLES -> "气泡往上升"
         DynKind.MATRIX -> "往下掉的绿字流"
+        DynKind.SILK -> "丝带一样慢慢流动"
+        DynKind.DUSK -> "暮色在天边呼吸"
+        DynKind.RIPPLES -> "一圈圈推开的水波"
     }
 
 /** 动态背景的 id 前缀，和 `preset:` / `photo` / `solid` 并列存在 bgChoice 里 */

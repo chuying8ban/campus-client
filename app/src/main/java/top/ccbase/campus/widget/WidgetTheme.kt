@@ -120,6 +120,22 @@ object WidgetThemes {
         prefs(ctx).edit().putFloat(K_ALPHA, v.coerceIn(0.35f, 1f)).apply()
     }
 
+    private const val K_SPEED = "play_speed"
+
+    /**
+     * 小组件动态主题的播放速度（2026-10-19 用户："小控件要支持更改播放速度"）。
+     *
+     * 0.5 = 慢、1 = 正常、2 = 快。桌面不会自己翻帧（RemoteViews 没有动画），
+     * 帧是按"墙钟时间"挑的 —— 这里改的就是那根时间轴走多快，
+     * 所以慢速和快速都真的动，只是推进速度不同。
+     */
+    fun speed(ctx: Context): Float =
+        prefs(ctx).getFloat(K_SPEED, 1f).coerceIn(0.35f, 3f)
+
+    fun setSpeed(ctx: Context, v: Float) {
+        prefs(ctx).edit().putFloat(K_SPEED, v.coerceIn(0.35f, 3f)).apply()
+    }
+
     fun apply(ctx: Context, spec: String): String? {
         val theme = of(spec)
         if (theme.hasImage && imageBitmap(ctx, theme) == null) {

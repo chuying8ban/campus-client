@@ -81,9 +81,15 @@ object WidgetArt {
      *
      * 注意：这个值只对"画布的圆角"有意义；图片主题/动态帧是**位图**，必须再走 [rounded]。
      */
+    /**
+     * 圆角半径（2026-10-19 用户："这个圆角太离谱了，适当圆角就行了，只要不是完全的矩形就行"）。
+     *
+     * 原来按卡片高度的 20% 算、最低 22dp —— 一块 4×2 的卡上等于半个胶囊，看着像药丸。
+     * 现在按**短边 12%** 取，并夹在 12~24dp：既不是直角矩形，也不会把卡片啃圆。
+     */
     fun radiusFor(h: Int, density: Float): Float {
-        val byHeight = h * 0.20f
-        return byHeight.coerceIn(22f * density, 46f * density)
+        val byHeight = h * 0.12f
+        return byHeight.coerceIn(12f * density, 24f * density)
     }
 
     /**

@@ -36,7 +36,8 @@ class WidgetRoundTest {
     fun `圆角位图的四角必须是透明的`() {
         val src = solid(400, 200)
         val radius = WidgetArt.radiusFor(200, 1f)
-        assertTrue("半径要在 22~46 之间（按短边 20%）", radius in 22f..46f)
+        // 2026-10-19 用户："这个圆角太离谱了，适当圆角就行了" → 改成短边 12%，夹在 12~24dp
+        assertTrue("半径要在 12~24dp 之间（按短边 12%）", radius in 12f..24f)
         val out = WidgetArt.rounded(src, radius)
 
         assertEquals("左上角", 0, Color.alpha(out.getPixel(0, 0)))
@@ -57,11 +58,12 @@ class WidgetRoundTest {
     }
 
     @Test
-    fun `radiusFor 在常见卡片高度上都给出明显的圆角`() {
-        // 4x2 卡片实际像素高度约 320~520（xhdpi~xxhdpi）
+    fun `radiusFor 在常见卡片高度上都给出适当的圆角`() {
+        // 4x2 卡片实际像素高度约 320~520（xhdpi~xxhdpi），density 3 → 36~72px
         listOf(280, 360, 480, 620).forEach { h ->
             val r = WidgetArt.radiusFor(h, 3f)
-            assertTrue("h=$h 的圆角 $r 太小，桌面上会看着是直角", r >= 66f)
+            assertTrue("h=$h 的圆角 $r 太小，桌面上会看着是直角", r >= 30f)
+            assertTrue("h=$h 的圆角 $r 太大，会变成胶囊", r <= 72f)
         }
     }
 

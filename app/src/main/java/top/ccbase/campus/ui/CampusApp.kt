@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
@@ -266,12 +267,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     if (pct != lastPct) {
                         lastPct = pct
                         UpdateNotify.progress(appCtx, m.versionName, pct)   // 状态栏那条常驻通知
-                        scope.launch { update = UpdateUi.Progress(m, p) }
+                        // 用户点了「隐藏」就**不要再把浮条写回来**（双保险：渲染那边也拦住）
+                        scope.launch { if (!barHidden) update = UpdateUi.Progress(m, p) }
                     }
                 }, onState = { st ->
                     // 断流重试 / 停滞断开这类"正在发生的事"要立刻反映到界面上：
                     // 退避等待时不刷新的话，用户看到的就是一条不动的进度条（等于静默）
-                    scope.launch { update = UpdateUi.Progress(m, st.fraction, st) }
+                    scope.launch { if (!barHidden) update = UpdateUi.Progress(m, st.fraction, st) }
                 })
             }
             UpdateNotify.clearProgress(appCtx)
@@ -675,6 +677,176 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 )
             }
         }
+    }
+
+    // 图库素材还在下（用户 2026-10-19："离开图库后如果有正在下载的图要在上面放一个弹窗
+    // 提示正在下载以及下载进度"）。这里读的是全局 MediaJob —— 下载协程活在页面之外，
+    // 所以退出图库、切到别的页，这条照样在走。
+    val dlId = top.ccbase.campus.ui.me.MediaJob.id.value
+    if (dlId != null) {
+        val pct = top.ccbase.campus.ui.me.MediaJob.pct.value
+        val now = top.ccbase.campus.ui.me.MediaJob.bytes.value
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(C.bgSoft)
+                .border(1.dp, C.line, RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("正在下载素材", color = C.txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        top.ccbase.campus.ui.me.MediaJob.label.value,
+                        color = C.txt3, fontSize = 11.sp, modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                    )
+                    Text(
+                        if (pct >= 0) "$pct%"
+                        else top.ccbase.campus.ui.me.MediaJob.humanBytes(now),
+                        color = C.violet, fontSize = 11.sp,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                if (pct >= 0) {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { pct / 100f },
+                        color = C.violet,
+                        trackColor = C.line,
+                        modifier = Modifier.fillMaxWidth().height(3.dp),
+                    )
+                } else {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        color = C.violet,
+                        trackColor = C.line,
+                        modifier = Modifier.fillMaxWidth().height(3.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    // 静默下好了 → 弹一次窗（2026-10-19 用户："静默更新时加一个弹窗提示用户已在后台静默更新"）。
+    // 只弹一次（按 versionCode 去重），也不拦人：不装照样能用。
+    var silentReadyCode by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        val rc = top.ccbase.campus.update.SilentUpdate.readyCode(appCtx)
+        if (rc > top.ccbase.campus.BuildConfig.VERSION_CODE &&
+            UpdatePrefs.silentPrompted(appCtx) != rc &&
+            top.ccbase.campus.update.SilentUpdate.readyApk(appCtx) != null
+        ) {
+            UpdatePrefs.markSilentPrompted(appCtx, rc)
+            silentReadyCode = rc
+        }
+    }
+    if (silentReadyCode > 0) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { silentReadyCode = 0 },
+            title = { Text("新版本已在后台下好", color = C.txt, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Text(
+                    "v${top.ccbase.campus.update.SilentUpdate.readyVersion(appCtx) ?: silentReadyCode.toString()} " +
+                        "已经在你没注意的时候下完了。点「立即安装」装好；不装也不影响现在用。",
+                    color = C.txt2, fontSize = 13.sp,
+                )
+            },
+            confirmButton = {
+                Text(
+                    "立即安装",
+                    color = C.violet, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable {
+                        top.ccbase.campus.update.SilentUpdate.installReady(appCtx)
+                        silentReadyCode = 0
+                    }.padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            },
+            dismissButton = {
+                Text(
+                    "稍后",
+                    color = C.txt3, fontSize = 13.sp,
+                    modifier = Modifier.clickable { silentReadyCode = 0 }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            },
+            containerColor = C.bgSoft,
+        )
+    }
+
+    // 公告（2026-10-19 用户："给app加一个通知（或者叫公告）通道…支持链接，图片"）。
+    // 每次进 App 拉一次服务端的公告列表，没看过的最新一条弹一次，看过就记 id。
+    var notice by remember { mutableStateOf<top.ccbase.campus.notice.Notice?>(null) }
+    var noticeImg by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(Unit) {
+        val n = withContext(Dispatchers.IO) { top.ccbase.campus.notice.NoticeRepo.firstUnseen(appCtx) }
+        if (n != null) {
+            notice = n
+            if (n.image.isNotBlank()) {
+                noticeImg = withContext(Dispatchers.IO) { top.ccbase.campus.notice.NoticeRepo.image(n.image) }
+            }
+        }
+    }
+    notice?.let { n ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                top.ccbase.campus.notice.NoticeRepo.markSeen(appCtx, n.id)
+                notice = null
+            },
+            title = { Text(n.title, color = C.txt, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column {
+                    noticeImg?.let { bmp ->
+                        androidx.compose.foundation.Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(150.dp)
+                                .clip(RoundedCornerShape(10.dp)),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    if (n.body.isNotBlank()) {
+                        Text(n.body, color = C.txt2, fontSize = 13.sp, lineHeight = 20.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Row {
+                    if (n.link.isNotBlank()) {
+                        Text(
+                            "打开链接",
+                            color = C.violet, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable {
+                                runCatching {
+                                    appCtx.startActivity(
+                                        android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse(n.link),
+                                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                                top.ccbase.campus.notice.NoticeRepo.markSeen(appCtx, n.id)
+                                notice = null
+                            }.padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
+                    Text(
+                        "知道了",
+                        color = C.txt3, fontSize = 13.sp,
+                        modifier = Modifier.clickable {
+                            top.ccbase.campus.notice.NoticeRepo.markSeen(appCtx, n.id)
+                            notice = null
+                        }.padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            },
+            containerColor = C.bgSoft,
+        )
     }
 
     // 更新说明：装完新版第一次进 App 直接弹（用户 2026-10-19："新版本内容通知要在 app 内出现"）

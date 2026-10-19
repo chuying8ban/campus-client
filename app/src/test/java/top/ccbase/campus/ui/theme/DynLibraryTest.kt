@@ -16,8 +16,9 @@ class DynLibraryTest {
 
     @Test
     fun `库里有足够多的动态主题`() {
-        assertEquals("12 种动效", 12, DynPainter.Kind.entries.size)
-        assertEquals("12 动效 × 6 色系 = 72 款", 72, DYN_PRESETS.size)
+        // 2026-10-19 新增三支缓动的（绫罗/暮色/涟漪）→ 15 种
+        assertEquals("15 种动效", 15, DynPainter.Kind.entries.size)
+        assertEquals("动效数 × 色系", DynPainter.Kind.entries.size * 6, DYN_PRESETS.size)
         assertEquals("每款 id 唯一", DYN_PRESETS.size, DYN_PRESETS.map { it.id }.toSet().size)
     }
 

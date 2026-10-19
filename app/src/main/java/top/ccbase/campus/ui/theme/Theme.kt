@@ -190,9 +190,22 @@ object C {
     val lineHi: Color get() = paletteState.value.lineHi
 
     // 字（三级层次）
-    val txt: Color get() = paletteState.value.txt
-    val txt2: Color get() = paletteState.value.txt2
-    val txt3: Color get() = paletteState.value.txt3
+    //
+    // 2026-10-19：用户可以自己挑文字颜色（`TextTint`），所以三级字不再直接回色板值，
+    // 而是"色板值 → 用他挑的那支颜色按层级退到底色里"。没挑（AUTO）就是原样。
+    private fun tinted(base: Color, level: Int): Color {
+        val t = TextTint.current() ?: return base
+        val bg = paletteState.value.bg
+        return when (level) {
+            0 -> TextTint.head(t, base, bg)
+            1 -> TextTint.body(t, base, bg)
+            else -> TextTint.dim(t, base, bg)
+        }
+    }
+
+    val txt: Color get() = tinted(paletteState.value.txt, 0)
+    val txt2: Color get() = tinted(paletteState.value.txt2, 1)
+    val txt3: Color get() = tinted(paletteState.value.txt3, 2)
 
     // 语义色（状态档位：绿 / 琥珀 / 红）
     val violet: Color get() = paletteState.value.violet
@@ -532,6 +545,7 @@ object AppearanceStore {
         background.value = backgroundOf(ctx)
         accent.value = accentOf(ctx)
         bgAlpha.value = bgAlphaOf(ctx)
+        TextTint.state.value = TextTint.read(ctx)
     }
 
     // 默认 50%（2026-10-18 用户："图片浓淡默认改成百分之五十"）：满图的字太糊，太淡又白设了
@@ -601,7 +615,7 @@ object AppearanceStore {
         else -> "深色"
     }
 
-    private fun prefs(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    internal fun prefs(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 }
 
 /**

@@ -54,6 +54,27 @@ object MediaNotify {
         runCatching { NotificationManagerCompat.from(ctx).notify(ID, n) }
     }
 
+    /** 进度更新（同一个通知 id，`setOnlyAlertOnce` 保证不会响个没完） */
+    fun update(ctx: Context, pct: Int, text: String) {
+        ensureChannel(ctx)
+        if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return
+        val open = PendingIntent.getActivity(
+            ctx, 3,
+            Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val b = NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(text)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+        if (pct >= 0) b.setProgress(100, pct, false).setContentText("$pct%") else b.setProgress(0, 0, true)
+        runCatching { NotificationManagerCompat.from(ctx).notify(ID, b.build()) }
+    }
+
     fun done(ctx: Context, text: String) {
         ensureChannel(ctx)
         val n = NotificationCompat.Builder(ctx, CHANNEL)

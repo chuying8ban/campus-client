@@ -281,6 +281,7 @@ object UpdatePrefs {
     private const val K_LAST = "last_check_ms"
     private const val K_SKIP = "skipped_version_code"
     private const val K_NOTIFIED = "notified_version_code"
+    private const val K_SILENT_PROMPTED = "silent_prompted_code"
     private const val K_AVAIL_CODE = "available_version_code"
     private const val K_AVAIL_NAME = "available_version_name"
     private const val K_RES = "last_check_result"
@@ -298,6 +299,20 @@ object UpdatePrefs {
 
     fun markSkipped(ctx: Context, code: Int) {
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putInt(K_SKIP, code).apply()
+    }
+
+    /**
+     * 「已经在后台下好了，点一下装」这个弹窗对哪一版弹过了。
+     *
+     * 用户 2026-10-19："静默更新时加一个弹窗提示用户已在后台静默更新" —— 但只该弹一次，
+     * 不然每次回前台都糊他一脸。
+     */
+    fun silentPrompted(ctx: Context): Int =
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getInt(K_SILENT_PROMPTED, 0)
+
+    fun markSilentPrompted(ctx: Context, code: Int) {
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
+            .putInt(K_SILENT_PROMPTED, code).apply()
     }
 
     /** 已经为哪个版本发过通知栏提醒（同一个版本不重复打扰） */
