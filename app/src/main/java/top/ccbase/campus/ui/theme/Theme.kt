@@ -416,10 +416,12 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 Canvas(Modifier.fillMaxSize()) { drawBgPreset(themed, scrim, p) }
             }
         }
-        bg.startsWith(UserMedia.PREFIX) -> {
-            // 用户自己传的 gif / 视频：真播，不假装
+        bg.startsWith(UserMedia.PREFIX) || bg.startsWith("mat:") -> {
+            // 用户自己传的 gif / 视频，或者本地素材库里选中的那一件：真播，不假装
             val ctx = LocalContext.current
-            val media = remember(bg) { UserMedia.current(ctx) }
+            val media = remember(bg) {
+                MaterialLibrary.resolve(ctx, bg) ?: UserMedia.current(ctx)
+            }
             Box(Modifier.fillMaxSize().background(p.bg))
             if (media != null) {
                 // 50% 浓淡时只给 0.5 的图层 alpha，暗色片段等于再砍一半亮度 → 抬到 0.55~1.0

@@ -112,6 +112,7 @@ fun AppearanceScreen(
     onOpenDynLibrary: (String) -> Unit = {},
     /** 打开字体库；参数 = "app" / "widget" */
     onOpenFontLib: (String) -> Unit = {},
+    onOpenMaterials: (String) -> Unit = {},
     /** 作为底部导航的一格时传 true：不画标题和「关闭」（那两样只在整屏浮层里有意义） */
     embedded: Boolean = false,
 ) {
@@ -175,9 +176,15 @@ fun AppearanceScreen(
                     onOpenPresets = { showPresetBoard = true },
                     onOpenDyn = { onOpenDynLibrary("app") },
                     onOpenFontLib = { onOpenFontLib("app") },
+                    onOpenMaterials = { onOpenMaterials("app") },
                 )
             } else {
-                WidgetPane(onOpenGallery, onOpenDyn = { onOpenDynLibrary("widget") }, onOpenFontLib = { onOpenFontLib("widget") })
+                WidgetPane(
+                    onOpenGallery,
+                    onOpenDyn = { onOpenDynLibrary("widget") },
+                    onOpenFontLib = { onOpenFontLib("widget") },
+                    onOpenMaterials = { onOpenMaterials("widget") },
+                )
             }
         }
     }
@@ -224,6 +231,7 @@ private fun AppThemePane(
     onOpenPresets: () -> Unit = {},
     onOpenDyn: () -> Unit = {},
     onOpenFontLib: () -> Unit = {},
+    onOpenMaterials: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -305,6 +313,8 @@ private fun AppThemePane(
     // 这一页只改 App 的字；小组件那一份在「桌面小组件」页，两个 pref 互不相干。
     SectionLabel("字体")
     top.ccbase.campus.ui.theme.FontPicker(widget = false, onPicked = {}, onOpenLibrary = { onOpenFontLib() })
+    Spacer(Modifier.height(10.dp))
+    MaterialsEntry(slotKey = "app", onOpen = onOpenMaterials)
     Spacer(Modifier.height(20.dp))
 
     SectionLabel("页面背景")
@@ -458,6 +468,7 @@ private fun WidgetPane(
     onOpenGallery: (String, String) -> Unit,
     onOpenDyn: () -> Unit = {},
     onOpenFontLib: () -> Unit = {},
+    onOpenMaterials: () -> Unit = {},
 ) {
     Text(
         "这里改的只是桌面上那张卡的配色。App 里看到什么颜色跟它无关 —— 两边各存各的。",
@@ -496,6 +507,9 @@ private fun WidgetPane(
         Text("${DYN_PRESETS.size} 款会动的小组件背景", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
         Text("›", color = C.txt3, fontSize = 16.sp)
     }
+
+    Spacer(Modifier.height(8.dp))
+    MaterialsEntry(slotKey = "widget", onOpen = onOpenMaterials)
 
     Spacer(Modifier.height(16.dp))
     WidgetSection(
@@ -899,5 +913,39 @@ private fun Action2(text: String, hint: String? = null, onClick: () -> Unit) {
             Spacer(Modifier.height(3.dp))
             Text(it, color = C.txt3, fontSize = 11.sp, lineHeight = 17.sp)
         }
+    }
+}
+
+
+/**
+ * 「本地素材库」入口（2026-10-20 用户：App 主题与桌面小组件各一本素材库）。
+ * 一行带数量：库里有几件、占多大，一眼能看到，不用点进去才发现是空的。
+ */
+@Composable
+private fun MaterialsEntry(slotKey: String, onOpen: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val slot = top.ccbase.campus.ui.theme.MaterialLibrary.Slot.entries.first { it.key == slotKey }
+    var n by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    var bytes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        n = top.ccbase.campus.ui.theme.MaterialLibrary.list(ctx, slot).size
+        bytes = top.ccbase.campus.ui.theme.MaterialLibrary.totalBytes(ctx, slot)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .clickable { onOpen() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("本地素材库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            if (n == 0) "还没有素材，可以下载或从手机里添加" else "已存 $n 个 · ${"%.1f".format(bytes / 1024.0 / 1024)} MB",
+            color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f),
+        )
+        Text("›", color = C.txt3, fontSize = 16.sp)
     }
 }

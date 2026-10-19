@@ -120,6 +120,14 @@ object WidgetFrames {
         }
         // 用户自己传的 gif / 视频（2026-10-18）：桌面放不了视频，就抽 12 帧轮播。
         // 视频取前 ~1.4 秒里的 12 个时间点；gif 按总时长均分 —— 两者都按"整张卡片"裁切填满。
+        // 本地素材库里的那一件（`mat:<slot>:<id>`）：用户自己传的、或者从在线图库收进来的。
+        top.ccbase.campus.ui.theme.MaterialLibrary.resolve(ctx, spec)?.let { media ->
+            val key = "L|${media.file.absolutePath}|${media.file.lastModified()}|$wPx|$hPx|$ARCH" +
+                if (fullRes) "|hd" else ""
+            cache.get(key)?.let { return it }
+            diskLoad(ctx, key)?.let { cache.put(key, it); return it }
+            return renderMedia(ctx, key, media, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed))
+        }
         top.ccbase.campus.ui.theme.UserMedia.parse(spec)?.let { kind ->
             val media = top.ccbase.campus.ui.theme.UserMedia.current(
                 ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
@@ -169,7 +177,8 @@ object WidgetFrames {
 
     /** 这个 spec 是不是"会动"的（动态预设 / 让图动起来 / 用户传的 gif·视频）。 */
     fun isDynamic(spec: String): Boolean =
-        WidgetDyn.parse(spec) != null ||
+        top.ccbase.campus.ui.theme.MaterialLibrary.parseSpec(spec) != null ||
+            WidgetDyn.parse(spec) != null ||
             WidgetDyn.parseImage(spec) != null ||
             top.ccbase.campus.ui.theme.UserMedia.parse(spec) != null
 

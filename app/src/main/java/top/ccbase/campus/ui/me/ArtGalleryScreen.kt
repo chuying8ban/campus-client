@@ -133,6 +133,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 「动图」板块（用户 2026-10-18："图库里专门放一个动图板块专门放动图，app 主题和小控件主题都要有"）：
     // 打开后只问服务端要会动的那批，不再和静态混排。
     var animOnly by remember { mutableStateOf(false) }
+    // 点图只入库、不立刻套用（本地素材库入口模式）
+    var saveToLib by remember { mutableStateOf(false) }
     // 每页大小（2026-10-19 用户："加载多少出来多少，一直往下拉就一直加载"）。
     // 以前一页 100 条 → 一次拉 100 个缩略图，等得久、也看不出"翻页"；
     // 现在动图 30 条一页，滑到底部就续，观感是连续的。
@@ -391,7 +393,35 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
 
-        // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
+            // 「存到本地」开关（2026-10-20 用户："加一个支持将素材下载到本地的功能"）。
+        // 打开后点图只入库、不立刻套用 —— 这样图库就变成本地素材库的入口，
+        // 想用哪张再回素材库里挑，不用在几十张里反复下载。
+        Row(
+            Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (saveToLib) C.violet.copy(alpha = 0.20f) else C.card)
+                    .border(1.dp, if (saveToLib) C.violet else C.line, RoundedCornerShape(50))
+                    .clickable { saveToLib = !saveToLib }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    if (saveToLib) "✓ 点图只存到本地" else "存到本地素材库",
+                    color = if (saveToLib) C.violet else C.txt2,
+                    fontSize = 11.5.sp,
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Text(
+                if (saveToLib) "不会立刻换主题" else "先存起来，回素材库再挑",
+                color = C.txt3, fontSize = 10.sp,
+            )
+        }
+
+    // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
         // 所以 App 背景和桌面小组件都自动有这个板块。
         Row(
             Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp),
@@ -597,6 +627,37 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                             )
                             var bad = false
                             scope.launch {
+                                val libSlot = if (target == "background") {
+                                    top.ccbase.campus.ui.theme.MaterialLibrary.Slot.APP
+                                } else {
+                                    top.ccbase.campus.ui.theme.MaterialLibrary.Slot.WIDGET
+                                }
+                                // 只入库模式：下载完就进本地素材库，不套用、不关页面
+                                if (saveToLib) {
+                                    val added = withContext(Dispatchers.IO) {
+                                        val bytes = if (item.animated) ArtRepo.bytes(item) { _, _ -> }
+                                        else ArtRepo.full(item)?.let { bmp ->
+                                            java.io.ByteArrayOutputStream().also {
+                                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it)
+                                                bmp.recycle()
+                                            }.toByteArray()
+                                        }
+                                        if (bytes == null || bytes.isEmpty()) null
+                                        else top.ccbase.campus.ui.theme.MaterialLibrary.saveBytes(
+                                            ctx, libSlot, bytes,
+                                            item.title.ifBlank { "图库素材" },
+                                            if (item.animated) "video/mp4" else "image/jpeg",
+                                        )
+                                    }
+                                    busyId = null
+                                    MediaJob.finish()
+                                    MediaNotify.done(
+                                        ctx,
+                                        if (added != null) "已存到本地素材库（${added.name}）"
+                                        else (ArtRepo.lastError ?: "没存下来，再点一次"),
+                                    )
+                                    return@launch
+                                }
                                 val ok = withContext(Dispatchers.IO) {
                                     // 动态：整段视频存下来当"动态壁纸"（解码成 Bitmap 就只剩一帧）
                                     if (item.animated) {

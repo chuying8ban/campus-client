@@ -229,6 +229,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 动态主题库：null = 不显示；"app" / "widget" = 给谁挑
     var dynTarget by remember { mutableStateOf<String?>(null) }
     var fontTarget by remember { mutableStateOf<String?>(null) }
+    // 本地素材库（2026-10-20）：App 主题 / 桌面小组件各一本
+    var matTarget by remember { mutableStateOf<String?>(null) }
     // 图库有两个入口：小组件要插画、App 背景要摄影 —— 进来前由入口决定看哪一类、选完往哪用
     var artKind by remember { mutableStateOf("landscape") }
     var artTarget by remember { mutableStateOf("widget") }
@@ -499,6 +501,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     embedded = true,
                     onOpenDynLibrary = { dynTarget = it },
                     onOpenFontLib = { fontTarget = it },
+                    onOpenMaterials = { matTarget = it },
                     onOpenGallery = { kind, target ->
                         artKind = kind
                         artTarget = target
@@ -584,6 +587,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         // 关掉时把桌面刷一次：小组件换字体要重新充气布局
         top.ccbase.campus.ui.me.FontLibraryScreen(target = t, onClose = {
             fontTarget = null
+            runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(appCtx) }
+        })
+    }
+    matTarget?.let { t ->
+        top.ccbase.campus.ui.me.LocalMaterialsScreen(slotKey = t, onClose = {
+            matTarget = null
+            // 素材库里选完可能已经换了主题，桌面刷一次更稳（字体/素材两类都会走到这里）
             runCatching { top.ccbase.campus.widget.TodayWidgetProvider.refresh(appCtx) }
         })
     }
