@@ -104,6 +104,22 @@ object WidgetThemes {
      *
      * @return null = 已应用；非 null = 不能应用，内容是给用户看的一句话
      */
+    private const val K_ALPHA = "alpha"
+
+    /**
+     * 小组件主题的不透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）。
+     *
+     * 存的是"能看到多少"，1.0 = 原来的样子，0.35 = 桌面壁纸能透上来。
+     * 不是给 ImageView 设 alpha（RemoteViews 里 `setImageAlpha` 能不能过 binder 得看 ROM），
+     * 而是在**生成底图时就把透明度画进去** —— 走到桌面的一定是我们算好的像素。
+     */
+    fun alpha(ctx: Context): Float =
+        prefs(ctx).getFloat(K_ALPHA, 1f).coerceIn(0.35f, 1f)
+
+    fun setAlpha(ctx: Context, v: Float) {
+        prefs(ctx).edit().putFloat(K_ALPHA, v.coerceIn(0.35f, 1f)).apply()
+    }
+
     fun apply(ctx: Context, spec: String): String? {
         val theme = of(spec)
         if (theme.hasImage && imageBitmap(ctx, theme) == null) {

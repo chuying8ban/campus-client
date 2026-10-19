@@ -125,6 +125,24 @@ object WidgetArt {
         return out
     }
 
+    /**
+     * 整张底图按 [a] 淡出（1f = 原样返回，不复制）。
+     *
+     * 用**画进新位图**而不是 ImageView 的 alpha：RemoteViews 只认白名单方法，
+     * `setImageAlpha` 各家 ROM 表现不一，用户要的是"稳"。
+     */
+    fun fade(src: Bitmap, a: Float): Bitmap {
+        if (a >= 0.999f) return src
+        val w = src.width
+        val h = src.height
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        val p = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        p.alpha = (a.coerceIn(0f, 1f) * 255).toInt()
+        c.drawBitmap(src, 0f, 0f, p)
+        return out
+    }
+
     fun rounded(src: Bitmap, radiusPx: Float): Bitmap {
         if (radiusPx <= 0f) return src
         val key = "r" + System.identityHashCode(src) + radiusPx.toInt()

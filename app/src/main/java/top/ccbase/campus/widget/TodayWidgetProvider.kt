@@ -158,6 +158,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private fun applyTheme(ctx: Context, rv: RemoteViews, wPx: Int, hPx: Int, specOverride: String? = null) {
             val spec = specOverride ?: WidgetThemes.spec(ctx)
             val theme = WidgetThemes.of(spec)
+            // 主题透明度（用户 2026-10-19 要的滑块；1f = 原样）
+            val wAlpha = runCatching { WidgetThemes.alpha(ctx) }.getOrDefault(1f)
             // 根容器必须是**透明**的：圆角是通过位图的透明角落做出来的，
             // 底下要是垫一层不透明底色，那圈透明角落就被它填成黑色方块 ——
             // 用户 2026-10-19 的原话："没有实现圆角，外边有黑色的矩形"。
@@ -176,7 +178,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // ViewFlipper 会跳过 GONE 的子视图，既不会空白一帧，也不会白塞位图
                 // 帧不够就**重复最后一帧**填满，绝不留空位：ViewAnimator 会把空位也翻出来。
                 FRAME_IDS.forEachIndexed { i, id ->
-                    rv.setImageViewBitmap(id, frames[i.coerceAtMost(frames.size - 1)])
+                    // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
+                    rv.setImageViewBitmap(id, WidgetArt.fade(frames[i.coerceAtMost(frames.size - 1)], wAlpha))
                     rv.setViewVisibility(id, View.VISIBLE)
                 }
                 // 2026-10-19 真正的根因（自检里终于露出原话）：
@@ -201,7 +204,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 val bmp = backgroundBitmapFor(ctx, spec, wPx, hPx)
                 if (bmp != null) {
                     rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                    rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
+                    rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(bmp, wAlpha))
                 } else {
                     // 连渐变都画不出来（几乎不可能）：至少别让卡片透明
                     rv.setViewVisibility(R.id.widget_bg_img, View.GONE)

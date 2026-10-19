@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlin.math.roundToInt
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -757,6 +758,34 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
             fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
         )
     }
+
+    // ---- 主题透明度（2026-10-19 用户："希望能够调整小组件主题的透明度"）----
+    // 把所有主题通用的一个滑块放在"动效"之后、"配色"之前：
+    // 它管的是"这张卡有多透"，和选哪张图、哪个配色都无关。
+    Spacer(Modifier.height(16.dp))
+    var wAlpha by remember { mutableFloatStateOf(WidgetThemes.alpha(ctx)) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("主题透明度", fontSize = 11.sp, color = C.txt3, modifier = Modifier.weight(1f))
+        Text(
+            (wAlpha * 100).roundToInt().toString() + "%",
+            fontSize = 11.sp, color = C.violet,
+        )
+    }
+    androidx.compose.material3.Slider(
+        value = wAlpha,
+        onValueChange = { wAlpha = it },
+        onValueChangeFinished = {
+            WidgetThemes.setAlpha(ctx, wAlpha)
+            TodayWidgetProvider.refresh(ctx)   // 松手就推一次，桌面上立刻能看到
+        },
+        valueRange = 0.35f..1f,
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+    )
+    Text(
+        if (wAlpha >= 0.995f) "100% 是不透明；往下拉桌面壁纸会从主题里透出来。"
+        else "现在能看到 ${(wAlpha * 100).roundToInt()}% 的主题，其余露出桌面壁纸。",
+        fontSize = 10.5.sp, lineHeight = 15.sp, color = C.txt3,
+    )
 
     Spacer(Modifier.height(16.dp))
     Text("配色", fontSize = 11.sp, color = C.txt3)

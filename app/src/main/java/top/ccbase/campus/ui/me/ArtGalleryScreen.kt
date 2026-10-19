@@ -69,6 +69,27 @@ import top.ccbase.campus.ui.theme.UserMedia
 import top.ccbase.campus.widget.WidgetThemes
 
 /**
+ * 图库结果的**内存缓存**（2026-10-19：用户要"快速出现、边浏览边搜"）。
+ *
+ * 只活在这个进程里，按 (搜索词, 方向, 是否动图) 分桶，最多 12 桶 —— 一桶就是一次
+ * 已经付过网络代价的查询结果，切标签、退出去再点回来都不该再等一轮。
+ */
+private object ArtMemo {
+    private val map = object : LinkedHashMap<String, List<ArtItem>>(8, 0.75f, true) {
+        override fun removeEldestEntry(e: MutableMap.MutableEntry<String, List<ArtItem>>?) = size > 12
+    }
+
+    fun get(k: String): List<ArtItem>? = synchronized(map) { map[k] }
+
+    fun put(k: String, v: List<ArtItem>) {
+        if (v.isEmpty()) return
+        synchronized(map) { map[k] = v }
+    }
+}
+
+private fun memoKey(q: String, orient: String, anim: Boolean) = "$q|$orient|$anim"
+
+/**
  * 在线图库：给 App 页面背景（竖图）或桌面小组件（横图）挑一张插画。
  *
  * 两条数据路：
@@ -108,6 +129,27 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     val grid = rememberLazyGridState()
     // 翻到第二行以后就算"在往下看"：收起搜索栏，给图片腾地方
     val scrolled by remember { derivedStateOf { grid.firstVisibleItemIndex > 2 } }
+
+    // 打开就**先把已经搜过的那批贴出来**，同时后台刷新（2026-10-19 用户：
+    // "每次点动态主题都要等半天，希望能快速出现、浏览的同时进行搜索"）。
+    // 缓存按 (词, 方向, 是否动图) 分桶，切标签/切板块回来是瞬时的。
+    LaunchedEffect(orientKey, animOnly) {
+        ArtMemo.get(memoKey("", orientKey, animOnly))?.let {
+            if (it.isNotEmpty() && live.isEmpty()) {
+                live = it
+                loading = false
+                stage = "先显示上次的结果（${it.size} 张），正在后台刷新…"
+            }
+        }
+        // 预搜索：静态板块进来时顺手把"全部动图"也拉好，点动图不用再等一轮
+        if (!animOnly && ArtMemo.get(memoKey("", orientKey, true)) == null) {
+            runCatching {
+                withContext(Dispatchers.IO) { ArtRepo.searchLive("", 1, orientKey, animOnly = true) }
+            }.onSuccess { pg ->
+                ArtMemo.put(memoKey("", orientKey, true), pg.items.filter { it.ofOrient(orientKey) }.ifEmpty { pg.items })
+            }
+        }
+    }
 
     // 首屏：服务器上预先挑好的那批（10 分钟本机缓存，断网退回旧缓存）
     LaunchedEffect(Unit) {
@@ -156,6 +198,7 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 // 于是被这道闸全部滤掉，界面只剩"没有动图了"。宁可先显示出来，再把实情写清楚，
                 // 也不要拿一个空白页让人以为图库空了。
                 val relaxed = if (kept.isEmpty() && pg.items.isNotEmpty()) pg.items else kept
+                ArtMemo.put(memoKey(q, orientKey, animOnly), relaxed)
                 live = relaxed; page = 1; hasMore = pg.hasMore; hint = pg.hint
                 if (kept.isEmpty() && pg.items.isNotEmpty()) {
                     stage = "接口返回 ${pg.items.size} 条，但方向标记对不上（${pg.items.map { it.orient }.distinct()}）—— 已先全部显示"

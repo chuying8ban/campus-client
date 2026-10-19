@@ -59,6 +59,7 @@ import top.ccbase.campus.ui.theme.BgPresetSurface
 import top.ccbase.campus.ui.theme.BgPresets
 import top.ccbase.campus.ui.theme.BgStyle
 import top.ccbase.campus.ui.theme.C
+import top.ccbase.campus.ui.theme.DynThumb
 import top.ccbase.campus.ui.theme.DYN_PRESETS
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.ui.theme.palette
@@ -854,7 +855,15 @@ private fun BgEntryCard(bg: String, dark: Boolean, onClick: () -> Unit) {
                 .border(1.dp, C.lineHi, RoundedCornerShape(9.dp)),
         ) {
             if (anim != null) {
-                DynamicBackground(anim.first, Color(anim.second), Modifier.fillMaxSize())
+                // 入口那一格只要"看得出是什么"，不需要真跑 —— 这页上同时跑几路 60fps 动画
+                // 就是用户说的"动态主题太卡"。用一帧缩略图，点进去/应用后才动。
+                val thumb = remember(anim) { DynThumb.bitmap(anim.first, anim.second, 240) }
+                androidx.compose.foundation.Image(
+                    bitmap = thumb.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else if (preset != null) {
                 BgPresetSurface(preset, dark, Modifier.fillMaxSize())
             } else {

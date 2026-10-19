@@ -100,13 +100,29 @@ private fun rememberDynTime(vararg keys: Any?): Float {
         var last = -1L
         var gapNs = 16_000_000L
         var slowStreak = 0
+        var fastStreak = 0
         while (true) {
             withFrameNanos { now ->
                 if (start < 0L) { start = now; last = now }
                 val dt = now - last
-                if (dt > 26_000_000L) slowStreak++ else if (slowStreak > 0) slowStreak--
-                // 连续 20 帧都跟不上（约 1 秒），就降一档
-                if (slowStreak >= 20 && gapNs < 33_000_000L) gapNs = 33_000_000L
+                // 跟不上：连续 20 帧都超出当前节奏 9ms（约 1 秒），降一档到 30fps
+                // 追上来：连续 150 帧（约 2.5 秒）都稳，回到 60fps —— 用户要的是"至少 30，最好 60"，
+                // 降档只是应急，不能一降就永远 30。
+                if (dt > gapNs + 9_000_000L) {
+                    slowStreak++
+                    fastStreak = 0
+                } else {
+                    fastStreak++
+                    if (slowStreak > 0) slowStreak--
+                }
+                if (slowStreak >= 20 && gapNs < 33_000_000L) {
+                    gapNs = 33_000_000L
+                    slowStreak = 0
+                }
+                if (fastStreak >= 150 && gapNs > 16_000_000L) {
+                    gapNs = 16_000_000L
+                    fastStreak = 0
+                }
                 if (now - last >= gapNs) {
                     last = now
                     t = (now - start) / 1_000_000_000f

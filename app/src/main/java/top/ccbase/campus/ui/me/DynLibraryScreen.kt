@@ -43,7 +43,8 @@ import androidx.compose.ui.unit.sp
 import top.ccbase.campus.ui.theme.AppearanceStore
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.ui.theme.DYN_PRESETS
-import top.ccbase.campus.ui.theme.DynamicBackground
+import top.ccbase.campus.ui.theme.DynThumb
+import androidx.compose.ui.graphics.asImageBitmap
 import top.ccbase.campus.ui.theme.dynPresetsMatching
 import top.ccbase.campus.ui.theme.overlaySurface
 import top.ccbase.campus.widget.TodayWidgetProvider
@@ -162,8 +163,18 @@ fun DynLibraryScreen(target: String, onClose: () -> Unit) {
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(1.dp, C.line, RoundedCornerShape(12.dp)),
                         ) {
-                            // 缩略图就是真机上那一套画法，缩到卡片大小在跑
-                            DynamicBackground(p.kind, Color(p.tint.argb), Modifier.fillMaxSize())
+                            // 静态缩略图：同一套画笔只画一帧就缓存。原来这里每格都是一个活的
+                            // DynamicBackground（一屏 6~8 个 60fps 动画同时跑），进页面就卡、
+                            // 用户说的"每次点动态主题都要等半天"就是这么来的。
+                            val thumb = remember(p.kind, p.tint.argb) {
+                                DynThumb.bitmap(p.kind, p.tint.argb, 360)
+                            }
+                            androidx.compose.foundation.Image(
+                                bitmap = thumb.asImageBitmap(),
+                                contentDescription = p.name,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                         }
                         Spacer(Modifier.height(5.dp))
                         Text(
