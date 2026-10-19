@@ -25,7 +25,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import top.ccbase.campus.widget.WidgetModel
-import top.ccbase.campus.widget.WidgetRow
 import top.ccbase.campus.widget.WidgetThemes
 
 /**
@@ -36,7 +35,7 @@ import top.ccbase.campus.widget.WidgetThemes
  * 产物：/Users/a29285/ChenC/闪传/widget_stage_preview.png
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34], qualifiers = "w360dp-h900dp-xhdpi")
+@Config(sdk = [34], qualifiers = "w393dp-h1100dp-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class WidgetStageShotTest {
 
@@ -59,25 +58,31 @@ class WidgetStageShotTest {
     )
 
     @Test
-    fun `画一张预览卡`() {
-        val spec = WidgetThemes.presets.first().id
+    fun `四类主题的圆角对照`() {
+        // 2026-10-19 用户："我希望小组件的所有主题的圆角跟这个一样"（对标小米天气那块卡）。
+        // 四类主题画在同一张图上，一眼看出圆角是不是真的统一了。
+        val specs = listOf(
+            "纯色" to WidgetThemes.presets.first().id,
+            "随包图片" to WidgetThemes.imageThemes.first().id,
+            "另一张图片" to WidgetThemes.imageThemes.last().id,
+            "动态主题" to top.ccbase.campus.ui.theme.DYN_PRESETS.first().spec,
+        )
         rule.setContent {
-            Column(
-                Modifier.fillMaxSize().background(Color(0xFF141018)).padding(16.dp),
-            ) {
-                Text("同一条路：预览 = 桌面那份 RemoteViews", color = Color(0xFFBBA9FF), fontSize = 12.sp)
-                Spacer(Modifier.height(10.dp))
-                WidgetStageCard(stage(), spec = spec, alpha = 1f)
-                Spacer(Modifier.height(18.dp))
-                Text("透明度 45%（同一条 fade 路径）", color = Color(0xFF7E7794), fontSize = 11.sp)
-                Spacer(Modifier.height(6.dp))
-                WidgetStageCard(stage(), spec = spec, alpha = 0.45f)
-                Spacer(Modifier.height(18.dp))
-                WidgetDiagPanel(stage(), spec = spec, savedSpec = spec, onTrySpec = { })
+            Column(Modifier.fillMaxSize().background(Color(0xFF141018)).padding(14.dp)) {
+                Text(
+                    "四类主题 · 同一个圆角（桌面那份 RemoteViews 真渲染）",
+                    color = Color(0xFFBBA9FF), fontSize = 12.sp,
+                )
+                specs.forEach { (label, spec) ->
+                    Spacer(Modifier.height(10.dp))
+                    Text(label, color = Color(0xFF7E7794), fontSize = 10.sp)
+                    Spacer(Modifier.height(4.dp))
+                    WidgetStageCard(stage(), spec = spec, alpha = 1f)
+                }
             }
         }
         rule.waitForIdle()
-        Thread.sleep(600)
+        Thread.sleep(800)
         rule.waitForIdle()
 
         val decor = rule.activity.window.decorView
@@ -86,7 +91,7 @@ class WidgetStageShotTest {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         Canvas(bmp).let { decor.draw(it) }
 
-        val out = File("/Users/a29285/ChenC/闪传/widget_stage_preview.png")
+        val out = File("/Users/a29285/ChenC/闪传/widget_radius_compare.png")
         out.parentFile?.mkdirs()
         out.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         assertTrue("截图没写出来", out.isFile && out.length() > 1000)

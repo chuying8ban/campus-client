@@ -404,6 +404,9 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 // 可能刚在图库里选完主题回来，也可能是别的入口改的 —— 回来就按真实的
                 // pref 重画预览，不要停在进入这一页时的旧值上。
                 wAlpha = WidgetThemes.alpha(ctx)
+                // 主题也可能是在二级页（在线图库 / 动态主题库）里选的 —— 回来必须重读 spec，
+                // 否则预览还停在进这一页时的旧主题（真机上就是"选完新主题，预览没变"）。
+                wSpec = WidgetThemes.spec(ctx)
                 pvKey++
             }
         }
@@ -418,9 +421,14 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
     // 用户换掉真主题时，试穿状态作废 —— 否则会拿旧试穿规格盖住新选的
     LaunchedEffect(wSpec) { trySpec = null }
     val stage = rememberWidgetStageInfo(ctx, refreshKey = pvKey)
-    val effSpec = trySpec ?: wSpec
+    // 图库 / 动态主题库是盖在同一个 Activity 上的浮层（不是新的 Activity），关掉它不会
+    // 触发 ON_RESUME；只靠上面的生命周期回调，真机上会出现"图库里选完，桌面变了、预览没变"。
+    // prefs 读的是内存缓存，每次重组重读一遍几乎零成本，就按真实 prefs 画。
+    val liveSpec = WidgetThemes.spec(ctx)
+    val liveAlpha = WidgetThemes.alpha(ctx)
+    val effSpec = trySpec ?: liveSpec
 
-    WidgetStageCard(stage, spec = effSpec, alpha = wAlpha)
+    WidgetStageCard(stage, spec = effSpec, alpha = liveAlpha, refreshKey = pvKey)
     Spacer(Modifier.height(8.dp))
     Text(
         "按你桌面上那一格的实际尺寸和比例画；格子窄了会自动收起日期/周次，高度不够就少放一行 —— " +
@@ -428,7 +436,7 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
         fontSize = 10.sp, color = C.txt3,
     )
     Spacer(Modifier.height(8.dp))
-    WidgetDiagPanel(stage, spec = effSpec, savedSpec = wSpec, onTrySpec = { trySpec = it })
+    WidgetDiagPanel(stage, spec = effSpec, savedSpec = liveSpec, onTrySpec = { trySpec = it })
     // 2026-10-19：壁纸级动态主题（WallDyn）已整体删除 ——
     // 用户："效果很差，而且要准备很久，准备完后又非常卡顿，直接删了"。
     Spacer(Modifier.height(16.dp))
@@ -546,9 +554,20 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("允许「桌面快捷方式」", fontSize = 12.sp, color = C.violet, fontWeight = FontWeight.Medium)
+            // 一行塞「标题 + 说明 + 箭头」会把说明挤成两行、末尾留个孤零零的"关"，
+            // 真机上看着像排版坏了 —— 标题一行、说明一行，箭头垂直居中。
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "允许「桌面快捷方式」", fontSize = 12.sp, color = C.violet,
+                    fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "小米/HyperOS 要它，不然小部件列表里可能找不到",
+                    fontSize = 10.sp, color = C.txt3, lineHeight = 14.sp,
+                )
+            }
             Spacer(Modifier.width(8.dp))
-            Text("小米/HyperOS 需要，点一下去打开开关", fontSize = 10.sp, color = C.txt3, modifier = Modifier.weight(1f))
             Text("›", fontSize = 15.sp, color = C.txt3)
         }
     }
@@ -759,7 +778,25 @@ private fun WidgetBlock(onOpenGallery: () -> Unit) {
                 color = if (wSpec == WidgetThemes.USER_IMAGE_SPEC) C.violet else C.txt2,
             )
         }
-        Spacer(Modifier.width(10.dp))
+        // 「换一张自己的图」只写新图；换回预设主题后想再用回那张老图，本来是没有入口的
+        // —— 只能重新从相册选一遍（真机测试时就是这么卡住的）。给一个「用回我的图」。
+        if (WidgetThemes.hasUserImage(ctx) && wSpec != WidgetThemes.USER_IMAGE_SPEC) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier.border(1.dp, C.line, RoundedCornerShape(9.dp))
+                    .clickable {
+                        WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
+                        wSpec = WidgetThemes.USER_IMAGE_SPEC
+                        pvKey++
+                        TodayWidgetProvider.refresh(ctx)
+                        toast(ctx, "已用回你的图")
+                    }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) { Text("用回我的图", fontSize = 12.sp, color = C.txt2) }
+            Spacer(Modifier.width(10.dp))
+        } else {
+            Spacer(Modifier.width(10.dp))
+        }
         Text("从相册选，只存在这台手机上", fontSize = 10.sp, color = C.txt3)
     }
 

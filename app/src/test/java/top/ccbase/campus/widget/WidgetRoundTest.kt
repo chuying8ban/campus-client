@@ -36,8 +36,9 @@ class WidgetRoundTest {
     fun `圆角位图的四角必须是透明的`() {
         val src = solid(400, 200)
         val radius = WidgetArt.radiusFor(200, 1f)
-        // 2026-10-19 用户："这个圆角太离谱了，适当圆角就行了" → 改成短边 12%，夹在 12~24dp
-        assertTrue("半径要在 12~24dp 之间（按短边 12%）", radius in 12f..24f)
+        // 2026-10-19 用户："我希望小组件的所有主题的圆角跟这个一样"（对标小米天气那块卡）
+        // → 统一 25dp，矮卡（这里 h=200 只能给 40）按 20% 收
+        assertTrue("半径应取 min(25dp, h*0.2)，实得 $radius", radius in 24f..25f)
         val out = WidgetArt.rounded(src, radius)
 
         assertEquals("左上角", 0, Color.alpha(out.getPixel(0, 0)))
@@ -60,11 +61,14 @@ class WidgetRoundTest {
     @Test
     fun `radiusFor 在常见卡片高度上都给出适当的圆角`() {
         // 4x2 卡片实际像素高度约 320~520（xhdpi~xxhdpi），density 3 → 36~72px
+        // 4×2 卡在 density 3 下高约 480px；所有主题都该是 25dp×3 = 75px（矮卡按 20% 收）
         listOf(280, 360, 480, 620).forEach { h ->
             val r = WidgetArt.radiusFor(h, 3f)
-            assertTrue("h=$h 的圆角 $r 太小，桌面上会看着是直角", r >= 30f)
-            assertTrue("h=$h 的圆角 $r 太大，会变成胶囊", r <= 72f)
+            assertTrue("h=$h 的圆角 $r 太小，桌面上会看着是直角", r >= 55f)
+            assertTrue("h=$h 的圆角 $r 太大，会变成胶囊", r <= 75f)
         }
+        // 关键回归：动态帧（WidgetFrames）以前传 density=1f，圆角只有 24px，和静态主题对不上
+        assertEquals("同高度下密度不能再被忽略", 75f, WidgetArt.radiusFor(480, 3f), 0.01f)
     }
 
     @Test

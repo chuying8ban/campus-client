@@ -258,7 +258,9 @@ object WidgetFrames {
         stamp: String = "",
     ): List<Bitmap>? {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
-        val radius = WidgetArt.radiusFor(hPx, 1f) * scale
+        // 这里以前传 density=1f —— 动态主题的圆角因此只有 24px（还被 clamp 住），
+        // 静态主题走真实密度是 69px，同一张卡两种圆角，用户一眼就看出"有的方有的圆"。
+        val radius = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
 
@@ -347,7 +349,9 @@ object WidgetFrames {
         draw: (Canvas, Int, Int, Float) -> Unit,
     ): List<Bitmap> {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
-        val radius = WidgetArt.radiusFor(hPx, 1f) * scale
+        // 这里以前传 density=1f —— 动态主题的圆角因此只有 24px（还被 clamp 住），
+        // 静态主题走真实密度是 69px，同一张卡两种圆角，用户一眼就看出"有的方有的圆"。
+        val radius = WidgetArt.radiusFor(hPx, ctx.resources.displayMetrics.density) * scale
         val out = ArrayList<Bitmap>(FRAMES)
         for (i in 0 until FRAMES) {
             val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)

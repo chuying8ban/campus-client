@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -31,6 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -137,36 +141,79 @@ fun WidgetStageCard(
     spec: String,
     alpha: Float,
     modifier: Modifier = Modifier,
+    /** 换文字颜色/换字体这类"规格没变、但画面要变"的改动，靠它把卡片踢一下重建。 */
+    refreshKey: Int = 0,
 ) {
     val ctx = LocalContext.current
     val aq = ((alpha.coerceIn(0.05f, 1f) * 20f).roundToInt() / 20f)
-    Box(
+    // 圆角必须和位图里那个**同一个数**（WidgetArt.radiusFor），再按"这张卡显示得比
+    // 桌面那一格大几倍"等比放大：位图是拉伸铺满的，圆角也跟着拉伸，Compose 的裁切
+    // 要是不跟着放大，就把桌面的圆角又切小一圈（用户会直接说"预览还是方的"）。
+    val density = ctx.resources.displayMetrics.density
+    val radiusDp = (top.ccbase.campus.widget.WidgetArt.radiusFor(info.hPx, density) / density).dp
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .aspectRatio((info.deskW / info.deskH).coerceIn(1.2f, 2.6f))
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, C.lineHi, RoundedCornerShape(18.dp)),
+            .aspectRatio((info.deskW / info.deskH).coerceIn(1.2f, 2.6f)),
     ) {
-        // 底下的"假桌面壁纸"：不透明主题看不到它，透明度拉下来时它才透上来 ——
-        // 效果和真桌面一致，不用回桌面验证。
-        DeskBackdrop()
-        key(spec, info.wPx, info.hPx, aq) {
-            AndroidView(
-                factory = { c -> FrameLayout(c).also { mountWidgetViews(it, c, info, spec, aq) } },
-                update = { },
-                modifier = Modifier.fillMaxSize(),
-            )
+        val shownDp = maxWidth
+        val scale = (shownDp.value / info.deskW).coerceAtLeast(0.5f)
+        val shape = RoundedCornerShape(radiusDp * scale)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clip(shape)
+                .border(1.dp, C.lineHi, shape),
+        ) {
+            // 底下的"假桌面壁纸"：不透明主题看不到它，透明度拉下来时它才透上来 ——
+            // 效果和真桌面一致，不用回桌面验证。
+            DeskBackdrop()
+            // model 必须进 key：卡片是 AndroidView，factory 只跑一次。
+            // 首帧 model 还是 null（课表在 IO 里读），只按尺寸做 key 的话，数据回来后
+            // 视图不会重建 —— 真机上就是"有图没字"（Robolectric 里 model 是现成的，测不出来）。
+            key(spec, info.wPx, info.hPx, aq, info.model, refreshKey) {
+                AndroidView(
+                    factory = { c -> FrameLayout(c).also { mountWidgetViews(it, c, info, spec, aq) } },
+                    update = { },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun DeskBackdrop() {
-    Box(Modifier.fillMaxSize().background(Color(0xFF3A3550))) {
-        Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF5B6FA8)))
-            Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xFF7A5A8C)))
-        }
+    // 假桌面壁纸：**不能是两块纯色**（真机上 50% 透明时中间会出现一条笔直的接缝，
+    // 看着像渲染坏了）。用一层斜向渐变 + 两团柔光，看起来像一张照片，又没有硬边。
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(
+            Brush.linearGradient(
+                colors = listOf(Color(0xFF23212F), Color(0xFF3A3050), Color(0xFF4B3A5E)),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height),
+            ),
+        )
+        val r1 = size.width * 0.55f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0x55E9C6FF), Color(0x00E9C6FF)),
+                center = Offset(size.width * 0.22f, size.height * 0.30f),
+                radius = r1,
+            ),
+            radius = r1,
+            center = Offset(size.width * 0.22f, size.height * 0.30f),
+        )
+        val r2 = size.width * 0.45f
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0x446B8FD6), Color(0x006B8FD6)),
+                center = Offset(size.width * 0.85f, size.height * 0.85f),
+                radius = r2,
+            ),
+            radius = r2,
+            center = Offset(size.width * 0.85f, size.height * 0.85f),
+        )
     }
 }
 
@@ -254,7 +301,10 @@ fun WidgetDiagPanel(
             "img_aurora" to "随包图片",
             WidgetThemes.USER_IMAGE_SPEC to "我的图",
         ).forEach { (s, label) ->
-            val on = if (s == null) spec == savedSpec else spec == s
+            // 只有"当前"和"试穿中的那个"能高亮：用户现在的主题本身就是"我的图"时，
+            // 两个都亮会让人以为点了两下（真机上确实出过）。
+            val trying = spec != savedSpec
+            val on = if (s == null) !trying else trying && spec == s
             Box(
                 Modifier
                     .clip(RoundedCornerShape(20.dp))

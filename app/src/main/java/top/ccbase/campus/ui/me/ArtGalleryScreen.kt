@@ -651,9 +651,10 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                             true
                                         }
                                     } else {
-                                        val saved = WidgetThemes.saveUserImage(ctx, bmp)
+                                        // 存到「图库图片」这一档，别盖掉用户自己上传的「我的图」
+                                        val saved = WidgetThemes.saveArtImage(ctx, bmp)
                                         if (saved) {
-                                            WidgetThemes.set(ctx, WidgetThemes.USER_IMAGE_SPEC)
+                                            WidgetThemes.set(ctx, WidgetThemes.ART_IMAGE_SPEC)
                                             TodayWidgetProvider.refresh(ctx)
                                         }
                                         saved

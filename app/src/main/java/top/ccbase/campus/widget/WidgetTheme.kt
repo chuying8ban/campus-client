@@ -40,17 +40,24 @@ data class WidgetTheme(
     val imageRes: Int = 0,
     /** 用户自己上传的那张（filesDir/widget_theme.jpg） */
     val userImage: Boolean = false,
+    /** 在线图库里选的那张（filesDir/widget_art.jpg），和上面分开，互不覆盖 */
+    val artImage: Boolean = false,
 ) {
-    val hasImage: Boolean get() = imageRes != 0 || userImage
+    val hasImage: Boolean get() = imageRes != 0 || userImage || artImage
 }
 
 object WidgetThemes {
 
     const val DEFAULT = "default"
     const val USER_IMAGE_SPEC = "user"
+    /** 在线图库里选的那张（`filesDir/widget_art.jpg`），和「我的图」分开存 */
+    const val ART_IMAGE_SPEC = "art"
     private const val FILE = "campus_widget"
     private const val K_THEME = "theme"
     private const val USER_FILE = "widget_theme.jpg"
+    // 图库里选的那张单独存一份：以前它直接盖掉「我的图」，用户自己上传的图就被顶没了
+    // （真机测试里我自己那张樱花图就是这么丢的）。
+    private const val ART_FILE = "widget_art.jpg"
 
     // 图片主题的通用字色：图上有暗蒙版，所以文字固定用偏亮的一套，不跟图片主色走
     private const val IMG_HEAD = 0xFFF4F1FA.toInt()
@@ -205,6 +212,10 @@ object WidgetThemes {
 
     fun userImageFile(ctx: Context): File = File(ctx.filesDir, USER_FILE)
 
+    fun artImageFile(ctx: Context): File = File(ctx.filesDir, ART_FILE)
+
+    fun hasArtImage(ctx: Context): Boolean = artImageFile(ctx).exists()
+
     /**
      * 保存用户选的图：**先等比缩到 1200px 内再存**。
      * 理由有两个：原图动辄 8~12MB 会拖慢每次刷新；RemoteViews 传 bitmap 还有 1MB 的 binder 上限。
@@ -216,7 +227,12 @@ object WidgetThemes {
      * （中心像素 #010c29）—— 是从一段暗色动图里抽的帧。这种图铺到小组件上，跟黑色没区别。
      * 这里按亮度自动抬一档（不超过 3 倍），让它至少能看出画面。
      */
-    fun saveUserImage(ctx: Context, src: Bitmap): Boolean {
+    fun saveUserImage(ctx: Context, src: Bitmap): Boolean = saveImageTo(ctx, userImageFile(ctx), src)
+
+    /** 图库选的那张落盘（同一个压缩/回读校验流程，只是换个文件名） */
+    fun saveArtImage(ctx: Context, src: Bitmap): Boolean = saveImageTo(ctx, artImageFile(ctx), src)
+
+    private fun saveImageTo(ctx: Context, file: java.io.File, src: Bitmap): Boolean {
         val bmp = ImgLift.lift(src)
         // 落了盘还要**回读验一遍**：compress 失败时文件是 0 字节，但 write 本身不报错。
         // 2026-10-19 的坑正是这个 —— 文件"存在"、规格也设成 `user`，解码却是 null，
@@ -228,7 +244,7 @@ object WidgetThemes {
                 val out = if (scale < 1f) {
                     Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true)
                 } else bmp
-                val f = userImageFile(ctx)
+                val f = file
                 f.outputStream().use { out.compress(Bitmap.CompressFormat.JPEG, quality, it) }
                 val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 android.graphics.BitmapFactory.decodeFile(f.absolutePath, opts)
@@ -236,7 +252,7 @@ object WidgetThemes {
             }.getOrDefault(false)
             if (ok) return true
         }
-        runCatching { userImageFile(ctx).delete() }
+        runCatching { file.delete() }
         return false
     }
 
@@ -281,6 +297,12 @@ object WidgetThemes {
                 headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM,
             )
         }
+        if (spec == ART_IMAGE_SPEC) {
+            return WidgetTheme(
+                "art", "图库图片", artImage = true,
+                headColor = IMG_HEAD, bodyColor = IMG_BODY, dimColor = IMG_DIM,
+            )
+        }
         if (spec.startsWith("diy:")) {
             val hue = spec.removePrefix("diy:").substringBefore(":").toFloatOrNull() ?: 0f
             val dark = spec.substringAfterLast(":", "1") == "1"
@@ -319,7 +341,10 @@ object WidgetThemes {
     fun imageBitmap(ctx: Context, theme: WidgetTheme, targetPx: Int = 720): Bitmap? {
         if (!theme.hasImage) return null
         return runCatching {
-            val src = if (theme.userImage) {
+            val src = (if (theme.artImage) {
+                val f = artImageFile(ctx)
+                if (f.isFile && f.length() > 0) BitmapFactory.decodeFile(f.absolutePath) else null
+            } else if (theme.userImage) {
                 // 用户那张图（filesDir/widget_theme.jpg）。文件可能被清理工具删掉、也可能当初压缩失败，
                 // 这时**别直接退回深色渐变**（用户看到的就是"主题换了没反应、卡片一片黑"）：
                 // 依次退到小组件槽 / App 槽里存的原图，只要有一份能解码就用它。
@@ -333,7 +358,7 @@ object WidgetThemes {
                     )
             } else {
                 BitmapFactory.decodeResource(ctx.resources, theme.imageRes)
-            } ?: return null
+            }) ?: return null
             // 静态图这条路原来漏了提亮：用户那张"我的图"平均亮度只有 39/255，
             // 再压一层 40%~60% 黑遮罩就是纯黑 —— 而"微动"走的是帧分支（3.4.18 已提亮），
             // 所以出现了"静止不显示、点了动效就有了"的怪现象。
