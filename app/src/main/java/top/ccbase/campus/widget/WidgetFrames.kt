@@ -48,6 +48,13 @@ object WidgetFrames {
      * 不是运动。24 帧把关键帧密度翻倍，单帧位移减半，淡入才能读成"连续流动"。
      */
     const val FRAMES = 24
+
+    /**
+     * 帧架构戳。帧数、像素预算这类"画法"一变，旧的帧文件就必须作废 ——
+     * 否则桌面上会一直复用上次那批高分辨率帧，改了预算等于没改。
+     * 每次动 [FRAMES] / `frameSize` 的预算就把这里 +1。
+     */
+    private const val ARCH = "a4"
     // 0.25s 一帧 × 24 帧 = 6 秒一个循环；配合 200ms 交叉淡入，桌面看到的是连续的光影流动。
     const val STEP_SEC = 0.25f
 
@@ -84,7 +91,7 @@ object WidgetFrames {
         fullRes: Boolean = false,
     ): List<Bitmap>? {
         WidgetDyn.parse(spec)?.let { (kind, accent) ->
-            val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
+            val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed|$ARCH" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
@@ -97,7 +104,7 @@ object WidgetFrames {
             val file = WidgetThemes.userImageFile(ctx)
             if (!file.exists()) return null
             val src = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return null
-            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx|s$speed" + if (fullRes) "|hd" else ""
+            val key = "i|${effect.id}|${file.lastModified()}|$wPx|$hPx|s$speed|$ARCH" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             val accent = WidgetThemes.of(WidgetThemes.spec(ctx)).accentColor
@@ -112,7 +119,7 @@ object WidgetFrames {
                 ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
             ) ?: return null
             if (media.kind != kind) return null
-            val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx" + if (fullRes) "|hd" else ""
+            val key = "m|${kind.id}|${media.file.lastModified()}|$wPx|$hPx|$ARCH" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
             return renderMedia(ctx, key, media, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed))
@@ -249,7 +256,10 @@ object WidgetFrames {
         // 落成 PNG 后按 view 尺寸解码，所以不会像位图那样把整张卡顶掉。
         // 高画质每帧像素按帧数摊平：总量钉在 630 万像素（24 帧 × 26 万 ≈ 25MB 峰值内存），
         // 不再是"每帧固定 42 万 × 帧数" —— 帧数一涨就会把手机的瞬时内存顶爆。
-        val perFrame = if (fullRes) 6_300_000f / FRAMES else 40_000f
+        // 背景帧里没有文字（文字是独立 TextView），柔和的渐变放大 1.5~2 倍看不出来，
+        // 但 24 张 1080×520 全分辨率解码会吃掉桌面 50MB —— MIUI 桌面扛不住就把小组件回收，
+        // 表现就是"小组件一直在删来删去"。总量钉在 320 万像素（24 帧 × 13 万 ≈ 12MB）。
+        val perFrame = if (fullRes) 3_200_000f / FRAMES else 40_000f
         val px = wPx.toLong() * hPx
         // 不设下限：预算优先。1200×600 的格子 scale≈0.24 刚好；2475×1375 的格子要 0.108，
         // 原来那个 0.24 下限会让 4 帧加起来 3MB，超了 binder 上限 → 桌面整块丢掉（画质换可见）。

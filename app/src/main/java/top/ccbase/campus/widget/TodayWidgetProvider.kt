@@ -263,11 +263,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 同上：画质开关已删，固定走高画质（URI，绕开 binder 位图上限）
             val hdEnabled = true
             val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed) else null
-            // 高画质文件已就绪时，连位图帧都不生成（省掉最贵的一步）
-            val frames = if (dynSpec && hdFiles == null) {
+            // 2026-10-19 用户："小组件一直在删来删去"。
+            // 根因：桌面这边 HD 文件还没就绪时，我们先在主线程画 24 张位图帧顶上去，
+            // 文件一就绪又立刻 apply 一次 → 桌面短时间内被"重建"两回，观感就是小组件被删了又加回来。
+            // 现在只有**预览**才现场画帧（进程内、不进桌面）；桌面等文件就绪后一次性上。
+            val frames = if (preview && dynSpec && hdFiles == null) {
                 runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
             } else null
-            val dyn = dynSpec && (hdFiles != null || frames != null)
+            // 桌面上没有帧文件时先按静态底显示（一次 apply，不闪）
+            val dyn = dynSpec && (hdFiles != null || (preview && frames != null))
             if (dynSpec && hdEnabled && wScrim == 0 && hdFiles == null) {
                 // 后台画，画完自己回来刷新；这次先用位图帧顶着，桌面不会空白
                 runCatching {
