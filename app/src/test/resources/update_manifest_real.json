@@ -1,12 +1,12 @@
 {
-  "version_code": 134,
-  "version_name": "3.4.15",
-  "url": "/updates/campus-3.4.15.apk",
-  "sha256": "035cad9a9ddeb3f8ec78a588f4beaa3b70b61858d580a4ef2dbb1a488cbf1058",
-  "size": 8327171,
+  "version_code": 135,
+  "version_name": "3.4.16",
+  "url": "/updates/campus-3.4.16.apk",
+  "sha256": "8d68f10a0fd718d9e74f1db1e0fcafecff73fd17546ffa20fd0ee99addcd5145",
+  "size": 8327263,
   "notes": [
-    "动图列表只要有数据就一定显示，不再空白",
-    "小组件动图的四帧取在正片里，不再全黑",
-    "抽不出帧会退回原主题并说明，不静默失败"
+    "新版本半小时内就能发现，悄悄下好",
+    "不弹窗不打断，只留底部一条提示",
+    "下失败等 6 小时再试，不反复烧流量"
   ]
 }

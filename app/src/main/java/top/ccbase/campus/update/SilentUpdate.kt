@@ -30,8 +30,16 @@ object SilentUpdate {
     private const val K_READY_PATH = "ready_path"
     private const val K_ATTEMPT = "auto_attempt_at"
 
-    /** 两次自动尝试的最小间隔：6 小时。失败也按这个节流，免得每次开 App 都重下一遍。 */
-    private const val GAP_MS = 6 * 60 * 60 * 1000L
+    /**
+     * 查清单的最小间隔：30 分钟（2026-10-19 用户："为什么新版本没有做到静默更新"）。
+     *
+     * 原来查和下载共用一个 6 小时闸 —— 结果新版本发出来半天，他进 App 也发现不了。
+     * 清单就几百字节，30 分钟查一次不心疼；**下载**另有节流（同一版本失败 6 小时内不重下）。
+     */
+    private const val GAP_MS = 30 * 60 * 1000L
+
+    /** 同一版本下载失败后的冷却：6 小时。避免每 30 分钟重下一遍 8MB。 */
+    private const val FAIL_GAP_MS = 6 * 60 * 60 * 1000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -87,11 +95,15 @@ object SilentUpdate {
                 )
                 if (outcome !is CheckOutcome.Update) return@runCatching
                 val m = outcome.manifest
+                // 同一版本刚失败过就别急着再下一遍（断网/服务器抖动时能省掉反复 8MB）
+                val failAt = sp(app).getLong("fail_${m.versionCode}", 0L)
+                if (System.currentTimeMillis() - failAt < FAIL_GAP_MS) return@runCatching
                 // 强制更新也别抢：那种情况界面本来就会弹框让用户自己决定
                 Log.i(TAG, "后台下载 v${m.versionName}（${UpdateLogic.humanSize(m.size)}）")
                 val r = Updater.download(app, m)
                 val f = r.getOrNull() ?: run {
                     Log.w(TAG, "后台下载失败：${r.exceptionOrNull()?.message}")
+                    sp(app).edit().putLong("fail_${m.versionCode}", System.currentTimeMillis()).apply()
                     return@runCatching
                 }
                 sp(app).edit()
