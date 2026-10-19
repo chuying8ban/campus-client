@@ -1,13 +1,11 @@
 {
-  "version_code": 141,
-  "version_name": "3.4.22",
-  "url": "/updates/campus-3.4.22.apk",
-  "sha256": "e40b269738c7482ccacd20a62288d8801eb079575d4a9008114f4c754fe920a9",
-  "size": 8327791,
+  "version_code": 142,
+  "version_name": "3.4.23",
+  "url": "/updates/campus-3.4.23.apk",
+  "sha256": "c18e035de7999d835ff3e5562ba4fa755547c9ec1be3291a9f253becc82aa1fe",
+  "size": 8344235,
   "notes": [
-    "静止的小组件主题终于能显示了",
-    "换主题后桌面立刻变，不用等",
-    "App 动态背景更顺滑",
-    "两个「动效」分别写明作用范围"
+    "下载更新时不再挡住 App，可以照常看课表",
+    "进度收成底部一条，点「隐藏」下载也不会停"
   ]
 }

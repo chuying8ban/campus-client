@@ -3,6 +3,8 @@ package top.ccbase.campus.ui.update
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
@@ -167,16 +169,28 @@ class UpdatePanelTest {
     // ---------------------------------------------------------------- 下载中
 
     @Test
-    fun `下载中要显示百分比`() {
+    fun `下载中显示百分比，而且不许挡住 App`() {
+        // 2026-10-19 用户："现在更新时不能使用app" —— 下载中原来是全屏遮罩，
+        // 7.9MB 在校园网要几十秒，那几十秒里什么都点不了。现在只是一条底部细条。
         overlay(UpdateUi.Progress(manifest(), 0.42f))
-        text("正在下载更新").assertIsDisplayed()
+        text("正在后台下载").assertIsDisplayed()
         text("42%").assertIsDisplayed()
+        assertEquals("下载中不该再出现全屏浮层标题", 0, compose.onAllNodesWithTextCount("正在下载更新"))
+    }
+
+    @Test
+    fun `下载中提供隐藏出口，且写明不会中断`() {
+        // 点击在 Robolectric 里注不进去（底部细条贴着窗口下沿），这里守的是"入口在、话说明白"。
+        overlay(UpdateUi.Progress(manifest(), 0.3f))
+        // 精确匹配：底下一句说明里也含「隐藏」两个字，substring 会撞到两个节点
+        compose.onNodeWithText("隐藏").assertExists()
+        text("不会中断下载").assertExists()
     }
 
     @Test
     fun `进度未知时不许显示假的百分比`() {
         overlay(UpdateUi.Progress(manifest(), -1f))
-        text("正在下载").assertIsDisplayed()
+        text("正在后台下载").assertIsDisplayed()
         assertEquals("服务端没给大小时不能瞎编一个 0%",
             0, compose.onAllNodesWithTextCount("%"))
     }

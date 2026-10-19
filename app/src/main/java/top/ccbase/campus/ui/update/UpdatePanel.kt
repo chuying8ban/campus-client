@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -66,7 +67,15 @@ fun UpdateOverlay(
     onDismiss: () -> Unit,
     onRetry: () -> Unit,
     onOpenPermission: () -> Unit = {},
+    /** 下载中把进度条收起来（不打断下载）：用户 2026-10-19「现在更新时不能使用app」 */
+    onHideProgress: () -> Unit = {},
 ) {
+    // 下载中绝不能用全屏遮罩：那等于把 App 锁死几十秒。
+    // 单独走一条"底部细条"，不碰任何触摸区域，用户照常看课表。
+    if (state is UpdateUi.Progress) {
+        DownloadBar(state, onHideProgress)
+        return
+    }
     Box(
         Modifier.fillMaxSize().background(C.bg.copy(alpha = 0.72f))
             .clickable(enabled = state !is UpdateUi.Progress && (state as? UpdateUi.Offer)?.forced != true) { onDismiss() },
@@ -207,5 +216,58 @@ private fun Btn(text: String, primary: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = if (primary) C.violet else C.txt2, fontSize = 13.sp)
+    }
+}
+
+/**
+ * 下载中的"细条"。**不铺遮罩、不拦截触摸** —— 用户要能一边下载一边看课表。
+ *
+ * 2026-10-19 用户："现在更新时不能使用app"。原来下载状态也走全屏浮层，
+ * 7.9MB 在校园网要几十秒，那几十秒里 App 完全不能碰。
+ */
+@Composable
+private fun DownloadBar(state: UpdateUi.Progress, onHide: () -> Unit) {
+    val d = state.detail
+    val retrying = (d?.retryInMs ?: 0L) > 0L
+    val p = if (state.pct < 0f) 0.02f else state.pct.coerceIn(0f, 1f)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp)
+                .padding(bottom = 96.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(C.cardHi)
+                .border(1.dp, C.line, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (retrying) "网络断了，正在接着下" else "正在后台下载 ${state.m.versionName}",
+                    color = if (retrying) C.amber else C.txt,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (state.pct < 0f) "…" else "${(state.pct * 100).toInt()}%",
+                    color = C.txt2, fontSize = 11.5.sp,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "隐藏",
+                    color = C.txt3, fontSize = 11.sp,
+                    modifier = Modifier.clickable { onHide() }.padding(vertical = 6.dp, horizontal = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth().height(3.dp).background(C.line, RoundedCornerShape(2.dp))) {
+                Box(Modifier.fillMaxWidth(p).height(3.dp).background(C.violet, RoundedCornerShape(2.dp)))
+            }
+            Spacer(Modifier.height(7.dp))
+            Text(
+                "可以继续用 App；点「隐藏」不会中断下载，下好会再提示。",
+                color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
+            )
+        }
     }
 }

@@ -705,6 +705,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             state = st,
             currentVersion = version,
             onStart = { (st as? UpdateUi.Offer)?.let { startDownload(it.m, it.forced) } },
+            // 收起进度条：只把界面藏了，下载协程照跑（它在 CampusShell 的 scope 里）
+            onHideProgress = { update = null },
             onInstall = {
                 val r = st as? UpdateUi.Ready
                 if (r != null) {
