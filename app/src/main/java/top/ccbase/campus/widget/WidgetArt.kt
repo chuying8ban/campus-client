@@ -149,6 +149,38 @@ object WidgetArt {
         return out
     }
 
+    /**
+     * 在**已经圆角**的位图上再压一层整卡覆盖色（可读性幕）。
+     *
+     * 为什么必须画进位图、不能用布局里的 `widget_scrim`：
+     * 那是一个矩形 ImageView，`setBackgroundColor` 铺的是直角矩形 —— 盖上去正好把
+     * 四个透明圆角重新填成直角。2026-10-19 用户："圆角有时会消失" 就是它：只有在
+     * 挑过字色、又用图片/动图主题时才会显示，所以"有时"。
+     * 这里把幕按圆角路径裁一刀，四角仍然透出去。
+     */
+    fun veil(src: Bitmap, argb: Int, radiusPx: Float): Bitmap {
+        if (android.graphics.Color.alpha(argb) == 0) return src
+        val key = "v" + System.identityHashCode(src) + argb + radiusPx.toInt()
+        cache.get(key)?.let { return it }
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        c.drawBitmap(src, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+        val path = android.graphics.Path().apply {
+            addRoundRect(
+                RectF(0f, 0f, src.width.toFloat(), src.height.toFloat()),
+                radiusPx, radiusPx, android.graphics.Path.Direction.CW,
+            )
+        }
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = argb
+        c.save()
+        c.clipPath(path)
+        c.drawRect(0f, 0f, src.width.toFloat(), src.height.toFloat(), paint)
+        c.restore()
+        cache.put(key, out)
+        return out
+    }
+
     fun rounded(src: Bitmap, radiusPx: Float): Bitmap {
         if (radiusPx <= 0f) return src
         val key = "r" + System.identityHashCode(src) + radiusPx.toInt()

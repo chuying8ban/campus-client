@@ -223,6 +223,15 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val speed = runCatching { WidgetThemes.speed(ctx) }.getOrDefault(1f)
             val frames = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
             val dyn = frames != null
+
+            // 可读性幕：只在"图片/动图"这类底板内容不受我们控制的主题上，且用户挑过字色时才有值。
+            // 注意：**必须画进位图**（见 WidgetArt.veil），不能再用布局里那块矩形 scrim。
+            val imgTheme = dyn || spec.startsWith("photo") || spec.startsWith("media") ||
+                spec.startsWith("animphoto")
+            val wScrim = if (imgTheme)
+                TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor) else 0
+            val density = ctx.resources.displayMetrics.density
+            val veilRadius = WidgetArt.radiusFor(hPx, density)
             if (frames != null) {
                 rv.setViewVisibility(R.id.widget_flip, View.VISIBLE)
                 rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
@@ -231,7 +240,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 // 帧不够就**重复最后一帧**填满，绝不留空位：ViewAnimator 会把空位也翻出来。
                 FRAME_IDS.forEachIndexed { i, id ->
                     // 透明度在这里落地（a=1 时 fade 原样返回，不复制位图）
-                    rv.setImageViewBitmap(id, WidgetArt.fade(frames[i.coerceAtMost(frames.size - 1)], wAlpha))
+                    val fr = frames[i.coerceAtMost(frames.size - 1)]
+                    val veiled = if (wScrim != 0) {
+                        WidgetArt.veil(fr, wScrim, veilRadius * (fr.width.toFloat() / wPx))
+                    } else fr
+                    rv.setImageViewBitmap(id, WidgetArt.fade(veiled, wAlpha))
                     rv.setViewVisibility(id, View.VISIBLE)
                 }
                 // 2026-10-19 真正的根因（自检里终于露出原话）：
@@ -258,7 +271,10 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 val bmp = backgroundBitmapFor(ctx, spec, wPx, hPx)
                 if (bmp != null) {
                     rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
-                    rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(bmp, wAlpha))
+                    val veiled = if (wScrim != 0) {
+                        WidgetArt.veil(bmp, wScrim, veilRadius * (bmp.width.toFloat() / wPx))
+                    } else bmp
+                    rv.setImageViewBitmap(R.id.widget_bg_img, WidgetArt.fade(veiled, wAlpha))
                 } else {
                     // 连渐变都画不出来（几乎不可能）：至少别让卡片透明
                     rv.setViewVisibility(R.id.widget_bg_img, View.GONE)
@@ -266,21 +282,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 }
             }
 
-            // 小组件文字幕：只在"他自己挑过字色"且和底板撞色时才压一层，
-            // 深浅跟 App 那套用同一个算法（深字压白幕 / 浅字压黑幕）。
-            // 他的选择永远优先，可读性由这一层补 —— 不偷偷改字色。
-            // 只有"图片/动图"这类底板内容不受我们控制的主题才压幕；
-            // 纯色主题上压幕 = 把用户挑的主题色盖掉（用户会说"我改字色怎么背景变了"）。
-            val imgTheme = dyn || spec.startsWith("photo") || spec.startsWith("media") ||
-                spec.startsWith("animphoto")
-            val wScrim = if (imgTheme)
-                TextTint.scrimArgbFor(TextTint.widgetState.value, theme.bgColor) else 0
-            if (wScrim != 0) {
-                rv.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
-                rv.setInt(R.id.widget_scrim, "setBackgroundColor", wScrim)
-            } else {
-                rv.setViewVisibility(R.id.widget_scrim, View.GONE)
-            }
+            // 布局里那块矩形 scrim 永远隐藏：它铺的是直角矩形，会把四个圆角填平
+            // （2026-10-19 用户："圆角有时会消失"）。幕已经画进位图了。
+            rv.setViewVisibility(R.id.widget_scrim, View.GONE)
 
             // 文字颜色跟 App 同源（用户在「外观」里挑的那支）。
             // 只动字的颜色，底色/强调色不跟着变 —— 那会变成另一套主题。
