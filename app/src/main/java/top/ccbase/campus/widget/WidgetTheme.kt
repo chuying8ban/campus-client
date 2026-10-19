@@ -255,9 +255,13 @@ object WidgetThemes {
             } else {
                 BitmapFactory.decodeResource(ctx.resources, theme.imageRes)
             } ?: return null
-            val scale = (targetPx.toFloat() / src.width).coerceAtMost(1f)
-            if (scale >= 1f) src
-            else Bitmap.createScaledBitmap(src, (src.width * scale).toInt(), (src.height * scale).toInt(), true)
+            // 静态图这条路原来漏了提亮：用户那张"我的图"平均亮度只有 39/255，
+            // 再压一层 40%~60% 黑遮罩就是纯黑 —— 而"微动"走的是帧分支（3.4.18 已提亮），
+            // 所以出现了"静止不显示、点了动效就有了"的怪现象。
+            val lifted = ImgLift.lift(src)
+            val scale = (targetPx.toFloat() / lifted.width).coerceAtMost(1f)
+            if (scale >= 1f) lifted
+            else Bitmap.createScaledBitmap(lifted, (lifted.width * scale).toInt(), (lifted.height * scale).toInt(), true)
         }.getOrNull()
     }
 

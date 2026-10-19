@@ -236,10 +236,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
                         ctx, top.ccbase.campus.ui.theme.UserMedia.Slot.WIDGET,
                     )
                     // 老图（提亮逻辑上线前存的）也抬一下，不用用户重选一次
-                    if (still != null) return bgBitmap(ImgLift.lift(still), bw, bh, density, 0x55000000.toInt(), 0x99000000.toInt())
+                    if (still != null) return bgBitmap(ImgLift.lift(still), bw, bh, density, 0x33000000, 0x66000000)
                 }
                 val art = WidgetThemes.imageBitmap(ctx, theme)
-                if (art != null) return bgBitmap(art, bw, bh, density, 0x66000000.toInt(), 0x99000000.toInt())
+                // 遮罩别压太狠：0x66/0x99（40%→60% 黑）会把偏暗的照片直接压成黑块。
+                // 文字有描边/底色衬着，20%→40% 足够读。
+                if (art != null) return bgBitmap(art, bw, bh, density, 0x33000000, 0x66000000)
             }
             val bmp = runCatching {
                 WidgetArt.background(
@@ -269,7 +271,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
         // MIUI 到底按哪个数丢图没有文档，宁可糊一点也要它显示出来。
         // 2026-10-19：120k 像素 = 480KB(ARGB)，叠上帧就逼近 binder 的 ~1MB 上限，
         // MIUI 会**静默整块丢掉** → 桌面只剩黑底和文字。压到 60k（≈240KB）留足余量。
-        private const val BG_MAX_PX = 60_000
+        private const val BG_MAX_PX = 90_000
 
         /** 缩放铺满 + 圆角蒙版，一步成型。失败返回 null，由调用方退回纯色底。 */
         private fun bgBitmap(
