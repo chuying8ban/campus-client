@@ -58,7 +58,7 @@ import top.ccbase.campus.update.UpdatePrefs
 @Composable
 private fun SectionTitle(text: String, first: Boolean = false) {
     if (!first) Spacer(Modifier.height(30.dp))
-    Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(MeRowStyle.dividerColor(MaterialTheme.colorScheme.onBackground)))
     Spacer(Modifier.height(12.dp))
     Text(text, fontSize = 12.sp, fontWeight = FontWeight.Medium,
          color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f))
@@ -78,9 +78,9 @@ private fun fmtCheckedAt(ms: Long): String =
 @Composable
 private fun KV(k: String, v: String) {
     Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-        Text(k, fontSize = 13.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+        Text(k, fontSize = 13.sp, color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground),
              modifier = Modifier.width(96.dp))
-        Text(v, fontSize = 13.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.85f))
+        Text(v, fontSize = 13.sp, color = MeRowStyle.titleColor(MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.error))
     }
 }
 
@@ -97,13 +97,17 @@ private fun Action(
     ) {
         Text(
             text, fontSize = 14.sp,
-            color = if (danger) MaterialTheme.colorScheme.error.copy(alpha = if (enabled) 0.9f else 0.35f)
-                    else MaterialTheme.colorScheme.onBackground.copy(alpha = if (enabled) 0.88f else 0.3f),
+            color = MeRowStyle.titleColor(
+                onBackground = MaterialTheme.colorScheme.onBackground,
+                error = MaterialTheme.colorScheme.error,
+                danger = danger,
+                enabled = enabled,
+            ),
         )
         hint?.let {
             Spacer(Modifier.height(3.dp))
-            Text(it, fontSize = 11.sp, lineHeight = 17.sp,
-                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f))
+            Text(it, fontSize = 11.sp, lineHeight = MeRowStyle.HINT_LINE_SP.sp,
+                 color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground))
         }
     }
 }
@@ -326,13 +330,13 @@ fun MeScreen(
              color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(4.dp))
         Text("独立开发的校园助手 · 非学校官方产品", fontSize = 11.sp,
-             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f))
+             color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground))
 
         SectionTitle("账户")
         if (token == null) {
             Text("还没登录云端。不登录也能用：课表在本机导入，收藏和活动记录保存在这台手机上。",
                  fontSize = 13.sp, lineHeight = 21.sp,
-                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                 color = MeRowStyle.bodyColor(MaterialTheme.colorScheme.onBackground))
             Spacer(Modifier.height(16.dp))
             Box(
                 Modifier.fillMaxWidth().height(46.dp)
@@ -362,7 +366,7 @@ fun MeScreen(
                     CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(10.dp))
                     Text("处理中…", fontSize = 12.sp,
-                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                         color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground))
                 }
             } else {
                 // 读教务只有一条路：打开学校官方登录页，密码不出手机、不上传。
@@ -389,7 +393,7 @@ fun MeScreen(
                 "更新一次课表后，这里会显示你的学院、班级和辅导员。\n" +
                     "读自教务「学籍 - 详情」，只保存在这台手机上。",
                 fontSize = 13.sp, lineHeight = 21.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                color = MeRowStyle.bodyColor(MaterialTheme.colorScheme.onBackground),
             )
         } else {
             prof.rows().forEach { (k, v) -> KV(k, v) }
@@ -398,7 +402,7 @@ fun MeScreen(
             Text(
                 "来自教务学籍页，只存本机；点「更新教务课表」会顺带刷新一次。",
                 fontSize = 11.sp, lineHeight = 17.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
+                color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground),
             )
         }
         // 考试 / 成绩：都是那次导入顺带读回来的快照，所以入口摆在学籍下面同一组里
@@ -444,14 +448,14 @@ fun MeScreen(
             "教务密码只在学校的官方登录页里输入：App 不读取、不保存，也不上传到我们的服务器。\n" +
             "如果你在旧版本里存过教务密码（已停用的功能），可以在这里把它从服务器删掉。",
             fontSize = 12.sp, lineHeight = 19.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            color = MeRowStyle.bodyColor(MaterialTheme.colorScheme.onBackground),
         )
         if (token != null) {
             Action("删除服务器上的旧教务密码", "旧版本存过才需要删；删掉后不再有这一项，其他功能不受影响",
                    danger = true, enabled = !busy) { askDelete = true }
         } else {
             Text("（登录后才会保存）", fontSize = 12.sp,
-                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f))
+                 color = MeRowStyle.disabledColor(MaterialTheme.colorScheme.onBackground))
             Spacer(Modifier.height(10.dp))
         }
 
@@ -506,7 +510,7 @@ fun MeScreen(
             "这是一个学生自己做的工具，不是学校官方产品。\n" +
             "课表、成绩、考试安排以教务系统为准；本工具只做展示与提醒，不对数据准确性负责。",
             fontSize = 11.sp, lineHeight = 18.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f),
+            color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground),
         )
 
         // ── 退出登录放**整页最底下**（用户口径 2026-09-30：「把退出登录放到我的的最底下」）：
@@ -520,7 +524,7 @@ fun MeScreen(
         msg?.let {
             Spacer(Modifier.height(22.dp))
             Text(it, fontSize = 12.sp, lineHeight = 19.sp,
-                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f))
+                 color = MeRowStyle.titleColor(MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.error))
         }
         Spacer(Modifier.height(40.dp))
     }
@@ -574,12 +578,21 @@ private fun AutoUpdateRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("自动后台更新", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                // 颜色**跟着全页的层级走**（2026-10-20 用户截图：这一行比上面的「检查更新」偏色）：
+                // 原来标题没写 color，吃的是 Material 默认的 LocalContentColor（onSurface），
+                // 和 `Action` 里的 onBackground@0.88 不是同一个色；副标题又用了 0.55 的透明度，
+                // 而别的行副标题是 0.4 —— 两个偏差叠在一起，一眼就看得出"这块字不一样"。
+                Text(
+                    "自动后台更新", fontSize = 14.sp,
+                    color = MeRowStyle.titleColor(
+                        MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.error,
+                    ),
+                )
                 Text(
                     if (on) "每隔几小时自动检查并下载，装的时候会提醒你"
                     else "关闭中：只在你手动检查时才下载",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                    fontSize = 11.sp, lineHeight = MeRowStyle.HINT_LINE_SP.sp,
+                    color = MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground),
                 )
             }
             androidx.compose.material3.Switch(checked = on, onCheckedChange = onToggle)
@@ -593,13 +606,19 @@ private fun AutoUpdateRow(
                 if (keepAliveOk) "后台保活：已允许（切走、锁屏也能下完）"
                 else "后台保活：未允许 —— 点这里开启，否则切走后下载可能被系统掐断",
                 fontSize = 12.sp,
-                color = if (keepAliveOk) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                color = if (keepAliveOk) MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground)
                 else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable { if (!keepAliveOk) onOpenKeepAlive() },
             )
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("只在 Wi-Fi 下下载", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Text(
+                    "只在 Wi-Fi 下下载", fontSize = 13.sp,
+                    color = MeRowStyle.titleColor(
+                        MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.error,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
                 androidx.compose.material3.Switch(
                     checked = wifiOnly,
                     onCheckedChange = onToggleWifi,
