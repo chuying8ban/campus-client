@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.LinearGradient
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.util.LruCache
@@ -127,6 +128,45 @@ object Painter {
         if (small !== up) small.recycle()
         up.recycle()
         base.recycle()
+    }
+
+    /**
+     * 文字底幕（画进位图，不用布局里的矩形 View —— 那个会把圆角填平）。
+     * 2026-10-20 用户截图：本地素材是白底线稿，白字直接看不见。
+     * 亮度越高的素材压得越狠：亮底 0xB0 顶部、暗底 0x66。
+     */
+    fun scrim(c: Canvas, w: Int, h: Int, bright: Boolean) {
+        if (w <= 0 || h <= 0) return
+        val top = if (bright) 0x99000000.toInt() else 0x4D000000
+        val bottom = if (bright) 0x4D000000 else 0x14000000
+        val p = Paint()
+        p.shader = LinearGradient(
+            0f, 0f, 0f, h.toFloat(),
+            intArrayOf(top, top / 2, bottom),
+            floatArrayOf(0f, 0.45f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+    }
+
+    /** 抽样估亮度（0..255）：用来决定底幕压多重 */
+    fun brightness(b: Bitmap): Int {
+        var sum = 0L
+        var n = 0
+        val step = (b.width / 12).coerceAtLeast(1)
+        val stepY = (b.height / 12).coerceAtLeast(1)
+        var y = stepY / 2
+        while (y < b.height) {
+            var x = step / 2
+            while (x < b.width) {
+                val px = b.getPixel(x, y)
+                sum += (((px shr 16) and 0xFF) * 77 + ((px shr 8) and 0xFF) * 150 + (px and 0xFF) * 29) shr 8
+                n++
+                x += step
+            }
+            y += stepY
+        }
+        return if (n == 0) 0 else (sum / n).toInt()
     }
 
     private val BAYER = intArrayOf(

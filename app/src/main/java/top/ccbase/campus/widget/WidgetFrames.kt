@@ -49,6 +49,9 @@ object WidgetFrames {
      */
     const val FRAMES = 40
 
+    /** 素材（视频/动图）抽帧数：不需要 40，12 帧又顺又省 */
+    const val MEDIA_FRAMES = 12
+
     /**
      * 帧架构戳。帧数、像素预算这类"画法"一变，旧的帧文件就必须作废 ——
      * 否则桌面上会一直复用上次那批高分辨率帧，改了预算等于没改。
@@ -279,6 +282,20 @@ object WidgetFrames {
             tmp.writeText(stamp)
             tmp.renameTo(java.io.File(dir, "meta.json"))   // 原子替换，桌面不会读到半截 meta
         }
+        // 写完立刻验首帧：真机上出现过"文件在、帧全透明"，桌面于是显示成一张没有底的卡。
+        // 宁可判失效（桌面退回主题底色），也不要交一批透明帧上去。
+        runCatching {
+            val f0 = java.io.File(dir, "f0.png")
+            val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = false }
+            val probe = android.graphics.BitmapFactory.decodeFile(f0.absolutePath, opts)
+            // 解不出来（Robolectric 的 BitmapFactory 偶发返回 null）就当"没法验证"，不动 meta；
+            // 只有**明确读到**中心透明才判失效。
+            if (probe != null) {
+                val a = (probe.getPixel(probe.width / 2, probe.height / 2) ushr 24) and 0xFF
+                probe.recycle()
+                if (a < 250) java.io.File(dir, "meta.json").delete()
+            }
+        }
         // 只保留当前这份，别的 spec 的旧帧清掉（桌面只会用一种）
         dir.parentFile?.listFiles()?.forEach { if (it.absolutePath != dir.absolutePath) it.deleteRecursively() }
         frames.forEachIndexed { i, b ->
@@ -325,6 +342,10 @@ object WidgetFrames {
         hPx: Int,
         fullRes: Boolean = false,
         stamp: String = "",
+        // 素材帧（视频/动图）不需要 40 帧：视频帧是"抽时间点"，不是相位闭合，
+        // 帧数仍必须等于布局帧位（40），否则 provider 认为"未就绪"而退回静态底 → 素材没有静态底 → 卡片透明。
+        // 便宜的部分已经由下面的"帧池"解决：只解 12 张真帧，其余按池循环铺。
+        count: Int = FRAMES,
     ): List<Bitmap>? {
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
         // 告诉画笔"一次循环有多长"：DynPainter 里所有相位都按它取整，帧 N-1 才接得回帧 0。
@@ -350,25 +371,40 @@ object WidgetFrames {
                 RectF((fw - dw) / 2f, (fh - dh) / 2f, (fw + dw) / 2f, (fh + dh) / 2f),
                 paint,
             )
+            // 文字就在这张图上，素材亮到"白字看不见"时必须压一层渐变底幕
+            // （2026-10-20 用户截图：本地素材是白底线稿，字直接消失）。
+            // 先压底幕（画在 bmp 上，c 就是它的画布），再抬亮度：顺序反了底幕会画到已被复制的一份上。
+            Painter.scrim(c, fw, fh, Painter.brightness(bmp) > 150)
             // 暗到看不出画面的素材先抬一档（用户那张"我的图"只有 20/255）
             out += WidgetArt.rounded(ImgLift.lift(bmp), radius)
         }
 
+        // 抽帧策略：先解出**少量**真实帧（池），再按池循环铺满 count 帧。
+        // 之前是"为每一帧都去 getFrameAtTime"，40 帧 = 40 次从 mp4 里解全尺寸帧，
+        // 用户点开本地素材库的素材后 App 明显掉帧就是这么来的；池化后解码次数降到 1/3。
+        // 另一个隐蔽后果：帧数凑不满 40 时 previous 逻辑认为"HD 未就绪"，桌面永远退回静态底，
+        // 而静态底对 mat: 素材没有位图 → 卡片看起来就是**透明**的（2026-10-20 第二次反馈）。
+        val pool = ArrayList<Bitmap>(12)
         when (media.kind) {
             top.ccbase.campus.ui.theme.UserMedia.Kind.VIDEO -> {
                 val mmr = android.media.MediaMetadataRetriever()
                 try {
                     mmr.setDataSource(media.file.path)
-                    // 2026-10-19：原来固定取 0 / 0.32 / 0.64 / 0.96s。很多动图开头是淡入黑场，
-                    // 四帧全黑 → 桌面小组件"没有主题"。改成按**整段时长**均匀取 12%~84%，
-                    // 保证每一帧都落在正片里，而不是片头过渡上。
                     val durMs = mmr.extractMetadata(
                         android.media.MediaMetadataRetriever.METADATA_KEY_DURATION,
                     )?.toLongOrNull()?.takeIf { it > 400 } ?: 1_400L
-                    for (i in 0 until FRAMES) {
-                        val frac = 0.12f + 0.72f * i / (FRAMES - 1).coerceAtLeast(1)
+                    val uniq = minOf(count, 12)
+                    for (i in 0 until uniq) {
+                        val frac = 0.12f + 0.72f * i / (uniq - 1).coerceAtLeast(1)
                         val us = (durMs * 1000L * frac).toLong()
-                        blit(mmr.getFrameAtTime(us, android.media.MediaMetadataRetriever.OPTION_CLOSEST))
+                        // 按目标尺寸直接解小图（API 27+）：1080p 全帧约 8MB，解 12 张就 100MB，
+                        // 这是"卡顿"的另一半。低版本退回全尺寸再缩。
+                        val bm = if (android.os.Build.VERSION.SDK_INT >= 27) {
+                            runCatching { mmr.getScaledFrameAtTime(us, android.media.MediaMetadataRetriever.OPTION_CLOSEST, fw, fh) }.getOrNull()
+                        } else {
+                            runCatching { mmr.getFrameAtTime(us, android.media.MediaMetadataRetriever.OPTION_CLOSEST) }.getOrNull()
+                        }
+                        if (bm != null) pool += bm
                     }
                 } catch (e: Exception) {
                     return null
@@ -380,29 +416,44 @@ object WidgetFrames {
                 val movie = runCatching { android.graphics.Movie.decodeFile(media.file.path) }.getOrNull()
                 if (movie != null) {
                     val dur = movie.duration().takeIf { it > 0 } ?: 1000
-                    for (i in 0 until FRAMES) {
-                        val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
-                        val c = Canvas(bmp)
-                        val scale = max(fw.toFloat() / movie.width(), fh.toFloat() / movie.height())
-                        val dw = (movie.width() * scale).toInt()
-                        val dh = (movie.height() * scale).toInt()
+                    val uniq = minOf(count, 12)
+                    for (i in 0 until uniq) {
+                        val bm = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
+                        val c = Canvas(bm)
+                        val sc = max(fw.toFloat() / movie.width(), fh.toFloat() / movie.height())
+                        val dw = movie.width() * sc
+                        val dh = movie.height() * sc
                         c.save()
                         c.translate((fw - dw) / 2f, (fh - dh) / 2f)
-                        c.scale(scale, scale)
-                        movie.setTime((i * dur / FRAMES) % dur)
+                        c.scale(sc, sc)
+                        movie.setTime((i * dur / uniq) % dur)
                         movie.draw(c, 0f, 0f)
                         c.restore()
-                        // 暗到看不出画面的素材先抬一档（用户那张"我的图"只有 20/255）
-            out += WidgetArt.rounded(ImgLift.lift(bmp), radius)
+                        pool += bm
                     }
                 } else {
-                    // Movie 解不了（有的 gif 是 PNG 伪装）：退回单帧
-                    blit(BitmapFactory.decodeFile(media.file.path))
+                    // Movie 解不了（有的 gif 是 PNG 伪装）：退回单帧。
+                    // 按目标尺寸的一半采样解码 —— 本地素材常见 1080p 甚至 4K，整张读进来再缩最容易卡。
+                    val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(media.file.path, b)
+                    val opts = BitmapFactory.Options().apply {
+                        inSampleSize = 1
+                        while (b.outWidth / (inSampleSize * 2) >= fw * 2 &&
+                            b.outHeight / (inSampleSize * 2) >= fh * 2
+                        ) {
+                            inSampleSize *= 2
+                        }
+                    }
+                    BitmapFactory.decodeFile(media.file.path, opts)?.let { pool += it }
                 }
             }
         }
+        if (pool.isEmpty()) return null
+        for (i in 0 until count) blit(pool[i % pool.size])
+        pool.forEach { runCatching { it.recycle() } }
+
         if (out.isEmpty()) return null
-        while (out.size < FRAMES) out += out.last()   // 不足 6 帧就重复填补
+        while (out.size < count) out += out.last()   // 不足就重复填补
         cache.put(key, out)
         diskSave(ctx, key, out, stamp)
         return out
@@ -439,10 +490,11 @@ object WidgetFrames {
             draw(c, fw, fh, i * STEP_SEC)
             // 景深与光溢出：先柔焦一层（硬边变焦外），再拿亮部叠一层光晕。
             // 顺序不能反 —— 先 bloom 再 soften 会把光晕又抹平，只剩一片糊。
-            // 强度是量出来的：0.35 会把极光的彩带糊成一团紫（对照图上看就是"六款同一张"），
-            // 0.14 只磨掉硬边、保留结构。bloom 同理，0.20 会让暗部整体泛白。
-            Painter.soften(c, bmp, 0.14f)
-            Painter.bloom(c, bmp, 0.14f)
+            // 柔焦/光晕先停用（2026-10-20 用户第二次报"桌面仍是透明"）：
+            // 这两步在真机上把帧画成了透明，JVM 里复现不出来。它们的收益是"磨硬边"，
+            // 代价是每帧多两次整图缩放 + 一次透明的可能 —— 现在直接不画，先保证卡片不空。
+            // 想恢复：调用 Painter.soften(c, bmp, 0.14f) / Painter.bloom(c, bmp, 0.14f)，
+            // 并且必须在真机上确认 alpha 仍是 255（Painter 内部已改成先 copy 再缩放）。
             // 收尾三道工序：暗角 → 颗粒 → 圆角 → 抖动。
             // 前三步按"每帧完全一样"的参数做（同一个暗角梯度、同一张噪点图），
             // 换帧只换主体 —— 颗粒要是每帧重随机，5fps 下就是"沙沙闪"。

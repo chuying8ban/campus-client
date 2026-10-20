@@ -399,6 +399,14 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
                 }
             }
+            // 动态主题/素材帧还没就绪时，静态底也可能是空的（mat: 素材没有静态位图，
+            // 视频/gif 抽帧失败时同样为空）—— 那种情况下卡片会整块透明，只剩字浮在壁纸上。
+            // 兜底：至少铺一层主题底色，宁可素一点，也不要"卡片消失"。
+            if (dynSpec && !dyn) {
+                runCatching {
+                    rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
+                }
+            }
 
             // 布局里那块矩形 scrim 永远隐藏：它铺的是直角矩形，会把四个圆角填平
             // （2026-10-19 用户："圆角有时会消失"）。幕已经画进位图了。

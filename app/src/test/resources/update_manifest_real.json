@@ -2,8 +2,8 @@
   "version_code": 178,
   "version_name": "3.4.59",
   "url": "/updates/campus-3.4.59.apk",
-  "sha256": "ad79b4bfc7d69d3167a982f077a36860e27b1e4c8926ee061879c8f64631b3dc",
-  "size": 29227500,
+  "sha256": "482df4e269ecd005b7ed599d05c0b2edf5f7529b013974eceebe4bf22665788b",
+  "size": 29228640,
   "notes": [
     "修桌面卡片「透明」：帧被画成了透明",
     "柔焦/光晕不再读取画布自己那块像素",
