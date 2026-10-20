@@ -112,7 +112,16 @@ class WidgetLoopFlickerTest {
             "出场动画必须保持不透明（1.0 → 1.0）；改成 1→0 会让中点亮度掉到 7 成，桌面每帧闪一次",
             out.contains("fromAlpha=\"1.0\"") && out.contains("toAlpha=\"1.0\""),
         )
-        assertTrue("入场时长应 ≤ 150ms（方案：110ms）", Regex("duration=\"(\\d+)\"").find(ins)!!.groupValues[1].toInt() <= 150)
+        // 2026-10-20 第二轮：淡入必须铺满整个翻转间隔且线性。
+        // 短于间隔 = 每帧末尾有一段完全静止（看着一顿一顿）；decelerate = 给每一对帧套缓出（像在打嗝）。
+        val iv = Regex("flipInterval=\"(\\d+)\"").find(
+            File("src/main/res/layout/widget_today.xml").readText()
+        )!!.groupValues[1].toInt()
+        val dIn = Regex("duration=\"(\\d+)\"").find(ins)!!.groupValues[1].toInt()
+        val dOut = Regex("duration=\"(\\d+)\"").find(out)!!.groupValues[1].toInt()
+        assertEquals("淡入时长应等于 flipInterval", iv, dIn)
+        assertEquals("淡出时长应与淡入一致", dIn, dOut)
+        assertTrue("淡入必须是 linear（decelerate 会让帧间位移忽快忽慢）", ins.contains("linear_interpolator"))
     }
 
     @Test

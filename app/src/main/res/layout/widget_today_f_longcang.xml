@@ -19,7 +19,7 @@
     <!-- 动画交给桌面自己跑：ViewFlipper 在 inflate 时读到 autoStart / flipInterval /
          inAnimation / outAnimation 就开始轮播，**不需要**我们跨进程一帧一帧推。
          2026-10-19 用户："小控件动画极其生硬" —— 根因是我们每 250ms 广播一次、每帧硬切。
-         现在 24 帧 + 200ms 交叉溶解，跑起来是连续的光影流动，不是幻灯片。 -->
+         现在 40 帧 + 150ms 整段线性溶解，跑起来是连续的光影流动，不是幻灯片。 -->
     <ViewFlipper
         android:id="@+id/widget_flip"
         android:layout_width="match_parent"

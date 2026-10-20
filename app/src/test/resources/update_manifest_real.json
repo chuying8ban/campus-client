@@ -1,12 +1,12 @@
 {
-  "version_code": 182,
-  "version_name": "3.4.63",
-  "url": "/updates/campus-3.4.63.apk",
-  "sha256": "c5c328c7262f6e8ff5abd03e1791f69cb13dad5729e71247570addc3b392d575",
-  "size": 29229224,
+  "version_code": 183,
+  "version_name": "3.4.64",
+  "url": "/updates/campus-3.4.64.apk",
+  "sha256": "7b0c844d7fe0d7a0a87483573ffaca3377b0acb3e0e37bce34d1584d913499c9",
+  "size": 29229324,
   "notes": [
-    "修本地素材库：静态图片可以设成桌面卡片底",
-    "以前 jpg/png 会被判\"读不出来\"",
-    "App 背景也能直接用图片素材"
+    "桌面小组件页写明暂不支持华为/荣耀",
+    "选择器里的说明也加了这句",
+    "不再提供兼容模式开关"
   ]
 }

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 旧帧**保持不透明**直到被新帧完全盖住（1→1）。
-     这一行是全片最反直觉的地方：ViewFlipper 的默认语义是"旧的出去、新的进来"，
-     两边都做 alpha 动画时中点会漏背景 → 亮度周期性下跌 = 闪烁。
-     把出场动画改成"不动"，出场的 View 会在入场动画结束后被置 GONE，视觉上完全等价于交叉溶解，
-     但合成亮度恒定。不要改回 1→0。 -->
+<!-- 旧帧**保持不透明**直到被新帧完全盖住（1→1），时长与入场一致（= flipInterval）。
+     两边都做 alpha 动画时，中点合成亮度只有单帧的 7 成 → 每帧暗一次 = 闪烁；
+     旧帧不动，合成亮度恒定，视觉上等价于交叉溶解。
+     不要改回 1→0，也不要把时长改得比入场短。 -->
 <alpha xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="110"
+    android:duration="200"
+    android:interpolator="@android:anim/linear_interpolator"
     android:fromAlpha="1.0"
     android:toAlpha="1.0" />

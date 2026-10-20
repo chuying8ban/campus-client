@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 帧与帧之间的淡入：**只淡入，不让旧帧淡出**。
-     2026-10-20 用户："动态主题时总是出现不自然的闪烁" —— 根因就在这两个动画的配合上：
-     旧帧 1→0、新帧 0→1 同时进行时，两张半透明图叠在背景上，中点的合成亮度只有单帧的 7 成，
-     每 250ms 就暗一次 → 眼睛看到的是"整块卡在闪"，不是"画面在流动"。
-     现在新帧淡入、旧帧保持不透明（见 widget_frame_out.xml），中点亮度恒定。
-     110ms 是方案里的数：占 200ms 间隔的 55%，比原来 80% 的双重曝光低一档，边缘更不糊。 -->
+<!-- 帧间淡入：**整段间隔（= flipInterval 200ms）、线性、只淡入**。
+     2026-10-20 第二轮「要流畅自然」改的两件事：
+     ① 时长 110 → 200（覆盖整个翻转间隔）。旧版淡入只用 110ms，剩下 90ms 画面完全静止，
+        40 帧 × 每帧"动一下→停一下" = 眼睛读到的是一顿一顿。
+     ② decelerate → linear。decelerate 等于给每一对帧都套一次缓出，连做 40 次像在打嗝；
+        线性权重才等价于"两帧之间的时间插值"（旧帧 alpha 恒为 1 时，合成 = lerp(旧, 新, t)），
+        也就是把 5fps 的帧序列补成连续的位移。
+     时长必须与 widget_frame_out.xml 相同、且等于 flipInterval：
+     短了会出现"旧帧已撤、新帧没满"的空档（闪烁），长了会压住下一帧。
+     不要改回 decelerate，也不要把时长改短。 -->
 <alpha xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="110"
-    android:interpolator="@android:anim/decelerate_interpolator"
+    android:duration="200"
+    android:interpolator="@android:anim/linear_interpolator"
     android:fromAlpha="0.0"
     android:toAlpha="1.0" />
