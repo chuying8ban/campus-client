@@ -124,6 +124,15 @@ object UpdateGate {
         val p = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
         val code = p.getInt(K_CODE, 0)
         if (code <= 0) return
+        // 这一版已经装上了（比如用户从别的入口装过、或者商店/旧包补装）：这条待装就该收掉。
+        // 否则「我的」页会一直挂着一句「X 已下好 · 点此安装」，点下去装的还是同一个版本。
+        val installed = installedCodeOverride ?: runCatching {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
+        }.getOrDefault(0)
+        if (code <= installed) {
+            p.edit().clear().apply()
+            return
+        }
         val f = p.getString(K_PATH, null)?.let { File(it) }
         if (f == null || !f.isFile || f.length() == 0L) {
             p.edit().clear().apply()
