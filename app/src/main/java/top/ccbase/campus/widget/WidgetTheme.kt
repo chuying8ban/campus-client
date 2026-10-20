@@ -388,4 +388,32 @@ object WidgetThemes {
         android.graphics.Color.HSVToColor(floatArrayOf(h, s, v))
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+
+    // ── 兼容模式（2026-10-20 同学反馈华为手机小组件用不了） ───────────────────────
+    // 华为/荣耀的鸿蒙启动器对 RemoteViews 处理有自己的限制：
+    //   · ViewFlipper 的子视图切换动画经常不跑（帧"卡"在第一张或整块空白）
+    //   · setImageViewUri 交给对方读文件，部分版本读不到（卡片透明，只剩字）
+    //   · 每个 RemoteViews 的位图总量有更紧的上限
+    // 兼容模式 = 不走 URI、不走 ViewFlipper：只把第一帧画成一张 ≤640px 的位图交给桌面。
+    // 代价是没有动画，但至少卡片是"有画面的、能用的"。
+    private const val KEY_COMPAT = "widget_compat"
+
+    /** 首次进入：华为/荣耀默认开，其余关机默认关；用户可在外观里改。 */
+    fun compatEnabled(ctx: Context): Boolean {
+        val p = prefs(ctx)
+        if (p.contains(KEY_COMPAT)) return p.getBoolean(KEY_COMPAT, false)
+        return isHuaweiFamily()
+    }
+
+    fun setCompat(ctx: Context, on: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_COMPAT, on).apply()
+    }
+
+    fun isHuaweiFamily(): Boolean {
+        val m = (android.os.Build.MANUFACTURER ?: "").lowercase()
+        val b = (android.os.Build.BRAND ?: "").lowercase()
+        return m.contains("huawei") || m.contains("honor") || b.contains("huawei") || b.contains("honor")
+    }
+
+
 }

@@ -88,6 +88,21 @@ fun DynLibraryScreen(target: String, onClose: () -> Unit) {
             )
         }
 
+        // 桌面端适配提示（用户 2026-10-20 要求）：真正影响观感的是启动器怎么处理帧动画，
+        // 我们只在预览里能保证效果，桌面上"偶尔不连贯"是已知问题，先说清楚。
+        if (target == "widget") {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    "动态主题在桌面上的适配还不完善：不同机型/启动器的帧率与衔接会有差异，" +
+                        "追求稳定建议改用静态图或本地素材。",
+                    color = Color(0xFFE0A33A), fontSize = 10.5.sp, lineHeight = 15.sp,
+                )
+            }
+        }
+
         // 搜索：本地库，边打边筛，不用等网络
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),

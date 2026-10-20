@@ -1,6 +1,7 @@
 package top.ccbase.campus.widget
 
 import android.app.PendingIntent
+import android.graphics.Bitmap
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -267,7 +268,9 @@ class TodayWidgetProvider : AppWidgetProvider() {
             // 帧数必须和布局里的帧位**一样多**才算就绪。2026-10-20 用户截图"RemoteViews 渲染失败: null"：
             // 手机上还留着上一版（12 帧）的帧目录，被当成"完整"交上来，但布局里是 24 个帧位，
             // 数量不够 → 两个分支都不成立 → 走到 `frames!!` 的空指针。
-            val hdFiles = if (dynSpec && hdEnabled && wScrim == 0) {
+            // 兼容模式（华为/荣耀等）：不走 URI、不走 ViewFlipper，只给一张静态位图。
+            val compat = WidgetThemes.compatEnabled(ctx)
+            val hdFiles = if (!compat && dynSpec && hdEnabled && wScrim == 0) {
                 WidgetFrames.existingFiles(ctx, spec, wPx, hPx, speed)
                     ?.takeIf { it.size >= FRAME_IDS.size }
             } else null
@@ -281,8 +284,8 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx, speed) }.getOrNull()
             } else null
             // 桌面上没有帧文件时先按静态底显示（一次 apply，不闪）
-            val dyn = dynSpec && (hdFiles != null || (preview && frames != null))
-            if (dynSpec && hdEnabled && wScrim == 0 && hdFiles == null) {
+            val dyn = !compat && dynSpec && (hdFiles != null || (preview && frames != null))
+            if (!compat && dynSpec && hdEnabled && wScrim == 0 && hdFiles == null) {
                 // 后台画，画完自己回来刷新；这次先用位图帧顶着，桌面不会空白
                 runCatching {
                     WidgetFrames.ensureAsync(ctx, spec, wPx, hPx, speed) {
@@ -399,6 +402,21 @@ class TodayWidgetProvider : AppWidgetProvider() {
                     rv.setInt(R.id.widget_root, "setBackgroundColor", opaque(theme.bgColor))
                 }
             }
+            // 兼容模式：把第一帧缩到 ≤640px 交给桌面（binder 位图上限比 URI 紧得多）。
+            // 没有动画，但卡片有画面、字能读 —— 对鸿蒙启动器来说这是"能用"的那一档。
+            if (compat) {
+                val f0 = runCatching { WidgetFrames.forSpec(ctx, spec, wPx, hPx)?.firstOrNull() }.getOrNull()
+                if (f0 != null) {
+                    val maxW = 640
+                    val bmp = if (f0.width > maxW) {
+                        Bitmap.createScaledBitmap(f0, maxW, (f0.height.toFloat() * maxW / f0.width).toInt(), true)
+                    } else f0
+                    rv.setImageViewBitmap(R.id.widget_bg_img, bmp)
+                    rv.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+                    rv.setViewVisibility(R.id.widget_flip, View.GONE)
+                }
+            }
+
             // 动态主题/素材帧还没就绪时，静态底也可能是空的（mat: 素材没有静态位图，
             // 视频/gif 抽帧失败时同样为空）—— 那种情况下卡片会整块透明，只剩字浮在壁纸上。
             // 兜底：至少铺一层主题底色，宁可素一点，也不要"卡片消失"。

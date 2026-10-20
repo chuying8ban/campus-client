@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -504,12 +505,61 @@ private fun WidgetPane(
     ) {
         Text("动态主题库", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(8.dp))
-        Text("${DYN_PRESETS.size} 款会动的小组件背景", color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+        Text(
+            "${DYN_PRESETS.size} 款会动的小组件背景",
+            color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.weight(1f),
+        )
+        // 2026-10-20 用户：「在小组件主题库里面提示一下动态主题适配还不是很好，谨慎使用」。
+        // 桌面上的帧动画受各家启动器影响（MIUI 会重排 RemoteViews、部分机型不给 ViewFlipper 动画），
+        // 我们没法在真机之外保证观感 —— 与其让用户以为坏了，不如提前说清。
+        Text("适配中", color = Color(0xFFE0A33A), fontSize = 10.sp)
+        Spacer(Modifier.width(4.dp))
         Text("›", color = C.txt3, fontSize = 16.sp)
     }
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "动态主题在桌面上仍在打磨：衔接与帧率因机型/启动器而异，重要场合建议先用静态图或本地素材。",
+        color = Color(0xFFE0A33A), fontSize = 10.5.sp, lineHeight = 15.sp,
+        modifier = Modifier.padding(start = 2.dp, end = 2.dp),
+    )
 
     Spacer(Modifier.height(8.dp))
     MaterialsEntry(slotKey = "widget", onOpen = onOpenMaterials)
+
+    // 兼容模式（2026-10-20 同学反馈华为手机小组件「用不了」）：
+    // 鸿蒙启动器对 ViewFlipper 动画与 setImageViewUri 的处理各版本不同，
+    // 关掉动画改用一张静态位图，是唯一能保证"卡片有画面"的降级路径。
+    val ctx = LocalContext.current
+    var compat by remember { mutableStateOf(WidgetThemes.compatEnabled(ctx)) }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(C.card, RoundedCornerShape(12.dp))
+            .border(1.dp, C.line, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("兼容模式", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(
+                if (WidgetThemes.isHuaweiFamily()) {
+                    "华为/荣耀机型默认开启：只看静态一帧，不播动画"
+                } else {
+                    "卡片空白/不动时打开：只看静态一帧，不播动画"
+                },
+                color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
+            )
+        }
+        Switch(
+            checked = compat,
+            onCheckedChange = {
+                compat = it
+                WidgetThemes.setCompat(ctx, it)
+                TodayWidgetProvider.refresh(ctx)
+            },
+        )
+    }
 
     Spacer(Modifier.height(16.dp))
     WidgetSection(
