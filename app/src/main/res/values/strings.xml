@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">校园</string>
     <!-- 桌面小组件在"添加小组件"列表里显示的名字 -->
-    <string name="widget_desc">今日课表</string>
+    <string name="widget_desc">今日课表（暂不支持华为/荣耀）</string>
     <!-- 小部件在系统列表里显示的名字：和小部件页标题一致，用户一眼认得 -->
     <string name="widget_label">校园助手 · 今日课表</string>
     <!-- 动态壁纸在系统壁纸选择器里的说明 -->

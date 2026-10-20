@@ -398,12 +398,11 @@ object WidgetThemes {
     // 代价是没有动画，但至少卡片是"有画面的、能用的"。
     private const val KEY_COMPAT = "widget_compat"
 
-    /** 首次进入：华为/荣耀默认开，其余关机默认关；用户可在外观里改。 */
-    fun compatEnabled(ctx: Context): Boolean {
-        val p = prefs(ctx)
-        if (p.contains(KEY_COMPAT)) return p.getBoolean(KEY_COMPAT, false)
-        return isHuaweiFamily()
-    }
+    /**
+     * 兼容模式默认关（2026-10-20 用户定调：「华为就不考虑了（说明一下华为不兼容）」）。
+     * 华为/荣耀不再走"半残降级"，界面直接写清楚不支持；这个开关留着给其它异常启动器兜底。
+     */
+    fun compatEnabled(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_COMPAT, false)
 
     fun setCompat(ctx: Context, on: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_COMPAT, on).apply()

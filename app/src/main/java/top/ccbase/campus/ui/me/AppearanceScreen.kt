@@ -526,39 +526,27 @@ private fun WidgetPane(
     Spacer(Modifier.height(8.dp))
     MaterialsEntry(slotKey = "widget", onOpen = onOpenMaterials)
 
-    // 兼容模式（2026-10-20 同学反馈华为手机小组件「用不了」）：
-    // 鸿蒙启动器对 ViewFlipper 动画与 setImageViewUri 的处理各版本不同，
-    // 关掉动画改用一张静态位图，是唯一能保证"卡片有画面"的降级路径。
-    val ctx = LocalContext.current
-    var compat by remember { mutableStateOf(WidgetThemes.compatEnabled(ctx)) }
-    Spacer(Modifier.height(8.dp))
+    // 2026-10-20 用户定调：「华为就不考虑了（说明一下华为不兼容）」。
+    // 与其给华为用户一个"只能看一帧"的半残模式，不如把边界写清楚。
+    Spacer(Modifier.height(12.dp))
     Row(
         Modifier
             .fillMaxWidth()
             .background(C.card, RoundedCornerShape(12.dp))
             .border(1.dp, C.line, RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.Top,
     ) {
+        Text("!", color = Color(0xFFE0A33A), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("兼容模式", color = C.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text("暂不支持华为 / 荣耀", color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
             Text(
-                if (WidgetThemes.isHuaweiFamily()) {
-                    "华为/荣耀机型默认开启：只看静态一帧，不播动画"
-                } else {
-                    "卡片空白/不动时打开：只看静态一帧，不播动画"
-                },
+                "鸿蒙启动器对桌面部件的帧动画和本地文件读取另有一套限制，卡片会出现空白或不播放。" +
+                    "这两个品牌的手机请先用 App 内的课堂卡片，桌面部件我们后续再评估。",
                 color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
             )
         }
-        Switch(
-            checked = compat,
-            onCheckedChange = {
-                compat = it
-                WidgetThemes.setCompat(ctx, it)
-                TodayWidgetProvider.refresh(ctx)
-            },
-        )
     }
 
     Spacer(Modifier.height(16.dp))
