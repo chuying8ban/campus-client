@@ -58,7 +58,7 @@ class TabWiringTest {
     fun `所有真实 tab 的分支都要在 else 之前`() {
         val e = elseLine()
         assertTrue("找不到 else -> ShellScreen，这个测试需要跟着改", e >= 0)
-        listOf("TODAY", "SCHEDULE", "LIBRARY", "BOARD", "ME").forEach { tab ->
+        listOf("TODAY", "SCHEDULE", "LIBRARY", "ME").forEach { tab ->
             val i = branchLine(tab)
             assertTrue("$tab 没有分支", i >= 0)
             assertTrue("$tab 的分支落在 else 之后 → 是死代码，永远走不到（Kotlin 只给警告）", i < e)
@@ -66,20 +66,25 @@ class TabWiringTest {
     }
 
     @Test
-    fun `底部 tab 栏不再常显看板`() {
-        // 口径：看板从底部栏收进「我的」页；CampusTab.BOARD 枚举仍保留为二级页入口。
-        assertTrue(
-            "看板没有被底部栏过滤掉 —— 现在的口径是不再常显",
-            src.contains("it != CampusTab.BOARD"),
-        )
+    fun `看板整个功能已删干净`() {
+        // 2026-10-21 用户口径：「密码和看板功能已经无用了，删掉这俩功能吧」。
+        // 删功能要删干净：枚举、页面、入口、路由一处都不能留 —— 只删入口会留下一堆点不到的死页面。
+        val me = File("src/main/java/top/ccbase/campus/ui/me/MeScreen.kt").readText()
+        assertTrue("「我的」里不许再有看板入口", !me.contains("onOpenBoard"))
+        assertTrue("看板那一节的文案也要清掉", !me.contains("历史活动记录"))
+        assertTrue("CampusTab 里不许再留 BOARD", !src.contains("CampusTab.BOARD"))
+        assertTrue("board 包下的页面文件要删掉",
+            !File("src/main/java/top/ccbase/campus/ui/board/BoardScreen.kt").exists())
+        assertTrue("看板的纯逻辑要删掉",
+            !File("src/main/java/top/ccbase/campus/domain/Board.kt").exists())
     }
 
     @Test
-    fun `看板要有另一个入口_否则等于删功能`() {
-        // 看板不再占底部栏，「我的」里必须留着唯一入口，否则等于删功能。
+    fun `密码一节已删干净`() {
         val me = File("src/main/java/top/ccbase/campus/ui/me/MeScreen.kt").readText()
-        assertTrue("「我的」里必须有看板入口", me.contains("onOpenBoard"))
-        assertTrue("看板入口要有说明文字", me.contains("历史活动记录"))
+        assertTrue("「我的」里不许再有删除旧密码的入口",
+            !me.contains("删除服务器上的旧教务密码"))
+        assertTrue("也不许再调 deleteCredentials 这个接口", !me.contains("deleteCredentials"))
     }
 
     @Test
@@ -132,7 +137,10 @@ class TabWiringTest {
         assertTrue("声明要写清不把密码/Cookie 发给我们的服务器", safety.contains("我们的服务器"))
         assertTrue("声明要写清导入结束即清理（Cookie/网页存储/缓存）",
             safety.contains("Cookie") && safety.contains("网页存储") && safety.contains("缓存"))
-        assertTrue("声明要写清旧版本凭据可一键删除", safety.contains("一键删除"))
+        assertTrue(
+            "声明不该再指着「我的」里的一键删除入口 —— 那个入口 2026-10-21 已随「密码」一节一起撤掉",
+            !safety.contains("一键删除"),
+        )
         assertTrue(
             "声明不该再承诺「服务端加密保管你的密码」—— 已经根本不收密码了，写上就是假承诺",
             !safety.contains("AES-GCM"),

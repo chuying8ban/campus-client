@@ -27,7 +27,6 @@ import top.ccbase.campus.net.ApiUser
 import top.ccbase.campus.ui.onboard.LoginScreen
 import top.ccbase.campus.TestSeedDb
 import top.ccbase.campus.CampusApplication
-import top.ccbase.campus.ui.board.BoardScreen
 import top.ccbase.campus.ui.schedule.ScheduleScreen
 import top.ccbase.campus.ui.theme.CampusTheme
 import top.ccbase.campus.ui.today.TodayScreen
@@ -71,7 +70,7 @@ class ScreenSmokeTest {
     }
 
     @Test
-    fun `我的页能渲染且说清了密码怎么处理`() {
+    fun `我的页能渲染_密码声明在安全与隐私页里`() {
         rule.setContent {
             CampusTheme {
                 MeScreen(
@@ -88,9 +87,14 @@ class ScreenSmokeTest {
         waitFor("我的")
         // 本地优先：未登录也要说清"不登录也能用"
         waitFor("不登录也能用")
-        // 「我凭什么把密码给你」必须当场回答，这是这一页存在的理由（新契约：密码不上传）
-        waitFor("不读取、不保存")
-        waitFor("上传到我们的服务器")
+        // 「我凭什么把密码给你」现在由「安全与隐私」整页回答（「我的」里那一节 2026-10-21 按用户
+        // 口径删了）—— 所以这一页只需要**指得到**那一页，并保证不再有删旧凭据的入口。
+        waitFor("安全与隐私")
+        assertTrue(
+            "删旧教务密码的入口已经撤掉了，不该再出现",
+            rule.onAllNodesWithText("删除服务器上的旧教务密码", substring = true)
+                .fetchSemanticsNodes().isEmpty(),
+        )
         // 对外自称与免责
         waitFor("非学校官方产品")
         waitFor("不对数据准确性负责")
@@ -153,7 +157,7 @@ class ScreenSmokeTest {
         )
         meScreen()
         // 正锚点：先证明这一页真渲染到位了，否则下面那条负断言可能因为"页面根本没出来"而假绿
-        waitFor("不读取、不保存")
+        waitFor("安全与隐私")
         rule.waitForIdle()
         assertTrue(
             "App 里不该有密码回显入口 —— 它只在网页后台里，不该跟着 can_grab 一起放开",
@@ -263,12 +267,5 @@ class ScreenSmokeTest {
         // "门 · 第" 出自 "11 门 · 第 3~19 周" —— 必须课程数据已入库才会渲染；
         // 加载态只有 "正在读取课表…"（注意它含"课表"二字，不能拿来当锚点）
         waitFor("门 · 第")
-    }
-
-    @Test
-    fun `看板页能渲染且读到数据`() {
-        rule.setContent { CampusTheme { BoardScreen(app().db) } }
-        // 统计没算完时整页只显示"正在统计…"，所以"里程碑"能出现即数据已到位
-        waitFor("历史连续活跃")
     }
 }

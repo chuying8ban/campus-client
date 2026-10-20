@@ -97,8 +97,8 @@ class MeAdminAbsentTest {
     private fun has(text: String) =
         rule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
 
-    /** 等页面稳定：/me 回来、主体渲染出来（"看板"这一节是每台设备都有的） */
-    private fun waitStable() = rule.waitUntil(20_000) { has("看板") }
+    /** 等页面稳定：/me 回来、主体渲染出来（「安全与隐私」这一行每台设备都有，不依赖登录态） */
+    private fun waitStable() = rule.waitUntil(20_000) { has("安全与隐私") }
 
     @Test
     fun `作者身份也看不到任何后台入口_包只有一个`() {

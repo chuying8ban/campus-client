@@ -115,7 +115,7 @@ private fun Action(
 @Composable
 fun MeScreen(
     ctx: Context, db: CampusDb, api: CampusApi, version: String,
-    onLogin: () -> Unit, onOpenBoard: () -> Unit = {},
+    onLogin: () -> Unit,
     /** 「检查更新」的结果行：正在检查 / 已是最新 / 失败原因。null = 不显示 */
     updateHint: String? = null,
     /** 点「检查更新」。默认空实现，方便单测单独渲染本页 */
@@ -171,7 +171,6 @@ fun MeScreen(
     // 这一条消息要不要给「重新登录」按钮
     var needRelogin by remember { mutableStateOf(false) }
     var askLogout by remember { mutableStateOf(false) }
-    var askDelete by remember { mutableStateOf(false) }
     // 入口上直接写「还差几项」：缺权限的表现是静默失效（闹钟不响、更新装不上），
     // 不摆在明处就没人会去点它。页面内部还会每 1.5 秒自己重读。
     val missingPerms = top.ccbase.campus.alarm.SilenceDiag
@@ -312,19 +311,6 @@ fun MeScreen(
         }
     }
 
-    fun doDeleteCred() {
-        val t = token ?: return
-        scope.launch {
-            busy = true
-            when (val r = api.deleteCredentials(t)) {
-                is ApiResult.Ok -> msg = "已删除服务器上保存的教务密码。\n课表有变化时请重新从学校官方页面导入。"
-                is ApiResult.Err -> msg = r.message
-            }
-            reload()
-            busy = false
-        }
-    }
-
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 22.dp)) {
         Text("我的", fontSize = 24.sp, fontWeight = FontWeight.SemiBold,
              color = MaterialTheme.colorScheme.onBackground)
@@ -431,9 +417,6 @@ fun MeScreen(
         SelfStudyRepair(ctx, db)
         NudgeStrip()
 
-        SectionTitle("看板")
-        Action("历史活动记录", "保留已有记录，不再生成督促清单", onClick = { onOpenBoard() })
-
         // 这里曾经有一节「选课 → 监控」。2026-09-30 用户口径：「**把我的里面的监控删了**」——
         // 监控现在只在底部菜单栏那一格，同一件事不留第二个入口（两个入口只会让人犹豫点哪个）。
         // 监控本身仍然对每个登录用户开放，判据在底部栏那边（不看登录时缓存的 can_grab）。
@@ -443,21 +426,8 @@ fun MeScreen(
         // 包只有一个，后台不再进包：看后台改在网页端 `https://<站点>/admin/`（只有作者口令能进）。
         // 顺带解决了一件旧事：那两页的字符串原先是靠 R8 摘的，不开压缩时仍留在每个人的 dex 里。
 
-        SectionTitle("密码")
-        Text(
-            "教务密码只在学校的官方登录页里输入：App 不读取、不保存，也不上传到我们的服务器。\n" +
-            "如果你在旧版本里存过教务密码（已停用的功能），可以在这里把它从服务器删掉。",
-            fontSize = 12.sp, lineHeight = 19.sp,
-            color = MeRowStyle.bodyColor(MaterialTheme.colorScheme.onBackground),
-        )
-        if (token != null) {
-            Action("删除服务器上的旧教务密码", "旧版本存过才需要删；删掉后不再有这一项，其他功能不受影响",
-                   danger = true, enabled = !busy) { askDelete = true }
-        } else {
-            Text("（登录后才会保存）", fontSize = 12.sp,
-                 color = MeRowStyle.disabledColor(MaterialTheme.colorScheme.onBackground))
-            Spacer(Modifier.height(10.dp))
-        }
+        // 这一节 2026-10-21 按用户口径删掉（「密码…已经无用了」）：
+        // App 早已不读写教务密码，只留一个「删服务器上旧凭据」的后门入口 —— 既然没人需要，连入口一起撤。
 
         SectionTitle("关于")
         KV("版本", version)
@@ -536,18 +506,6 @@ fun MeScreen(
             text = { Text("退出后断开此设备的云端身份，本机课表、收藏和活动记录保留。课表有变化时需重新导入；随机身份退出后不支持找回。", fontSize = 13.sp) },
             confirmButton = { TextButton({ askLogout = false; doLogout() }) { Text("退出登录") } },
             dismissButton = { TextButton({ askLogout = false }) { Text("取消") } },
-        )
-    }
-    if (askDelete) {
-        AlertDialog(
-            onDismissRequest = { askDelete = false },
-            title = { Text("删除服务器上的旧教务密码？", fontSize = 16.sp) },
-            text = {
-                Text("删掉之后，服务器上就不再有你的教务凭据（旧版本才存过）。" +
-                     "课表留在手机里；新增或调整的课请在「更新教务课表」里重新读一次。", fontSize = 13.sp)
-            },
-            confirmButton = { TextButton({ askDelete = false; doDeleteCred() }) { Text("删除") } },
-            dismissButton = { TextButton({ askDelete = false }) { Text("取消") } },
         )
     }
 }

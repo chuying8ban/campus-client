@@ -45,7 +45,6 @@ class DiagPanelTest {
         compose.setContent {
             CampusTheme {
                 MeScreen(
-                    onOpenBoard = {},
                     ctx = ctx,
                     db = (ctx.applicationContext as CampusApplication).db,
                     api = CampusApi(transport = Transport { _, _, _, _ -> HttpReply(200, "{}") }),

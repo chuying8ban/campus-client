@@ -101,7 +101,6 @@ import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.ui.me.MeScreen
 import top.ccbase.campus.ui.me.DiagOverlay
-import top.ccbase.campus.ui.board.BoardScreen
 import top.ccbase.campus.ui.schedule.ScheduleScreen
 import top.ccbase.campus.ui.today.TodayScreen
 import top.ccbase.campus.ui.theme.Digits
@@ -110,7 +109,7 @@ import top.ccbase.campus.net.StudentError
 /**
  * P0.2 —— 五个 tab 的空壳，只验证「导航 + 主题 + 编译链」三件事。
  *
- * tab 顺序与网页版一致（今日 / 课表 / 监控 / 学习 / 我的，看板收进「我的」），
+ * tab 顺序与网页版一致（今日 / 课表 / 监控 / 学习 / 我的），
  * 这样你从网页版切过来时肌肉记忆不用改。
  */
 enum class CampusTab(val label: String, val icon: ImageVector, val soon: String) {
@@ -128,8 +127,7 @@ enum class CampusTab(val label: String, val icon: ImageVector, val soon: String)
     // 2026-10-18 用户要求：「外观单独放在一个标签里，和其他四个标签并列」。
     // 之前是「我的」里的一个入口 + 一个整屏浮层，等于同一件事两个入口；现在只留这一格。
     APPEARANCE("外观", Icons.Filled.Create, "App 主题、背景图、桌面小组件配色"),
-    BOARD("看板", Icons.Filled.List, "4 张统计卡 + 近 14 天图 + 里程碑 + 自检"),
-    // 考试 / 成绩：从「我的」点进去的次页，不占底部导航（跟 BOARD 一样只在 extra 里出现）
+    // 考试 / 成绩：从「我的」点进去的次页，不占底部导航（只在 extra 里出现）
     EXAM("考试", Icons.Filled.DateRange, "考试时间、考场、倒计时"),
     GRADE("成绩", Icons.Filled.List, "成绩单、平均绩点、已修学分"),
     ME("我的", Icons.Filled.Person, "账户 / 密码管理 / 关于"),
@@ -141,7 +139,6 @@ private val CampusTab.accent: androidx.compose.ui.graphics.Color
         CampusTab.TODAY -> C.violet
         CampusTab.SCHEDULE -> C.cyan
         CampusTab.LIBRARY -> C.cyan
-        CampusTab.BOARD -> C.magenta
         CampusTab.EXAM -> C.amber
         CampusTab.GRADE -> C.green
         CampusTab.APPEARANCE -> C.magenta
@@ -431,8 +428,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(obs)
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
-    // 底部放高频入口。看板（打卡热力/里程碑）不再占底部栏，入口收在「我的」页里
-    // （CampusTab.BOARD 枚举保留：它还是「我的」里打开的全屏子页）。
+    // 底部放高频入口。
     // 「学习」已并进「任务」页（同一页内两段，页内不再有子切换）——
     // 底部不再单独占一格（用户要求精简）。学习内容本身没删：在合并页里往下滚就是它。
     // 「我的」里点进来的全屏子页。
@@ -447,13 +443,13 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 根页面第一次返回只浮一条自动消失的轻提示，2 秒内再按一次才退出。
     // （2026-10-16 之前这里自己画过一条提示条，已删：同一个提示只留一处实现。）
 
-    // 底部 tab 栏：看板收进「我的」页，不再常显；监控那一格**人人都有**。
+    // 底部 tab 栏：监控那一格**人人都有**。
     //
     // ⚠️ 2026-09-30 用户口径：「新版本每个用户的手机上都会显示监控，而不需要重新登录」——
     // 所以这里**不再拿 TokenStore.canGrab 当判据**：那是登录那一刻写进本地的值，老用户装上
     // 这个版本也不会重新登录，于是永远看不到那一格。服务端同时把监控那几个接口从 can_grab
     // 放开成"登录即可"（`grab/config` 那个总开关仍只给作者），界面和服务端的判据这才对得上。
-    val tabs = CampusTab.entries.filter { it != CampusTab.BOARD && it != CampusTab.EXAM && it != CampusTab.GRADE }
+    val tabs = CampusTab.entries.filter { it != CampusTab.EXAM && it != CampusTab.GRADE }
 
     Box(Modifier.fillMaxSize()) {
     Scaffold(
@@ -538,11 +534,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         showArtGallery = true
                     },
                 )
-                CampusTab.BOARD -> BoardScreen(app.db)
                 CampusTab.EXAM -> top.ccbase.campus.ui.records.ExamScreen(app.db)
                 CampusTab.GRADE -> top.ccbase.campus.ui.records.GradeScreen(app.db)
                 CampusTab.ME -> MeScreen(
-                    onOpenBoard = { extra = CampusTab.BOARD },
                     // 监控**不再从「我的」进**（用户口径 2026-09-30：「把我的里面的监控删了」）——
                     // 入口只剩底部菜单栏那一格，同一件事不留两个入口。
                     ctx = appCtx,

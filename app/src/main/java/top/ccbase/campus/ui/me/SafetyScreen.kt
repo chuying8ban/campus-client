@@ -36,7 +36,8 @@ import top.ccbase.campus.ui.theme.overlaySurface
  *   · 只从登录后的官方页面白名单提取课表字段（courseName/weekday/startUnit…）
  *   · 导入结束即清教务登录状态：Cookie（含 /student 路径）+ WebStorage + 页面缓存
  *   · App 自己的云端令牌与教务 Cookie 是两回事，分开处理
- *   · 一键删除：旧版本存过服务器教务密码的，可在「我的」里删掉（`DELETE /api/v2/credentials`，带自己的登录令牌）
+ *   · 旧凭据清理入口已撤（2026-10-21 用户口径「密码…已经无用了，删掉」）：App 本就不读写凭据，
+ *     这一页只负责说清「密码在哪儿输入、会不会离开手机」，不再提供动作
  */
 @Composable
 fun SafetyScreen(onClose: () -> Unit) {
@@ -77,7 +78,6 @@ fun SafetyScreen(onClose: () -> Unit) {
         Block("云端同步说明与同意", listOf(top.ccbase.campus.school.ImportPrivacy.TERMS))
 
         Block("你可以随时做的事", listOf(
-            "一键删除：旧版本在服务器上存过教务密码的，在「我的」→「删除服务器上的旧教务密码」删掉。",
             "想核实连接安全：用「网络自检」看解析到的 IP 和 443 端口；全程 HTTPS。",
             "查看当前授权：在「授权与白名单」里能看到通知、闹钟、电池白名单这些是否都开了。",
         ))

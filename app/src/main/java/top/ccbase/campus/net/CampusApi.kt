@@ -52,13 +52,6 @@ object Api {
 }
 
 @Serializable
-data class CredInfo(
-    @SerialName("student_id") val studentId: String = "",
-    val password: String = "",
-    @SerialName("updated_at") val updatedAt: String? = null,
-)
-
-@Serializable
 data class ApiUser(
     val uid: Int = 0,
     val student_id: String = "",
@@ -435,17 +428,6 @@ class CampusApi(
             is ApiResult.Err -> r
         }
 
-    /** 查看服务器上保存的教务密码 —— 服务端只对作者开放，普通用户会拿到 403 */
-    suspend fun credentials(token: String): ApiResult<CredInfo> =
-        when (val r = call("GET", "/api/v2/credentials", token = token)) {
-            is ApiResult.Ok -> try {
-                ApiResult.Ok(json.decodeFromString<CredInfo>(r.value))
-            } catch (e: Exception) {
-                ApiResult.Err(-1, StudentError.tech())
-            }
-            is ApiResult.Err -> r
-        }
-
     suspend fun plan(token: String): ApiResult<Seed> = when (val r = planBundle(token)) {
         is ApiResult.Ok -> ApiResult.Ok(r.value.seed)
         is ApiResult.Err -> r
@@ -680,9 +662,6 @@ class CampusApi(
     }
 
     suspend fun logout(token: String): ApiResult<String> = call("POST", "/api/v2/logout", token = token)
-
-    suspend fun deleteCredentials(token: String): ApiResult<String> =
-        call("DELETE", "/api/v2/credentials", token = token)
 
     // ------------------------------------------------------------ 提建议（每个用户都能用）
     //
