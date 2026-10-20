@@ -448,7 +448,11 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 bodyC2 = 0xFFEDEDF5.toInt()
                 dimC2 = 0xFFCFCFDC.toInt()
             }
-            rv.setTextColor(R.id.widget_status, theme.accentColor)
+            // 2026-10-20 用户：左上「下一节」是紫色、其它字是白/灰，"要和其他字统一"。
+            // 状态行不再用 accentColor，跟日期/页脚一样走次级色（图片底上自动切成浅灰白）。
+            rv.setTextColor(R.id.widget_status, dimC2)
+            // 小圆点原来是写死的紫 oval，字变灰后那一颗紫就成了孤例：按同一个颜色重画一颗。
+            rv.setImageViewBitmap(R.id.widget_dot, dotBitmap(dimC2, ctx.resources.displayMetrics.density))
             rv.setTextColor(R.id.widget_head, headC2)
             rv.setTextColor(R.id.widget_date, dimC2)
             rv.setTextColor(R.id.widget_week, dimC2)
@@ -465,6 +469,16 @@ class TodayWidgetProvider : AppWidgetProvider() {
          * 抽成一个函数是为了能测——真机上这张图到底有没有生成、是不是大得被 launcher 丢掉，
          * 只能靠测试断言，肉眼看不出原因。
          */
+        /** 6dp 的状态圆点：颜色跟随文字，避免"一颗孤零零的紫色"。 */
+        private fun dotBitmap(color: Int, density: Float): android.graphics.Bitmap {
+            val px = (6f * density).toInt().coerceAtLeast(4)
+            val b = android.graphics.Bitmap.createBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(b)
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+            c.drawCircle(px / 2f, px / 2f, px / 2f, p)
+            return b
+        }
+
         internal fun backgroundBitmapFor(ctx: Context, spec: String, wPx: Int, hPx: Int): android.graphics.Bitmap? {
             val theme = WidgetThemes.of(spec)
             val density = ctx.resources.displayMetrics.density
