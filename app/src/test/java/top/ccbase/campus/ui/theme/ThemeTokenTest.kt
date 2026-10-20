@@ -191,6 +191,39 @@ class ThemeTokenTest {
     private fun luminance(c: Color): Double =
         0.2126 * channel(c.red) + 0.7152 * channel(c.green) + 0.0722 * channel(c.blue)
 
+    /**
+     * 动图 / 动效壁纸（量不出明暗极值的那两类）叠完 [mediaScrim] 之后，字还得看得清。
+     *
+     * 这条是 2026-10-20 真机实测换来的：浅色模式 + 深色动漫动图时，
+     * 原来那套很薄的遮罩让**深底配深字**，外观页的主题色名、"桌面小组件"标签几乎全看不见
+     * （`evidence-3.4.68/11b`）。浅色模式最坏情况是"全黑画面"，
+     * 这里就按它验 —— 深色模式不跟着收紧（用户明确要求动图要看得见，见 `mediaScrim` 注释）。
+     */
+    @Test
+    fun `动图动效壁纸在浅色模式下也要看得清字`() {
+        val p = LightPalette
+        val k = 1f                                   // 浓淡拉满 = 图最抢眼，也就是最难看清的一档
+        val (mid, edge) = mediaScrim(light = true, k = k, edgeBias = 0.18f)
+        val fail = mutableListOf<String>()
+        listOf("中间档" to mid, "两头档" to edge).forEach { (name, a) ->
+            // 最坏情况：动图是纯黑画面（视频/动效里深色片段最常见）
+            val eff = blend(p.bg, Color.Black, a)
+            val cTxt = contrast(p.txt, eff)
+            val cTxt2 = contrast(p.txt2, eff)
+            val cTxt3 = contrast(p.txt3, eff)
+            if (cTxt < 4.5) fail += "$name（alpha=%.2f）· txt %.2f < 4.5".format(a, cTxt)
+            if (cTxt2 < 4.5) fail += "$name（alpha=%.2f）· txt2 %.2f < 4.5".format(a, cTxt2)
+            if (cTxt3 < 3.0) fail += "$name（alpha=%.2f）· txt3 %.2f < 3.0".format(a, cTxt3)
+        }
+        assertTrue(
+            "浅色模式 + 深色动图会糊字（这就是 3.4.68 之前那个「标签看不见」的回归）：\n" +
+                fail.joinToString("\n"),
+            fail.isEmpty(),
+        )
+        // 同时不许压成一块纯白板（0.9 以上图就彻底没了，那是把"背景"删掉了）
+        assertTrue("遮罩太厚，动图等于被删掉了：mid=$mid", mid <= 0.85f)
+    }
+
     private fun contrast(a: Color, b: Color): Double {
         val la = luminance(a)
         val lb = luminance(b)

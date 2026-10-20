@@ -1,5 +1,6 @@
 package top.ccbase.campus.update
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -114,7 +115,38 @@ object UpdateNotify {
     }
 
     /** 「正在后台下载」那条（用户 2026-10-19：关掉浮条后要能在状态栏看到进度） */
-    private const val ID_PROGRESS = 30_003
+    const val ID_PROGRESS = 30_003
+
+    /**
+     * 下载进度通知的**唯一**构造点。
+     *
+     * 它有两个使用者：[progress]（进程内更新这条）和 [UpdateService]（前台服务那条）。
+     * 两边用同一个 id、同一条文案 —— 前台服务的常驻通知就是这条进度条本身，
+     * 不会出现"通知栏两条都在说下载"（那正是"谁在下载"说不清的开始）。
+     */
+    fun downloadNotification(ctx: Context, versionName: String, pct: Int): Notification {
+        ensureChannel(ctx)
+        val open = PendingIntent.getActivity(
+            ctx, 2,
+            Intent(ctx, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val text = when {
+            pct < 0 -> "正在下载 v$versionName…（切后台也会继续）"
+            else -> "正在下载 v$versionName · $pct%（切后台也会继续）"
+        }
+        val b = NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("校园助手正在更新")
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(open)
+        if (pct in 0..100) b.setProgress(100, pct, false) else b.setProgress(0, 0, true)
+        return b.build()
+    }
 
     /**
      * 下载进度通知：常驻、不响、点开回 App。
@@ -123,25 +155,8 @@ object UpdateNotify {
      * 这条通知就是那个"还在下"的凭证，下完自动换成 [postReady]。
      */
     fun progress(ctx: Context, versionName: String, pct: Int) {
-        ensureChannel(ctx)
         if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) return
-        val open = PendingIntent.getActivity(
-            ctx, 2,
-            Intent(ctx, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val text = if (pct < 0) "正在下载 v$versionName…" else "正在下载 v$versionName · $pct%"
-        val b = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("校园助手正在后台下载")
-            .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setContentIntent(open)
-        if (pct in 0..100) b.setProgress(100, pct, false) else b.setProgress(0, 0, true)
-        runCatching { NotificationManagerCompat.from(ctx).notify(ID_PROGRESS, b.build()) }
+        runCatching { NotificationManagerCompat.from(ctx).notify(ID_PROGRESS, downloadNotification(ctx, versionName, pct)) }
     }
 
     fun clearProgress(ctx: Context) {

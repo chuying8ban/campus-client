@@ -122,9 +122,12 @@ fun MeScreen(
     /** 后台已下好、等用户点安装的那一版；null = 没有 */
     pendingInstallText: String? = null,
     onInstallPending: () -> Unit = {},
-    /** 静默下载只在 Wi-Fi 下跑（7MB 的包不该偷走流量） */
+    /** 静默下载只在 Wi-Fi 下跑（29MB 的包不该偷走流量） */
     autoUpdateWifiOnly: Boolean = true,
     onToggleAutoWifi: (Boolean) -> Unit = {},
+    /** 系统是否允许后台起前台服务（= 切走/锁屏后下载能不能继续）；false 时那行可点去开启 */
+    keepAliveOk: Boolean = true,
+    onOpenKeepAlive: () -> Unit = {},
     /** 静默下载：开着就进 App 自动在后台下新包（用户 2026-10-19 要求的新功能） */
     /** 点「网络自检」：连不上服务器时用来定位断在哪一层 */
     onOpenDiag: () -> Unit = {},
@@ -469,6 +472,8 @@ fun MeScreen(
             onToggle = onToggleAutoUpdate,
             onToggleWifi = onToggleAutoWifi,
             onInstall = onInstallPending,
+            keepAliveOk = keepAliveOk,
+            onOpenKeepAlive = onOpenKeepAlive,
         )
         KV("数据来源", "你本人的教务系统")
         // 「给 App 提建议」2026-09-30 搬到前面的「建议与外观」那一节了（用户口径：
@@ -558,6 +563,9 @@ private fun AutoUpdateRow(
     onToggle: (Boolean) -> Unit,
     onToggleWifi: (Boolean) -> Unit,
     onInstall: () -> Unit,
+    /** 系统是否允许本应用在后台起前台服务（= 切走/锁屏后下载还能不能继续） */
+    keepAliveOk: Boolean = true,
+    onOpenKeepAlive: () -> Unit = {},
 ) {
     Column(
         Modifier
@@ -577,6 +585,19 @@ private fun AutoUpdateRow(
             androidx.compose.material3.Switch(checked = on, onCheckedChange = onToggle)
         }
         if (on) {
+            // 这一行是「后台更新到底能不能真的在后台跑」的**可核对状态**：
+            // 没开电池白名单时，Android 12+ 不许后台起前台服务，闹钟到点那次下载只能退回进程内，
+            // 切走就可能被掐断 —— 这是事实，照实写出来并给一键去开，别让用户猜。
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (keepAliveOk) "后台保活：已允许（切走、锁屏也能下完）"
+                else "后台保活：未允许 —— 点这里开启，否则切走后下载可能被系统掐断",
+                fontSize = 12.sp,
+                color = if (keepAliveOk) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+                else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { if (!keepAliveOk) onOpenKeepAlive() },
+            )
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("只在 Wi-Fi 下下载", fontSize = 13.sp, modifier = Modifier.weight(1f))
                 androidx.compose.material3.Switch(

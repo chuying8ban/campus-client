@@ -58,6 +58,22 @@ object UpdateGate {
     private const val K_PATH = "pending_path"
     private const val K_QUIET = "pending_quiet"
 
+    // 正在下载的**目标**（不是"下好了待装"，是"下到一半"）。
+    // 落盘的理由和半包一样：进程被系统杀掉/手机重启之后，"我在下哪个版本、从哪儿下、
+    // 校验和是多少"不能跟着内存一起消失 —— 否则回来只能重新查一遍清单，而弱网下
+    // 那一次清单请求恰好失败，用户看到的就是「更新自己消失了」。
+    private const val K_T_CODE = "target_code"
+    private const val K_T_NAME = "target_name"
+    private const val K_T_URL = "target_url"
+    private const val K_T_SHA = "target_sha"
+    private const val K_T_SIZE = "target_size"
+    private const val K_T_QUIET = "target_quiet"
+
+    /** 静默下载失败后多久再试一次。别再等 6 小时 —— 那等于"今天别更新了"。 */
+    private const val RETRY_AFTER_FAIL_MS = 30 * 60 * 1000L
+
+    private const val TAG_RESUME = "UpdateGate"
+
     private val main = Handler(Looper.getMainLooper())
     // daemon：进程/测试 JVM 退出时不该被这个线程挂住（Robolectric 全量跑会卡在 shutdown）
     private val worker = Executors.newSingleThreadExecutor { r ->
@@ -71,6 +87,22 @@ object UpdateGate {
     @Volatile
     var downloader: (Context, UpdateManifest, (Float) -> Unit) -> Result<File> =
         { c, m, p -> Updater.download(c, m, onProgress = p) }
+
+    /**
+     * 下载期间的"保命"开关（真机 = 起/停 [UpdateService] 前台服务）。
+     *
+     * 抽成可注入的，是为了让单测能在 JVM 上断言"下载一开始就叫了保命、结束就收掉"，
+     * 而不用去驱动一个真的 Service。
+     */
+    @Volatile
+    var keepAlive: (Context, Boolean) -> Unit = { c, on ->
+        if (on) UpdateService.start(c) else UpdateService.stop(c)
+    }
+
+    /** 只给单测用：假装"装着的是哪一版"（真机上永远走 PackageManager）。 */
+    @androidx.annotation.VisibleForTesting
+    @Volatile
+    var installedCodeOverride: Int? = null
 
     @Volatile
     var state: S = S.Idle
@@ -141,6 +173,10 @@ object UpdateGate {
         if (!busy.compareAndSet(false, true)) return@synchronized Start.BUSY_OTHER
 
         set(S.Working(m, quiet, -1f))
+        // 目标落盘 + 起前台服务，**必须在开线程之前**：
+        // 这两件事是"切后台不断"的全部依据，晚一步就可能赶不上用户按下 Home 键。
+        runCatching { saveTarget(ctx, m, quiet) }
+        runCatching { keepAlive(ctx, true) }
         worker.execute {
             try {
                 var lastPct = -2
@@ -152,22 +188,27 @@ object UpdateGate {
                         if (s is S.Working && s.m.versionCode == m.versionCode) {
                             set(s.copy(fraction = f))
                         }
-                        if (!quiet) {
-                            onProgress(f)
-                            UpdateNotify.progress(ctx, m.versionName, pct)   // 状态栏常驻进度
-                        }
+                        if (!quiet) onProgress(f)
+                        // 进度通知**不分静默/手动**：静默下载现在挂着前台服务，
+                        // 系统要求前台服务必须有常驻通知；那条通知就是这条进度条。
+                        UpdateNotify.progress(ctx, m.versionName, pct)
                     }
                 }
                 r.fold(
                     onSuccess = { f ->
-                        if (!quiet) UpdateNotify.clearProgress(ctx)
+                        runCatching { keepAlive(ctx, false) }
+                        UpdateNotify.clearProgress(ctx)
+                        runCatching { clearTarget(ctx) }
                         savePending(ctx, m, f, quiet)
                         if (quiet) runCatching { UpdateNotify.postReady(ctx, m) }   // 通知权限没开也别把下载判失败
                         set(S.Ready(m, f, quiet))
                     },
                     onFailure = { e ->
+                        runCatching { keepAlive(ctx, false) }
                         UpdateNotify.clearProgress(ctx)
                         val msg = e.message?.takeIf { it.isNotBlank() } ?: "下载没成功，请重试"
+                        // 半包和目标都留着：下一次（开 App / 30 分钟后那条闹钟）从断点接着下
+                        if (quiet) runCatching { AutoUpdate.scheduleIn(ctx, RETRY_AFTER_FAIL_MS) }
                         set(S.Failed(m, msg, quiet))
                     },
                 )
@@ -194,16 +235,106 @@ object UpdateGate {
     /** 只给单测用：把状态机复位（真机上没有这个入口）。 */
     @androidx.annotation.VisibleForTesting
     fun resetForTest() {
+        installedCodeOverride = null
         set(S.Idle)
     }
 
     fun markInstalled(ctx: Context) {
         clearPending(ctx)
+        clearTarget(ctx)
         set(S.Idle)
     }
 
     fun clearFailure() {
         if (state is S.Failed) set(S.Idle)
+    }
+
+    // ------------------------------------------------------------ 断点续跑
+
+    /**
+     * 进程被系统杀掉 / 手机重启 / 前台服务被拉起来之后：**从半包接着下**。
+     *
+     * 这是「切了后台就断、又要重下」的另一半答案（另一半是 [UpdateService] 的保命）：
+     * 就算真的被杀，回来也不该从 0 开始 —— `filesDir/update` 下的 `.apk.part` 和它的元数据
+     * 都在磁盘上，[DownloadEngine] 本来就会从半包末尾接着要下一段。
+     *
+     * 什么情况下**不**接着下（都要说得出理由，别偷偷放过）：
+     *   · 没有目标 / 没有半包：没东西可续；
+     *   · 版本已经装上（比装着的老）：目标作废；
+     *   · 半包校验不过：引擎会自己清掉重下，不属于这里判；
+     *   · 静默任务 + 只允许 Wi-Fi + 当前是流量：32MB 的包不该偷偷用流量，
+     *     留到有 Wi-Fi 时（下一条闹钟/下次开 App）再续。
+     *
+     * @return true = 真的排上了一次续传
+     */
+    fun resumeIfPending(ctx: Context, fromService: Boolean = false): Boolean {
+        if (state is S.Working || state is S.Ready) return false
+        val p = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        val code = p.getInt(K_T_CODE, 0)
+        if (code <= 0) return false
+        val m = UpdateManifest(
+            versionCode = code,
+            versionName = p.getString(K_T_NAME, "").orEmpty(),
+            url = p.getString(K_T_URL, "").orEmpty(),
+            sha256 = p.getString(K_T_SHA, "").orEmpty(),
+            size = p.getLong(K_T_SIZE, 0L),
+        )
+        if (m.url.isBlank() || m.sha256.length != 64) {
+            clearTarget(ctx)
+            return false
+        }
+        val installed = installedCodeOverride ?: runCatching {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
+        }.getOrDefault(0)
+        if (code <= installed) {
+            clearTarget(ctx)
+            runCatching { Updater.partFile(ctx, m).delete() }
+            return false
+        }
+        val part = Updater.partFile(ctx, m)
+        if (!part.isFile || part.length() <= 0L) {
+            // 半包没了：没东西可续，目标也一并清掉
+            clearTarget(ctx)
+            return false
+        }
+        val quiet = p.getBoolean(K_T_QUIET, true)
+        if (quiet && AutoUpdate.wifiOnly(ctx) && !AutoUpdate.onWifi(ctx)) {
+            android.util.Log.i(TAG_RESUME, "先不续：只允许 Wi-Fi，当前不是 Wi-Fi（半包留着，已下 ${part.length()} 字节）")
+            return false
+        }
+        android.util.Log.i(
+            TAG_RESUME,
+            "从断点接着下：v${m.versionName}，已有 ${part.length()} / ${m.size} 字节（来源 ${if (fromService) "服务重启" else "进程启动"}）",
+        )
+        val r = start(ctx, m, quiet)
+        return r == Start.STARTED || r == Start.ATTACHED || r == Start.READY_ALREADY
+    }
+
+    /** 前台服务自己收掉时调一下：别把 [S.Working] 当"有人在下"，那会让续传永远不触发。 */
+    fun onServiceStopped() {
+        if (state is S.Working && !busy.get()) set(S.Idle)
+    }
+
+    /** 前台服务重启时用来把标题写对（拿不到版本名就别硬编一个）。 */
+    fun targetVersionName(ctx: Context): String =
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getString(K_T_NAME, "").orEmpty()
+
+    private fun saveTarget(ctx: Context, m: UpdateManifest, quiet: Boolean) {
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
+            .putInt(K_T_CODE, m.versionCode)
+            .putString(K_T_NAME, m.versionName)
+            .putString(K_T_URL, m.url)
+            .putString(K_T_SHA, m.sha256)
+            .putLong(K_T_SIZE, m.size)
+            .putBoolean(K_T_QUIET, quiet)
+            .apply()
+    }
+
+    private fun clearTarget(ctx: Context) {
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit()
+            .remove(K_T_CODE).remove(K_T_NAME).remove(K_T_URL)
+            .remove(K_T_SHA).remove(K_T_SIZE).remove(K_T_QUIET)
+            .apply()
     }
 
     private fun savePending(ctx: Context, m: UpdateManifest, f: File, quiet: Boolean) {

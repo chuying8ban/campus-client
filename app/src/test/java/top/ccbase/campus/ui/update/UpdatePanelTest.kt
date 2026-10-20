@@ -184,7 +184,9 @@ class UpdatePanelTest {
         // 隐藏按钮本身不致命，但它和静默那条路一起把"到底谁在下载"搞乱了 —— 现在只留一条。
         overlay(UpdateUi.Progress(manifest(), 0.3f))
         assertEquals("下载条上不该再有「隐藏」", 0, compose.onAllNodesWithTextCount("隐藏"))
-        text("可以继续用 App").assertExists()
+        // 2026-10-20 用户：「切了后台就断，又要重下」——下载条上必须把这句承诺说出来
+        // （它现在不是安慰：下载期间挂着前台服务，系统不许冻进程）
+        text("切到别的 App 或锁屏，下载不会断").assertExists()
     }
 
     @Test

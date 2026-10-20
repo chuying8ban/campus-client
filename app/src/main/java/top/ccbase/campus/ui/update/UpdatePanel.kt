@@ -260,7 +260,12 @@ private fun DownloadBar(state: UpdateUi.Progress) {
             }
             Spacer(Modifier.height(7.dp))
             Text(
-                "可以继续用 App；这条条不挡操作，下好会再提示。",
+                // 这句话是 2026-10-20 用户那条要求的**可见承诺**：切后台/锁屏都不会断。
+                // 它不只是一句安慰 —— 下载期间挂着前台服务（UpdateService），系统不许冻它。
+                listOfNotNull(
+                    d?.sizeText()?.takeIf { it.isNotBlank() },
+                    "可以切到别的 App 或锁屏，下载不会断",
+                ).joinToString(" · ") + "；下好会再提示。",
                 color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
             )
         }

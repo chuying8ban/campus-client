@@ -40,6 +40,13 @@ open class CampusApplication : Application() {
         runCatching { top.ccbase.campus.crash.CrashReporter.install(this) }
         // 只留手动更新（3.4.40）：把上一版静默下载留下的残包和记账键清掉
         runCatching { top.ccbase.campus.update.UpdatePrefs.purgeSilentArtifacts(this) }
+        // 上次的更新没下完（切后台被系统杀了 / 手机重启）：进程一起来就接着下。
+        // 半包和目标都在 filesDir/prefs 里，跨进程存活；这里放后台线程，不挡首帧。
+        runCatching {
+            Thread({
+                runCatching { top.ccbase.campus.update.UpdateGate.resumeIfPending(applicationContext) }
+            }, "update-resume").start()
+        }
         // 屏幕亮着时让桌面小组件的动态主题真的走帧（熄屏即停，见 WidgetTicker）
         runCatching { top.ccbase.campus.widget.ScreenWatcher.register(this) }
         // 前台/后台：前台时不推桌面帧（用户看得见 App 时桌面根本看不见，推帧 = 白烧主线程 → 卡顿）

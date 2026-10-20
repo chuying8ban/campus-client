@@ -391,8 +391,9 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
         // 0.45 仍然能明显区分浓淡，但画面留着颜色。
         Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.45f)))
         // 淡了以后字更容易读，但顶栏/底部导航还是要一条压暗带（和照片同一套形状）
-        val mid = (0.03f + 0.10f * k).coerceAtMost(0.16f)
-        val edge = (mid + 0.18f).coerceAtMost(0.46f)
+        // 浅色底同理（2026-10-20 实测）：这套薄遮罩配上深色动效 = 深底深字，整页看不见。
+        // 动效拿不到明暗极值，只能按"全黑画面"兜底。
+        val (mid, edge) = mediaScrim(light = p.bg.luminance() > 0.5f, k = k, edgeBias = 0.18f)
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
@@ -434,10 +435,14 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
                 // （用户截图："主题选了一个动图后就这样了"，整屏黑）。和动效那边统一降下来。
                 val k = AppearanceStore.bgAlpha.value
                 Box(Modifier.fillMaxSize().background(p.bg.copy(alpha = (1f - k) * 0.45f)))
-                // 视频/gif 拿不到"明暗极值"，遮罩跟着"浓淡"走：调淡了画面本来就暗，
-                // 再压一层厚遮罩会变成一块灰板。浓 → 遮罩厚，淡 → 遮罩薄。
-                val mid = (0.03f + 0.10f * k).coerceAtMost(0.16f)
-                val edge = (mid + 0.16f).coerceAtMost(0.42f)
+                // 视频/gif 拿不到"明暗极值"，遮罩只能按**最坏情况**兜底。
+                // 深色底：原来的配方已经很轻（用户明确要求"要看得见动图"，压厚了就是一块灰板），
+                //          只在浓淡上加一点点保险，别动它。
+                // 浅色底：2026-10-20 实测踩到 —— 同一套薄遮罩 + 一张深色动图 = **深底配深字**，
+                //          外观页的主题色名、"桌面小组件"标签几乎全看不见（截图 evidence-3.4.68/11b）。
+                //          浅色模式里最坏情况是"全黑画面"，必须用近乎实心的白幕才把字托出来；
+                //          留 45%/20% 让动图还看得见（用户要的是"图在、字也在"）。
+                val (mid, edge) = mediaScrim(light = p.bg.luminance() > 0.5f, k = k, edgeBias = 0.16f)
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
@@ -497,6 +502,39 @@ internal fun BackgroundLayer(bg: String, p: CampusPalette) {
         }
     }
 }
+
+/**
+ * 动图 / 动效壁纸的遮罩梯度（中间档、上下两头的档）。
+ *
+ * 这两类背景**量不出明暗极值**（视频要播才知道画面、动效是代码画的），
+ * 所以只能按最坏情况兜底 —— 这是它和 [photoScrim]、[scrimFor] 的根本区别。
+ *
+ * 深色底：最坏情况是"亮画面 + 亮字"，但用户 2026-10-19 明确要求动图要看得见
+ * （压厚了就是一块灰板），所以只加很薄的一层，靠浓淡 [k] 微调。
+ *
+ * 浅色底：2026-10-20 实测踩到 —— 同一套薄遮罩 + 深色动漫动图 = **深底配深字**，
+ * 外观页的主题色名、"桌面小组件"标签几乎全看不见（截图 `evidence-3.4.68/11b`）。
+ * 浅色模式的最坏情况是"全黑画面"，必须用近乎实心的白幕才把字托出来，
+ * 留 45% / 20% 让图还看得见（用户要的是"图在、字也在"）。
+ */
+internal fun mediaScrim(light: Boolean, k: Float, edgeBias: Float): Pair<Float, Float> {
+    val mid = if (light) LIGHT_MEDIA_MID else (0.03f + 0.10f * k).coerceAtMost(0.16f)
+    val edge = if (light) LIGHT_MEDIA_EDGE else (mid + edgeBias).coerceAtMost(0.46f)
+    return mid to edge
+}
+
+/**
+ * 浅色模式下动图/动效壁纸的白幕厚度：中间 0.82、两头 0.90。
+ *
+ * 这两个数是**算出来的**，不是拍的：浅色模式最坏情况是"全黑画面"，要让二级字到 4.5、
+ * 三级灰字到 3.0，白幕至少要 0.80（0.55 时二级字只有 2.58、三级只有 1.49 —— 就是实测
+ * 那张截图里"标签几乎看不见"的样子）。取 0.82 与 [SCRIM_ALPHA] 同口径。
+ *
+ * 代价说清楚：浅色模式 + 深色动图，图只剩两成——**这是"字看得清"的价钱**。
+ * 想看满是画面的效果，用深色模式（那边遮罩很薄，用户 2026-10-19 明确要求过）。
+ */
+internal const val LIGHT_MEDIA_MID = 0.82f
+internal const val LIGHT_MEDIA_EDGE = 0.90f
 
 /**
  * 把一款预设画出来：**一层竖向渐变 + 若干径向光晕 + 一层按预算反算的遮罩**。

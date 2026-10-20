@@ -93,6 +93,7 @@ import top.ccbase.campus.update.Updater
 import top.ccbase.campus.ui.update.UpdateOverlay
 import top.ccbase.campus.update.UpdateGate
 import top.ccbase.campus.update.AutoUpdate
+import top.ccbase.campus.update.UpdateService
 import top.ccbase.campus.ui.update.UpdateUi
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.ui.schedule.DailyCheckBanner
@@ -225,6 +226,9 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 后台静默更新完成后的 5 秒横幅：版本名 to versionCode
     var silentBanner by remember { mutableStateOf<Pair<String, Int>?>(null) }
     var autoOn by remember { mutableStateOf(AutoUpdate.enabled(appCtx)) }
+    // 后台能不能起前台服务（电池白名单）：这是"切走/锁屏后下载还能不能继续"的硬前提，
+    // 每次回前台重读一次 —— 用户可能刚在系统设置里点过允许。
+    var keepAliveOk by remember { mutableStateOf(UpdateService.canStartFromBackground(appCtx)) }
     var autoWifi by remember { mutableStateOf(AutoUpdate.wifiOnly(appCtx)) }
     var pendingReady by remember { mutableStateOf(UpdateGate.state as? UpdateGate.S.Ready) }
     var updHint by remember { mutableStateOf<String?>(null) }
@@ -415,6 +419,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
         val obs = LifecycleEventObserver { _, e ->
             // ON_RESUME 在首次进入时也会走一次 —— "打开 App"与"回到前台"共用这一条路
             if (e == Lifecycle.Event.ON_RESUME) {
+                keepAliveOk = UpdateService.canStartFromBackground(appCtx)
                 checkTimetable()
                 // 版本检查也在这一条路上补一次：原来只有 `LaunchedEffect(Unit)`，
                 // 而它挂在 root 组合上、**进程常驻时就只在冷启动跑过一次** ——
@@ -569,6 +574,18 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     },
                     autoUpdateWifiOnly = autoWifi,
                     onToggleAutoWifi = { on -> autoWifi = on; AutoUpdate.setWifiOnly(appCtx, on) },
+                    keepAliveOk = keepAliveOk,
+                    onOpenKeepAlive = {
+                        // 没有电池白名单时，Android 12+ 不许后台起前台服务（闹钟那一路会被掐）
+                        runCatching {
+                            appCtx.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    android.net.Uri.parse("package:${appCtx.packageName}"),
+                                ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
                     onOpenAppearance = {

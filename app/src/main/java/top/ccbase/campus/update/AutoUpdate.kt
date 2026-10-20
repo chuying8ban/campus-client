@@ -66,7 +66,8 @@ object AutoUpdate {
             .putLong(K_LAST, System.currentTimeMillis()).apply()
     }
 
-    private fun onWifi(ctx: Context): Boolean = runCatching {
+    /** 当前是不是 Wi-Fi/有线。静默续传也要守这条门槛（包 29MB，别在流量上偷跑）。 */
+    fun onWifi(ctx: Context): Boolean = runCatching {
         val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
         caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
@@ -91,18 +92,48 @@ object AutoUpdate {
         }.onFailure { Log.w(TAG, "排不上静默更新闹钟", it) }
     }
 
+    /**
+     * 改一次闹钟的时间（失败后 30 分钟再来一次这种）。
+     *
+     * 为什么不用 [schedule]：那条固定 6 小时。下载失败已经留了半包，
+     * 让用户等 6 小时等于告诉他"今天别更新了" —— 而弱网下过十分钟往往就能续上。
+     */
+    fun scheduleIn(ctx: Context, delayMs: Long) {
+        if (!enabled(ctx)) return
+        runCatching {
+            val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs, pi(ctx))
+        }.onFailure { Log.w(TAG, "排不上 ${delayMs}ms 后的重试闹钟", it) }
+    }
+
     fun cancelAlarm(ctx: Context) {
         runCatching {
             (ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pi(ctx))
         }
     }
 
-    /** 进 App 时的兜底触发：闹钟在国产 ROM 上不一定准，打开 App 是唯一稳定时机。 */
+    /**
+     * 进 App 时的兜底触发：闹钟在国产 ROM 上不一定准，打开 App 是唯一稳定时机。
+     *
+     * **先看有没有没下完的**：上次切后台/被杀留下的半包，比"查一遍有没有新版"更值钱 ——
+     * 用户的意思很明确（"更新时一定不能断"），这里直接接着下，
+     * 不受 6 小时间隔限制（那个间隔管的是"查清单"，不是"续传"）。
+     */
     fun kickIfDue(ctx: Context) {
         if (!enabled(ctx)) return
-        val gap = System.currentTimeMillis() - lastRun(ctx)
-        if (gap < MIN_GAP_MS) return
-        run(ctx, reason = "app-launch")
+        io.execute {
+            val resumed = runCatching { UpdateGate.resumeIfPending(ctx, fromService = false) }
+                .onFailure { Log.w(TAG, "进 App 时续传失败", it) }
+                .getOrDefault(false)
+            if (resumed) {
+                Log.i(TAG, "进 App 时接着上次的半包继续下")
+                markRun(ctx)
+                return@execute
+            }
+            val gap = System.currentTimeMillis() - lastRun(ctx)
+            if (gap < MIN_GAP_MS) return@execute
+            run(ctx, reason = "app-launch")
+        }
     }
 
     /**
@@ -123,6 +154,12 @@ object AutoUpdate {
         }
         io.execute {
             try {
+                // 有半包就先接着下：续传不需要重新查清单（清单那一步恰恰最容易在弱网下失败）
+                if (UpdateGate.resumeIfPending(ctx, fromService = false)) {
+                    Log.i(TAG, "静默续传已接着上次的半包开始（$reason）")
+                    markRun(ctx)
+                    return@execute
+                }
                 val installed = runCatching {
                     ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
                 }.getOrDefault(0)
