@@ -173,6 +173,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textSize="11.5sp"
+            android:fontFeatureSettings="tnum"
             android:textColor="#B3ACC6" />
 
         <ImageView
