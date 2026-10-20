@@ -80,6 +80,15 @@
 
 
 
+        <!-- 后台静默更新：闹钟到点检查新版本并在后台下好（装包仍需用户点一下，系统规定） -->
+        <receiver
+            android:name=".update.AutoUpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="top.ccbase.campus.AUTO_UPDATE_TICK" />
+            </intent-filter>
+        </receiver>
+
         <!-- 桌面「今日课表」小组件：4×2 起，系统每 30 分钟刷一次，
              课表导入成功后由 TodayWidgetProvider.refresh() 另外推一次 -->
         <receiver

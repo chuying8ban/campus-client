@@ -1,12 +1,12 @@
 {
-  "version_code": 183,
-  "version_name": "3.4.64",
-  "url": "/updates/campus-3.4.64.apk",
-  "sha256": "7b0c844d7fe0d7a0a87483573ffaca3377b0acb3e0e37bce34d1584d913499c9",
-  "size": 29229324,
+  "version_code": 184,
+  "version_name": "3.4.65",
+  "url": "/updates/campus-3.4.65.apk",
+  "sha256": "d191d8606d266988f990b70ea7efc0219b9d36a85d5f0f3800070f3d0680a698",
+  "size": 29229444,
   "notes": [
-    "桌面小组件页写明暂不支持华为/荣耀",
-    "选择器里的说明也加了这句",
-    "不再提供兼容模式开关"
+    "小组件动态显示更顺",
+    "帧间淡入铺满整个间隔、改成线性",
+    "去掉每帧末尾的停顿感"
   ]
 }

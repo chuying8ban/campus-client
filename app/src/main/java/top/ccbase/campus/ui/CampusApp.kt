@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -90,6 +91,8 @@ import top.ccbase.campus.update.UpdateManifest
 import top.ccbase.campus.update.UpdatePrefs
 import top.ccbase.campus.update.Updater
 import top.ccbase.campus.ui.update.UpdateOverlay
+import top.ccbase.campus.update.UpdateGate
+import top.ccbase.campus.update.AutoUpdate
 import top.ccbase.campus.ui.update.UpdateUi
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.ui.schedule.DailyCheckBanner
@@ -219,6 +222,11 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     val scope = rememberCoroutineScope()
     val versionCode = top.ccbase.campus.BuildConfig.VERSION_CODE
     var update by remember { mutableStateOf<UpdateUi?>(null) }
+    // 后台静默更新完成后的 5 秒横幅：版本名 to versionCode
+    var silentBanner by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var autoOn by remember { mutableStateOf(AutoUpdate.enabled(appCtx)) }
+    var autoWifi by remember { mutableStateOf(AutoUpdate.wifiOnly(appCtx)) }
+    var pendingReady by remember { mutableStateOf(UpdateGate.state as? UpdateGate.S.Ready) }
     var updHint by remember { mutableStateOf<String?>(null) }
     // 网络自检浮层：连不上服务器时用户自己跑一次，把「断在哪一层」摆出来
     var showDiag by remember { mutableStateOf(false) }
@@ -256,34 +264,49 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             update = UpdateUi.AskPermission(m, forced)
             return
         }
-        update = UpdateUi.Progress(m, -1f)
-        var lastPct = -2
-        scope.launch {
-            val r = withContext(Dispatchers.IO) {
-                Updater.download(appCtx, m, onProgress = { p ->
-                    // 每 64KB 回调一次，只在整百分点变化时刷界面，别把主线程刷爆
-                    val pct = if (p < 0f) -1 else (p * 100).toInt()
-                    if (pct != lastPct) {
-                        lastPct = pct
-                        UpdateNotify.progress(appCtx, m.versionName, pct)   // 状态栏那条常驻通知
-                        scope.launch { update = UpdateUi.Progress(m, p) }
-                    }
-                }, onState = { st ->
-                    // 断流重试 / 停滞断开这类"正在发生的事"要立刻反映到界面上：
-                    // 退避等待时不刷新的话，用户看到的就是一条不动的进度条（等于静默）
-                    scope.launch { update = UpdateUi.Progress(m, st.fraction, st) }
-                })
+        // 手动点更新 = 把可能在跑的后台静默任务**拉回前台**，绝不另开第二条下载。
+        // 「两个任务抢同一个 .part」正是上一代静默更新被砍掉的原因（3.4.40），
+        // 现在只有 UpdateGate 一个入口，进度也由它统一报。
+        when (UpdateGate.start(appCtx, m, quiet = false)) {
+            UpdateGate.Start.READY_ALREADY -> {
+                val r = UpdateGate.state as UpdateGate.S.Ready
+                update = UpdateUi.Ready(r.m, r.file, needPermission = !Updater.canInstall(appCtx))
             }
-            UpdateNotify.clearProgress(appCtx)
-            update = r.fold(
-                onSuccess = { f -> UpdateUi.Ready(m, f, needPermission = !Updater.canInstall(appCtx)) },
-                onFailure = { e ->
-                    // 失败文案由下载引擎写好（含"还剩多少已经下好了、点重试接着下"），
-                    // 这里只兜底，绝不出现空白提示
-                    UpdateUi.Failed(m, e.message?.takeIf { it.isNotBlank() } ?: "下载没成功，请重试")
-                },
-            )
+            UpdateGate.Start.ATTACHED, UpdateGate.Start.STARTED -> Unit   // 进度走下面那个 observe
+            UpdateGate.Start.BUSY_OTHER -> updHint = "另一个版本正在下载，稍等一下再试"
         }
+    }
+
+    // 下载状态只有一份（UpdateGate）：静默任务被手动点击"接管"时，这里自动切成前台进度，
+    // 显示的就是它已经下到的百分比 —— 不会从 0% 重新开始。
+    LaunchedEffect(Unit) {
+        UpdateGate.restore(appCtx)
+        UpdateGate.observe { s ->
+            when (s) {
+                is UpdateGate.S.Working -> if (!s.quiet) {
+                    update = UpdateUi.Progress(s.m, s.fraction, null)
+                }
+                is UpdateGate.S.Ready -> {
+                    pendingReady = s
+                    update = UpdateUi.Ready(s.m, s.file, needPermission = !Updater.canInstall(appCtx))
+                    if (s.quiet) {
+                        // 后台下好、他还没点过：5 秒横幅（用户 2026-10-20 要求"持续五秒的弹窗"）
+                        silentBanner = s.m.versionName to s.m.versionCode
+                    }
+                }
+                is UpdateGate.S.Failed -> if (!s.quiet) update = UpdateUi.Failed(s.m, s.msg)
+                UpdateGate.S.Idle -> Unit
+            }
+        }
+    }
+
+    // 横幅只出现 5 秒，然后自己退场；同一个版本只提示一次（重启 App 不会又糊一脸）
+    LaunchedEffect(silentBanner) {
+        val b = silentBanner ?: return@LaunchedEffect
+        if (UpdatePrefs.bannerShown(appCtx) == b.second) { silentBanner = null; return@LaunchedEffect }
+        UpdatePrefs.markBanner(appCtx, b.second)
+        delay(5000)
+        silentBanner = null
     }
 
     // 「去允许」跳去系统设置期间，这个浮层还在；许可一到位就自己把下载续上，
@@ -346,6 +369,8 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     }
     // 进入 App 就查一次（1 分钟下限）：用户要求进来就知道有没有新版本
     LaunchedEffect(Unit) { checkUpdate(force = false, entry = true) }
+    // 静默更新的兜底时机：系统闹钟在国产 ROM 上不一定准，打开 App 时补一次（6 小时内不重复）
+    LaunchedEffect(Unit) { AutoUpdate.kickIfDue(appCtx) }
 
     // ------------------------------------------------------------------
     // 课表自检：**打开 App / 回到前台时自己核对一次**
@@ -526,6 +551,24 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                         UpdatePrefs.availableCode(appCtx), UpdatePrefs.availableName(appCtx),
                     ),
                     onCheckUpdate = { checkUpdate(force = true) },
+                    autoUpdateOn = autoOn,
+                    onToggleAutoUpdate = { on ->
+                        autoOn = on
+                        AutoUpdate.setEnabled(appCtx, on)
+                        if (on) {
+                            // 先把「安装未知应用」要下来：没有它，静默下好了也装不上（白耗流量）
+                            if (!Updater.canInstall(appCtx)) Updater.openInstallSettings(appCtx)
+                            AutoUpdate.kickIfDue(appCtx)
+                        }
+                    },
+                    pendingInstallText = pendingReady?.let { "${it.m.versionName} 已下好" },
+                    onInstallPending = {
+                        pendingReady?.let { r ->
+                            update = UpdateUi.Ready(r.m, r.file, needPermission = !Updater.canInstall(appCtx))
+                        }
+                    },
+                    autoUpdateWifiOnly = autoWifi,
+                    onToggleAutoWifi = { on -> autoWifi = on; AutoUpdate.setWifiOnly(appCtx, on) },
                     onOpenDiag = { showDiag = true },
                     onOpenSafety = { showSafety = true },
                     onOpenAppearance = {
@@ -824,6 +867,20 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
             onRetry = { (st as? UpdateUi.Failed)?.m?.let { startDownload(it) } ?: checkUpdate(true) },
             onOpenPermission = { Updater.openInstallSettings(appCtx) },
         )
+
+        // 后台静默更新完成后那条 5 秒横幅（用户 2026-10-20 明确要求）。
+        // 只提示、不打断：点它才进安装流程；不看就自己走掉。
+        silentBanner?.let { (vname, _) ->
+            SilentUpdateBanner(
+                versionName = vname,
+                onTap = {
+                    silentBanner = null
+                    UpdateGate.pending(appCtx)?.let { r ->
+                        update = UpdateUi.Ready(r.m, r.file, needPermission = !Updater.canInstall(appCtx))
+                    }
+                },
+            )
+        }
     }
     }
 }
@@ -909,4 +966,37 @@ private fun updateTraceText(o: CheckOutcome): String = when (o) {
     is CheckOutcome.Update -> "有新版本 ${o.manifest.versionName}（${o.manifest.versionCode}）"
     CheckOutcome.Latest -> "已是最新版本"
     is CheckOutcome.Failed -> "检查失败：${o.message}"
+}
+
+/**
+ * 「发现新版本，已在后台静默更新」——顶部滑入、5 秒自动退场（计时在调用处）。
+ *
+ * 为什么不用系统 Toast：Toast 不能点、也不遵守 App 的视觉语言；这里要能点进安装。
+ * 为什么不用对话框：用户只说了"弹窗提示"，但一个挡住课表的模态框违背"更新时也要正常用"，
+ * 顶部横幅既能看见也不挡操作。
+ */
+@Composable
+private fun SilentUpdateBanner(versionName: String, onTap: () -> Unit) {
+    val shown = androidx.compose.animation.core.Animatable(-1f)
+    LaunchedEffect(Unit) { shown.animateTo(0f, androidx.compose.animation.core.tween(260)) }
+    Box(Modifier.fillMaxSize().padding(top = 10.dp), contentAlignment = Alignment.TopCenter) {
+        androidx.compose.material3.Surface(
+            color = Color(0xF21A1A22),
+            shape = RoundedCornerShape(14.dp),
+            shadowElevation = 10.dp,
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .offset(y = (shown.value * 90).dp)
+                .clickable(onClick = onTap),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("新版本 $versionName", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(8.dp))
+                Text("已在后台静默更新 · 点此安装", color = Color(0xCCFFFFFF), fontSize = 12.sp)
+            }
+        }
+    }
 }

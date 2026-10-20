@@ -110,6 +110,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_TIME_CHANGED && intent.action != Intent.ACTION_TIMEZONE_CHANGED) return
         DailyTimetableCheck.schedule(context)
+        // 静默更新的闹钟同样会被重启清空（开关开着才重排）
+        top.ccbase.campus.update.AutoUpdate.schedule(context)
         // 抢课提醒（手机直接弹通知）：重启后系统会清空闹钟，这里补上。
         // 和下面提醒/静音是两套独立开关，所以放在那个判断**之前**。
         RetiredMonitorCleanup.cancel(context)

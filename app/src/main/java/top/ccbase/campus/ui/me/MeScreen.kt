@@ -116,6 +116,15 @@ fun MeScreen(
     updateHint: String? = null,
     /** 点「检查更新」。默认空实现，方便单测单独渲染本页 */
     onCheckUpdate: () -> Unit = {},
+    /** 自动后台更新（默认关；用户 2026-10-20：需在「我的」里打开） */
+    autoUpdateOn: Boolean = false,
+    onToggleAutoUpdate: (Boolean) -> Unit = {},
+    /** 后台已下好、等用户点安装的那一版；null = 没有 */
+    pendingInstallText: String? = null,
+    onInstallPending: () -> Unit = {},
+    /** 静默下载只在 Wi-Fi 下跑（7MB 的包不该偷走流量） */
+    autoUpdateWifiOnly: Boolean = true,
+    onToggleAutoWifi: (Boolean) -> Unit = {},
     /** 静默下载：开着就进 App 自动在后台下新包（用户 2026-10-19 要求的新功能） */
     /** 点「网络自检」：连不上服务器时用来定位断在哪一层 */
     onOpenDiag: () -> Unit = {},
@@ -451,6 +460,16 @@ fun MeScreen(
             hint = updateHint ?: "当前版本 $version · 发现新版本时会提示",
             onClick = onCheckUpdate,
         )
+        // 后台静默更新：默认关。开了之后 App 每隔几小时（或你一打开）自己查一次，
+        // 发现新版本就**只下载、不打扰**；装包那一步必须你点一下（Android 不允许静默安装）。
+        AutoUpdateRow(
+            on = autoUpdateOn,
+            wifiOnly = autoUpdateWifiOnly,
+            pendingText = pendingInstallText,
+            onToggle = onToggleAutoUpdate,
+            onToggleWifi = onToggleAutoWifi,
+            onInstall = onInstallPending,
+        )
         KV("数据来源", "你本人的教务系统")
         // 「给 App 提建议」2026-09-30 搬到前面的「建议与外观」那一节了（用户口径：
         // 「把提建议和外观放到提醒前面」）—— 这里不再重复第二份入口。
@@ -521,5 +540,60 @@ fun MeScreen(
             confirmButton = { TextButton({ askDelete = false; doDeleteCred() }) { Text("删除") } },
             dismissButton = { TextButton({ askDelete = false }) { Text("取消") } },
         )
+    }
+}
+
+/**
+ * 「自动后台更新」一行。
+ *
+ * 为什么不是一个纯开关：静默下载到 100% 之后，用户还需要"我知道它下好了、点一下装"，
+ * 否则他会以为更新没生效（这个 App 上一代静默更新的投诉就是这个）。
+ * 所以这一行同时承担开关、进度提示和安装入口。
+ */
+@Composable
+private fun AutoUpdateRow(
+    on: Boolean,
+    wifiOnly: Boolean,
+    pendingText: String?,
+    onToggle: (Boolean) -> Unit,
+    onToggleWifi: (Boolean) -> Unit,
+    onInstall: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("自动后台更新", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    if (on) "每隔几小时自动检查并下载，装的时候会提醒你"
+                    else "关闭中：只在你手动检查时才下载",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                )
+            }
+            androidx.compose.material3.Switch(checked = on, onCheckedChange = onToggle)
+        }
+        if (on) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("只在 Wi-Fi 下下载", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(
+                    checked = wifiOnly,
+                    onCheckedChange = onToggleWifi,
+
+                )
+            }
+        }
+        if (pendingText != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "$pendingText · 点此安装",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onInstall() },
+            )
+        }
     }
 }

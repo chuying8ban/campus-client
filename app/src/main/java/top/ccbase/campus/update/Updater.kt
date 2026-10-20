@@ -282,6 +282,7 @@ object UpdatePrefs {
     private const val K_SKIP = "skipped_version_code"
     private const val K_NOTIFIED = "notified_version_code"
     private const val K_SILENT_PROMPTED = "silent_prompted_code"
+    private const val K_BANNER = "silent_banner_code"
     private const val K_AVAIL_CODE = "available_version_code"
     private const val K_AVAIL_NAME = "available_version_name"
     private const val K_RES = "last_check_result"
@@ -359,6 +360,17 @@ object UpdatePrefs {
 
     fun lastResultAt(ctx: Context): Long =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getLong(K_RES_AT, 0L)
+
+    /**
+     * 后台静默更新完成后那条 5 秒横幅提示过哪一版。
+     * 只提示一次：否则用户每次回前台都要看它一遍（3.4.40 前的教训）。
+     */
+    fun bannerShown(ctx: Context): Int =
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getInt(K_BANNER, 0)
+
+    fun markBanner(ctx: Context, code: Int) {
+        ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putInt(K_BANNER, code).apply()
+    }
 
     fun availableCode(ctx: Context): Int =
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).getInt(K_AVAIL_CODE, 0)
