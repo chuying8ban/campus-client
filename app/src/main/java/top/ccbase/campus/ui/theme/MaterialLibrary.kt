@@ -305,7 +305,7 @@ object MaterialLibrary {
         val kind = when (item.kind) {
             Kind.VIDEO -> UserMedia.Kind.VIDEO
             Kind.GIF -> UserMedia.Kind.GIF
-            else -> return null
+            Kind.IMAGE -> UserMedia.Kind.IMAGE
         }
         return UserMedia.Media(kind, f)
     }

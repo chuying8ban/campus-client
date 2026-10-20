@@ -53,6 +53,9 @@ object UserMedia {
     enum class Kind(val id: String, val label: String) {
         GIF("gif", "GIF 动图"),
         VIDEO("video", "视频"),
+        // 静态图（2026-10-20）：本地素材库里 jpg/png 以前在 resolve 阶段就被判 null，
+        // 桌面端因此永远"这张图用不了"。静态图也是"一帧"，应该能当桌面底。
+        IMAGE("image", "图片"),
     }
 
     /**
@@ -223,6 +226,7 @@ object UserMedia {
         val m = current(ctx, slot) ?: return null
         return runCatching {
             when (m.kind) {
+                Kind.IMAGE -> android.graphics.BitmapFactory.decodeFile(m.file.path)
                 Kind.GIF -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     ImageDecoder.decodeBitmap(ImageDecoder.createSource(m.file)) { d, _, _ ->
                         d.setTargetSampleSize(sampleSize(m.file, maxSide))
@@ -286,6 +290,19 @@ object UserMedia {
 @Composable
 fun UserMediaBackground(media: UserMedia.Media, modifier: Modifier = Modifier) {
     when (media.kind) {
+        UserMedia.Kind.IMAGE -> {
+            val bmp = remember(media.file.path) {
+                runCatching { android.graphics.BitmapFactory.decodeFile(media.file.path) }.getOrNull()
+            }
+            if (bmp != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = modifier,
+                )
+            }
+        }
         UserMedia.Kind.GIF -> {
             // GIF 解码放到 IO 线程：以前在 `update` 里同步解，换主题那一下会明显卡一下
             // （用户 2026-10-19："app 主题的切换要快速"）。解好之前先不铺图，铺底色，不闪。

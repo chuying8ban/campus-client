@@ -416,6 +416,22 @@ object WidgetFrames {
                     runCatching { mmr.release() }
                 }
             }
+            // 静态图（本地素材库里的 jpg/png）：以前这里**没有 IMAGE 分支**，
+            // pool 一直是空的 → 返回 null → 应用素材时提示"这张图桌面用不了"，
+            // 用户会以为整个本地素材库对桌面无效（2026-10-20 真机复验发现）。
+            top.ccbase.campus.ui.theme.UserMedia.Kind.IMAGE -> {
+                val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(media.file.path, b)
+                val opts = BitmapFactory.Options().apply {
+                    inSampleSize = 1
+                    while (b.outWidth / (inSampleSize * 2) >= fw * 2 &&
+                        b.outHeight / (inSampleSize * 2) >= fh * 2
+                    ) {
+                        inSampleSize *= 2
+                    }
+                }
+                BitmapFactory.decodeFile(media.file.path, opts)?.let { pool += it }
+            }
             top.ccbase.campus.ui.theme.UserMedia.Kind.GIF -> {
                 val movie = runCatching { android.graphics.Movie.decodeFile(media.file.path) }.getOrNull()
                 if (movie != null) {

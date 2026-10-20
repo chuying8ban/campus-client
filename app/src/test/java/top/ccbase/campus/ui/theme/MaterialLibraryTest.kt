@@ -76,8 +76,11 @@ class MaterialLibraryTest {
 
         val spec = MaterialLibrary.spec(MaterialLibrary.Slot.WIDGET, item.id)
         assertEquals("spec 应能解回槽位与 id", MaterialLibrary.Slot.WIDGET to item.id, MaterialLibrary.parseSpec(spec))
-        // 静态图不是"可播放媒体"，resolve 返回 null 是对的（它走静态渲染那条路）
-        assertNull(MaterialLibrary.resolve(ctx, spec))
+        // 静态图现在也当"一帧媒体"（2026-10-20）：桌面端要能把它铺成卡片底。
+        // 以前这里返回 null，导致"应用素材"时被提示"这张图桌面用不了"。
+        val m = MaterialLibrary.resolve(ctx, spec)
+        assertNotNull("静态图应当能解析到文件", m)
+        assertEquals(top.ccbase.campus.ui.theme.UserMedia.Kind.IMAGE, m!!.kind)
     }
 
     @Test
