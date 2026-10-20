@@ -9,7 +9,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.first
 import top.ccbase.campus.data.remote.PlanApplier
-import top.ccbase.campus.domain.UNIT_TIMES
 
 /**
  * 官方教务 `activities` → 本地 courses/slots 的纯映射。
@@ -82,8 +81,9 @@ object EamsLocalImport {
             val timeText = when {
                 startTime.isNotEmpty() && endTime.isNotEmpty() -> "$startTime-$endTime"
                 else -> {
-                    val u = UNIT_TIMES[pStart]
-                    if (u != null) "${u.first}-${UNIT_TIMES[pEnd]?.second ?: u.second}" else ""
+                    // 节次换算成钟点：走用户可改的作息表（以前是手抄常量）
+                    val (from, to) = PeriodTableStore.span(pStart, pEnd) ?: ("" to "")
+                    if (from.isNotEmpty()) "$from-$to" else ""
                 }
             }
 

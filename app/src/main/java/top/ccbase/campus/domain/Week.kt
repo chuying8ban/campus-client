@@ -2,6 +2,7 @@ package top.ccbase.campus.domain
 
 import java.time.LocalTime
 import top.ccbase.campus.data.local.Course
+import top.ccbase.campus.data.local.PeriodTableStore
 import top.ccbase.campus.data.local.Slot
 
 /**
@@ -84,67 +85,21 @@ fun timeRows(slots: List<Slot>): List<GridRow> =
         .map { (a, b) -> GridRow(a, b, if (a == b) "$a 节" else "$a-$b 节") }
 
 /**
- * 节次 → 上课的时钟起止。
- *
- * 为什么必须有这张表：服务端（线上）的 `time_text` 是「周一 1-2节」——**不带时钟时间**，
- * 而 `parseSpan` 只认「09:30-11:05」这种串。后果不是显示难看，是**功能没了**：
- * `silenceWindows` 一门课都找不到 → 课前自动静音排不出任何闹钟（Rescheduler 日志
- * 会写「排了 0 个闹钟」）。模板 seed 里恰好是时钟串，所以单测一直绿。
- *
- * 取值来自 App 自带模板 seed（assets/seed.json 的 p_start → time_text）。
- * 学校作息若变，改这一处即可。
- */
-private val PERIOD_SPAN: Map<Int, Pair<String, String>> = mapOf(
-    1 to ("09:30" to "11:05"),
-    3 to ("11:25" to "13:50"),
-    4 to ("12:15" to "13:50"),
-    6 to ("16:00" to "17:35"),
-    8 to ("17:55" to "19:30"),
-    10 to ("20:30" to "22:05"),
-)
-
-/**
- * **单节**钟点表（1..12）—— 取自教务官方课表的 `timeTableLayout.courseUnitList`
- * （2026-2027 秋季学期真样本，`app/src/test/resources/eams/print_data.json`）。
- *
- * 与上面的 PERIOD_SPAN 的区别：那张表是照"段"手抄的近似值（4/6/8/10 节起），
- * 只够给静音窗兜底；周视图要**一节一行**，必须知道每一节自己的钟点。
- * 别再手抄：改这里就用 `tools/` 里那份样本重新抽一遍。
- */
-val UNIT_TIMES: Map<Int, Pair<String, String>> = mapOf(
-    1 to ("09:30" to "10:15"),
-    2 to ("10:20" to "11:05"),
-    3 to ("11:25" to "12:10"),
-    4 to ("12:15" to "13:00"),
-    5 to ("13:05" to "13:50"),
-    6 to ("16:00" to "16:45"),
-    7 to ("16:50" to "17:35"),
-    8 to ("17:55" to "18:40"),
-    9 to ("18:45" to "19:30"),
-    10 to ("20:30" to "21:15"),
-    11 to ("21:20" to "22:05"),
-    12 to ("22:10" to "22:55"),
-)
-
-/**
  * 一个时段的时钟起止。
  *
  * 顺序（2026-09-17 调过）：**先解析 time_text**，再查节次作息表。
  * 服务端现在把官方课表的 `startTime/endTime`（09:30-11:05）直接写进 time_text，
- * 那是教务自己的钟点；而下面的表是手抄的近似值 —— 它把「3 节起」一律当成
- * 「11:25-13:50」，可 `3-4 节` 实际是 `11:25-13:00`。静音窗按它算就会把
- * 13:00-13:50（午休）也静掉。老数据（time_text 是「周一 1-2节」）解析不出来，
- * 照样退回这张表。
+ * 那是教务自己的钟点，比任何本地换算都准；time_text 解析不出来（老数据是
+ * 「周一 1-2节」）才退回 [top.ccbase.campus.data.local.PeriodTableStore] 里的作息表。
+ *
+ * 为什么这条兜底必须存在：`silenceWindows` 全靠它算课前静音与课后恢复。
+ * 兜底断了，日志只会写「排了 0 个闹钟」—— 功能静默消失，最难发现。
  */
 fun slotSpan(s: Slot): Pair<LocalTime, LocalTime>? {
     parseSpan(s.time_text)?.let { return it }
-    val a = s.p_start
-    if (a != null) {
-        PERIOD_SPAN[a]?.let { (f, t) ->
-            runCatching { LocalTime.parse(f) to LocalTime.parse(t) }.getOrNull()?.let { return it }
-        }
-    }
-    return null
+    val a = s.p_start ?: return null
+    val (from, to) = PeriodTableStore.span(a, s.p_end ?: a) ?: return null
+    return runCatching { LocalTime.parse(from) to LocalTime.parse(to) }.getOrNull()
 }
 
 /** HH:mm（与 time_text 里的时间格式一致，方便直接比较） */

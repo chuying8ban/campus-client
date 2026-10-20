@@ -98,6 +98,9 @@ open class CampusApplication : Application() {
                 )
                 val r = SeedImporter.import(db, generic)
                 Log.i(TAG, if (r.imported) "通用数据已导入：${r.counts}" else "种子版本未变，跳过导入")
+                // 作息时间表（用户可改）：进程起来读一次进内存快照。
+                // 放在种子之后 —— 首次装机的默认值就是 PeriodTable() 本身，不依赖库里有行。
+                top.ccbase.campus.data.local.PeriodTableStore.load(db)
             } catch (e: Exception) {
                 // 不抛出去：让 App 能开；库里没数据时界面会显示空计划说明
                 Log.e(TAG, "种子导入失败：${e.javaClass.simpleName} ${e.message}", e)

@@ -32,7 +32,7 @@ import top.ccbase.campus.data.local.StudyStep
 import top.ccbase.campus.domain.Soup
 import top.ccbase.campus.domain.TaskNow
 import top.ccbase.campus.domain.TodayView
-import top.ccbase.campus.domain.UNIT_TIMES
+import top.ccbase.campus.data.local.PeriodTableStore
 import top.ccbase.campus.domain.resourceKindLabel
 import top.ccbase.campus.domain.pickTopRes
 import top.ccbase.campus.domain.stepKindLabel
@@ -209,8 +209,8 @@ internal fun timeLabel(timeText: String): String {
         .mapNotNull { it.value.toIntOrNull() }.toList()
     val a = units.firstOrNull() ?: return t
     val b = units.getOrNull(1) ?: a
-    val start = UNIT_TIMES[a]?.first ?: return t
-    val end = UNIT_TIMES[b]?.second ?: UNIT_TIMES[a]?.second ?: return t
+    // 作息表用户可改（「作息时间表」页），所以每次从快照里取，别缓存死
+    val (start, end) = PeriodTableStore.span(a, b) ?: return t
     return "$start-$end"
 }
 
@@ -227,7 +227,7 @@ private fun zeroPad(hhmm: String): String =
  *
  * ⚠️ **末点一律用库里 `selfstudy.end` 原值，不要拿用户口述的"时长"去算。**
  * 他先说晚自习是「一小时四十五分」，次日更正「到十点零五」= 22:05 / 95 分钟
- * （正好是官方作息表第 11 节下课，跟 UNIT_TIMES[10].first…[11].second 对上）。
+ * （正好是官方作息表第 11 节下课，跟第 10 节开始…第 11 节结束对上）。
  * 照口述算出来的 22:15 是错的。本函数只管排版，不做时间运算。
  *
  * 规矩跟 [timeLabel] 一致：只有一个钟点时**不编造**另一个。

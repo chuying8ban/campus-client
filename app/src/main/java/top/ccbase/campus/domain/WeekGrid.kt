@@ -1,6 +1,7 @@
 package top.ccbase.campus.domain
 
 import top.ccbase.campus.data.local.Course
+import top.ccbase.campus.data.local.PeriodTableStore
 import top.ccbase.campus.data.local.Slot
 
 /**
@@ -43,10 +44,15 @@ fun spanUnits(s: Slot): Int {
  */
 fun classDays(slots: List<Slot>): List<Int> = (1..7).toList()
 
-/** 节次的钟点文字（左列第二行）：官方课表的单节时间 */
+/**
+ * 节次的钟点文字（左列第二行）：来自**用户可改**的作息时间表。
+ *
+ * 读 [top.ccbase.campus.data.local.PeriodTableStore.table] 这个 Compose 状态是故意的：
+ * 用户在「作息时间表」里改完回来，左列时间要当场变，不用杀进程。
+ */
 fun unitTimeLabel(unit: Int): String {
-    val (a, b) = UNIT_TIMES[unit] ?: return ""
-    return "$a-$b"
+    val u = PeriodTableStore.unit(unit) ?: return ""
+    return "${u.start}-${u.end}"
 }
 
 /** 课程名（取全名，窄格靠换行/省略号，不在这里截字） */

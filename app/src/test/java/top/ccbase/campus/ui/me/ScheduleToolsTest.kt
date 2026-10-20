@@ -28,8 +28,8 @@ class ScheduleToolsTest {
   val ctx=ApplicationProvider.getApplicationContext<Context>()
   val db=Room.inMemoryDatabaseBuilder(ctx,CampusDb::class.java).allowMainThreadQueries().build()
   rule.setContent { CampusTheme { ScheduleEditor(ctx,db,{}) } }
-  rule.waitUntil(10000) { rule.onAllNodesWithText("＋ 课程").fetchSemanticsNodes().any { !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) } }
-  rule.onNodeWithText("＋ 课程").performClick()
+  rule.waitUntil(10000) { rule.onAllNodesWithText("＋ 自定义时间的课（不按节次）").fetchSemanticsNodes().any { !it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) } }
+  rule.onNodeWithText("＋ 自定义时间的课（不按节次）").performScrollTo().performClick()
   rule.onNodeWithText("课程名称").performTextInput("测试课程")
   rule.onNodeWithText("保存到本机").performScrollTo().performClick()
   rule.waitForIdle()
