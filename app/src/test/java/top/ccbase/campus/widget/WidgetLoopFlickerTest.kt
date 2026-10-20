@@ -78,6 +78,32 @@ class WidgetLoopFlickerTest {
     }
 
     @Test
+    fun `帧不许画成透明的（真机上柔焦读自己那块像素就会这样）`() {
+        // 2026-10-20 用户截图「为什么透明了」：桌面卡片只剩文字，背景透出壁纸。
+        // 根因是 Painter.soften/bloom 把"画布自己的位图"当源去缩放再画回去，
+        // 真机 Skia 上整帧变透明。这条测试钉住"每帧中心不透明、整帧不是一片黑"。
+        val kinds = DynPainter.Kind.entries.filter { FlowPainter.supports(it) }
+        for (kind in kinds) {
+            val spec = WidgetDyn.spec(kind, 0xFFA06BFF.toInt())
+            val f = requireNotNull(WidgetFrames.forSpec(ctx, spec, 320, 160))[0]
+            val center = f.getPixel(f.width / 2, f.height / 2)
+            assertTrue("$kind 中心像素是透明的", (center ushr 24) >= 250)
+            // 四角是圆角，允许透明；取中间 60% 区域算平均亮度
+            var sum = 0L
+            var n = 0
+            for (y in f.height / 5 until f.height * 4 / 5 step 2) {
+                for (x in f.width / 5 until f.width * 4 / 5 step 2) {
+                    val p = f.getPixel(x, y)
+                    sum += (((p shr 16) and 0xFF) * 77 + ((p shr 8) and 0xFF) * 150 + (p and 0xFF) * 29) shr 8
+                    n++
+                }
+            }
+            val mean = sum.toDouble() / n
+            assertTrue("$kind 整帧太黑（平均 $mean）：画笔没画出东西", mean > 12.0)
+        }
+    }
+
+    @Test
     fun `叠化动画只淡入不让旧帧淡出（否则每帧暗一次 = 闪烁）`() {
         val ins = File("src/main/res/anim/widget_frame_in.xml").readText()
         val out = File("src/main/res/anim/widget_frame_out.xml").readText()

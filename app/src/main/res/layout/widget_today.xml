@@ -73,6 +73,14 @@
         <ImageView android:id="@+id/f39" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:contentDescription="@null" />
     </ViewFlipper>
 
+    <!-- 文字底幕：深色主题时由 provider 打开（浅色主题打开会把白底压脏）。 -->
+    <View
+        android:id="@+id/widget_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_scrim"
+        android:visibility="gone" />
+
     <ImageView
         android:id="@+id/widget_bg_img"
         android:layout_width="match_parent"
@@ -168,6 +176,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:textSize="11.5sp"
+            android:fontFeatureSettings="tnum"
             android:textColor="#B3ACC6" />
 
         <ImageView

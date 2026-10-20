@@ -91,7 +91,11 @@ object Painter {
         val w = src.width
         val h = src.height
         if (w < 8 || h < 8) return
-        val small = Bitmap.createScaledBitmap(src, (w / 6).coerceAtLeast(4), (h / 6).coerceAtLeast(4), true)
+        // ⚠️ 必须先从**副本**缩放：src 就是 c 正在画的位图（bmp），
+        // 直接把画布自己的位图 createScaledBitmap 再 drawBitmap 回去，等于一边读一边写同一块像素，
+        // 真机上结果是整帧变成透明 —— 用户 2026-10-20 截图「桌面卡片透明了」就是这么来的。
+        val base = src.copy(Bitmap.Config.ARGB_8888, false) ?: return
+        val small = Bitmap.createScaledBitmap(base, (w / 6).coerceAtLeast(4), (h / 6).coerceAtLeast(4), true)
         val up = Bitmap.createScaledBitmap(small, w, h, true)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
             alpha = (strength * 255).toInt().coerceIn(0, 255)
@@ -100,6 +104,7 @@ object Painter {
         c.drawBitmap(up, 0f, 0f, paint)
         if (small !== up) small.recycle()
         up.recycle()
+        base.recycle()
     }
 
     /**
@@ -112,13 +117,16 @@ object Painter {
         val w = src.width
         val h = src.height
         if (w < 8 || h < 8) return
-        val small = Bitmap.createScaledBitmap(src, (w / 3).coerceAtLeast(4), (h / 3).coerceAtLeast(4), true)
+        // 同 bloom：先复制再缩放，别拿画布自己的位图当源
+        val base = src.copy(Bitmap.Config.ARGB_8888, false) ?: return
+        val small = Bitmap.createScaledBitmap(base, (w / 3).coerceAtLeast(4), (h / 3).coerceAtLeast(4), true)
         val up = Bitmap.createScaledBitmap(small, w, h, true)
         c.drawBitmap(up, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG).apply {
             alpha = (strength * 255).toInt().coerceIn(0, 255)
         })
         if (small !== up) small.recycle()
         up.recycle()
+        base.recycle()
     }
 
     private val BAYER = intArrayOf(

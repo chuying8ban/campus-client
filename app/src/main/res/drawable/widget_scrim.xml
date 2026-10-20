@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 文字底幕：顶部压暗、往下渐隐。
+     2026-10-20 整卡渲染自检（app/build/preview/card_aurora.png）暴露的问题：
+     白字直接压在流动的画面上，中段还行、页脚那行基本读不出来。
+     壁纸类 App 的做法都是"文字下面永远有一层渐变"，不是靠加粗文字硬抗。
+     只在深色主题上开（浅色主题由 provider 置 GONE），否则会把白底压脏。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="270"
+        android:startColor="#99000000"
+        android:centerColor="#4D000000"
+        android:endColor="#00000000"
+        android:type="linear" />
+</shape>

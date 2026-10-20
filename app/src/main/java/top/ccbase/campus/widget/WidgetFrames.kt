@@ -100,7 +100,12 @@ object WidgetFrames {
             val key = "p|${kind.id}|$accent|$wPx|$hPx|s$speed|$ARCH" + if (fullRes) "|hd" else ""
             cache.get(key)?.let { return it }
             diskLoad(ctx, key)?.let { cache.put(key, it); return it }
-            return render(ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed)) { c, fw, fh, t0 ->
+            return render(
+                ctx, key, wPx, hPx, fullRes, stamp(spec, wPx, hPx, speed),
+                fallback = { c, fw, fh, t0 ->
+                    DynPainter.frame(c, kind, t0 / speed.coerceAtLeast(0.2f), fw.toFloat(), fh.toFloat(), accent)
+                },
+            ) { c, fw, fh, t0 ->
                 // 播放速度：把"时间轴"走快/走慢，不是简单抽帧 —— 慢放时粒子真的更慢
                 val t = t0 / speed.coerceAtLeast(0.2f)
                 // 低频大形走 fbm 流场内核（有真结构、无双影、天然闭合）；
@@ -414,8 +419,11 @@ object WidgetFrames {
         hPx: Int,
         fullRes: Boolean = false,
         stamp: String = "",
+        // 帧画不出来时的退路（老画笔）。放在 draw 之前，这样调用方的尾随 lambda 仍然绑到 draw。
+        fallback: ((Canvas, Int, Int, Float) -> Unit)? = null,
         draw: (Canvas, Int, Int, Float) -> Unit,
     ): List<Bitmap> {
+        val fallback = fallback ?: draw
         val (fw, fh, scale) = frameSize(wPx, hPx, fullRes)
         // 告诉画笔"一次循环有多长"：DynPainter 里所有相位都按它取整，帧 N-1 才接得回帧 0。
         // 这一行以前只在 diskLoad 里设过 —— 于是"冷启动第一次生成"用的是上一轮留下的 6s，
@@ -446,9 +454,43 @@ object WidgetFrames {
             if (rounded !== bmp) bmp.recycle()
             out += rounded
         }
+        // 兜底自检：整组帧如果几乎全黑/全透明，说明画笔在这台机器上没画出来
+        // （2026-10-20 真机：把画布自己的位图当源做柔焦，帧就成了透明的，桌面卡片看上去"透明了"）。
+        // 这种情况宁可交一批老画笔的帧，也不能让桌面上留一张空卡。
+        if (looksEmpty(out)) {
+            out.forEach { runCatching { it.recycle() } }
+            out.clear()
+            for (i in 0 until FRAMES) {
+                val bmp = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888)
+                val c = Canvas(bmp)
+                fallback(c, fw, fh, i * STEP_SEC)
+                val rounded = WidgetArt.rounded(bmp, radius)
+                if (rounded !== bmp) bmp.recycle()
+                out += rounded
+            }
+        }
         cache.put(key, out)
         diskSave(ctx, key, out, stamp)
         return out
+    }
+
+    /** 抽样 8×8 个点：平均亮度低到看不见，就当这批帧废了 */
+    private fun looksEmpty(frames: List<Bitmap>): Boolean {
+        val f = frames.firstOrNull() ?: return true
+        if (f.width < 8 || f.height < 8) return f.width <= 0
+        var sum = 0L
+        var n = 0
+        for (gy in 0 until 8) for (gx in 0 until 8) {
+            val x = (f.width - 1) * gx / 8
+            val y = (f.height - 1) * gy / 8
+            val p = f.getPixel(x, y)
+            val a = (p ushr 24) and 0xFF
+            if (a < 24) continue
+            sum += (((p shr 16) and 0xFF) * 77 + ((p shr 8) and 0xFF) * 150 + (p and 0xFF) * 29) shr 8
+            n++
+        }
+        if (n == 0) return true
+        return sum / n < 6
     }
 
     /**
