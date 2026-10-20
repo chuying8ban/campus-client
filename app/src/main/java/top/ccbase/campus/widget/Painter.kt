@@ -137,8 +137,10 @@ object Painter {
      */
     fun scrim(c: Canvas, w: Int, h: Int, bright: Boolean) {
         if (w <= 0 || h <= 0) return
-        val top = if (bright) 0x99000000.toInt() else 0x4D000000
-        val bottom = if (bright) 0x4D000000 else 0x14000000
+        // 亮底怎么压都有个限度：0x99 时灰字仍糊、0xCC 时画面被吃黑（真机两张对照图都试过）。
+        // 折中 0x8C，另一半靠"照片背景上把字改成白色系"来补（见 provider 的 onPhoto）。
+        val top = if (bright) 0x8C000000.toInt() else 0x59000000
+        val bottom = if (bright) 0x40000000 else 0x1A000000
         val p = Paint()
         p.shader = LinearGradient(
             0f, 0f, 0f, h.toFloat(),

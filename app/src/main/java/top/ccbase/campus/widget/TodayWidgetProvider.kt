@@ -417,16 +417,28 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val tint = TextTint.currentWidgetArgb()   // 只认"小组件"那一份，跟 App 的字色无关
             val headC = TextTint.apply(tint, theme.headColor, theme.bgColor, 0)
             val bodyC = TextTint.apply(tint, theme.bodyColor, theme.bgColor, 1)
-            val dimC = TextTint.apply(tint, theme.dimColor, theme.bgColor, 2)
+            var dimC = TextTint.apply(tint, theme.dimColor, theme.bgColor, 2)
+            // 素材/视频/自己的图做背景：画面亮度不受控，用户的字色常常和背景同色（灰字压天空=看不见）。
+            // 这类背景一律把字切到白色系 —— 比再加一层更黑的幕更不伤画面。
+            val onPhoto = spec.startsWith("media:") || spec.startsWith("mat:") ||
+                WidgetDyn.parseImage(spec) != null
+            var headC2 = headC
+            var bodyC2 = bodyC
+            var dimC2 = dimC
+            if (onPhoto) {
+                headC2 = 0xFFFFFFFF.toInt()
+                bodyC2 = 0xFFEDEDF5.toInt()
+                dimC2 = 0xFFCFCFDC.toInt()
+            }
             rv.setTextColor(R.id.widget_status, theme.accentColor)
-            rv.setTextColor(R.id.widget_head, headC)
-            rv.setTextColor(R.id.widget_date, dimC)
-            rv.setTextColor(R.id.widget_week, dimC)
-            rv.setTextColor(R.id.widget_meta, bodyC)
-            rv.setTextColor(R.id.widget_row1, bodyC)
-            rv.setTextColor(R.id.widget_row2, bodyC)
-            rv.setTextColor(R.id.widget_row3, bodyC)
-            rv.setTextColor(R.id.widget_foot, dimC)
+            rv.setTextColor(R.id.widget_head, headC2)
+            rv.setTextColor(R.id.widget_date, dimC2)
+            rv.setTextColor(R.id.widget_week, dimC2)
+            rv.setTextColor(R.id.widget_meta, bodyC2)
+            rv.setTextColor(R.id.widget_row1, bodyC2)
+            rv.setTextColor(R.id.widget_row2, bodyC2)
+            rv.setTextColor(R.id.widget_row3, bodyC2)
+            rv.setTextColor(R.id.widget_foot, dimC2)
         }
 
         /**
