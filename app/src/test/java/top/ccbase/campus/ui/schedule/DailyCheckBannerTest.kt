@@ -52,6 +52,30 @@ class DailyCheckBannerTest {
         )
     }
 
+    /**
+     * 下滑收起 / 回翻露出（用户 2026-10-21）。
+     *
+     * 断言用的是**语义树里还在不在**，不是透明度：淡出但还占位的话，用户看到的就是
+     * "提示没了、但那一条空白还在"——那正是要避免的样子。
+     */
+    @Test
+    fun `下滑后这条提示不再存在_回翻又回来`() {
+        val state = BannerAutoHideState()
+        rule.setContent { CampusTheme { AutoHideDailyCheckBanner(state, ctx) {} } }
+        rule.onNodeWithText("更新 ›").assertIsDisplayed()
+
+        state.onUserScroll(-120f)          // 手指上滑 120px
+        rule.waitForIdle()
+        assertEquals(
+            "收起之后不该还留在树里（留个占位就是一条空白）",
+            0, rule.onAllNodesWithText("更新 ›").fetchSemanticsNodes().size,
+        )
+
+        state.onUserScroll(160f)           // 往回翻
+        rule.waitForIdle()
+        rule.onNodeWithText("更新 ›").assertIsDisplayed()
+    }
+
     @Test
     fun `导入成功后同一位置变成已核对_仍是同一条细带`() {
         // 用"今天 08:12"而不是写死某一天：这套断言跟机器时钟无关才稳定

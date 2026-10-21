@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import top.ccbase.campus.ui.theme.AppearanceStore
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.ccbase.campus.data.plan.TplLoader
@@ -96,7 +97,8 @@ import top.ccbase.campus.update.AutoUpdate
 import top.ccbase.campus.update.UpdateService
 import top.ccbase.campus.ui.update.UpdateUi
 import top.ccbase.campus.CampusApplication
-import top.ccbase.campus.ui.schedule.DailyCheckBanner
+import top.ccbase.campus.ui.schedule.AutoHideDailyCheckBanner
+import top.ccbase.campus.ui.schedule.rememberBannerAutoHide
 import top.ccbase.campus.ui.theme.C
 import top.ccbase.campus.net.CampusApi
 import top.ccbase.campus.ui.me.MeScreen
@@ -204,6 +206,8 @@ fun CampusApp(version: String) {
 @Composable
 fun CampusShell(version: String, onLogin: () -> Unit) {
     val appCtx = LocalContext.current
+    // 顶部核对条下滑自动收起（见 BannerAutoHide）：**装在父级一处**，所有标签页都生效
+    val bannerHide = rememberBannerAutoHide()
     // rememberSaveable：转屏/系统杀进程重建后还停在原来那个 tab。
     // 但**装完新版是全新进程**，存档也不保证还在 → 再落一次盘：
     // 更新完重进 App 仍停在原来那一页（用户 2026-10-19：更新时也要能正常用）。
@@ -497,12 +501,15 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                 .padding(pad)
                 .padding(bottom = if (update is UpdateUi.Progress) 82.dp else 0.dp),
         ) {
-            DailyCheckBanner(appCtx) { showCrawl = true }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            // 下滑就收起、回翻露出（用户 2026-10-21：最上面提示更新的这个也改成下滑时自动隐藏）
+            AutoHideDailyCheckBanner(bannerHide, appCtx) { showCrawl = true }
+            Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(bannerHide.connection)) {
             val app = LocalContext.current.applicationContext as CampusApplication
             // tabs 的长度会变（监控那一格随 can_grab 进出），而 idx 是记下来的旧下标
             // （rememberSaveable：转屏/进程重建后还留着）—— 越界就是崩，所以先夹回合法范围。
             val shown = extra ?: tabs[idx.coerceIn(0, tabs.lastIndex)]
+            // 换标签页 = 回到那页的顶部，这条提示理应重新出现
+            LaunchedEffect(shown) { bannerHide.reset() }
             when (shown) {
                 CampusTab.TODAY -> TodayScreen(
                     app.db,
