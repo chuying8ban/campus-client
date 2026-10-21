@@ -1,0 +1,425 @@
+{
+ "version": 1,
+ "fonts": [
+  {
+   "id": "alibaba",
+   "name": "阿里普惠体",
+   "group": "黑体",
+   "file": "alibaba.ttf",
+   "bytes": 2084788,
+   "sha256": "32fb12c13e860ea0dcb0b2d7634f6058f2b0ac173fd146a7baa02f4ed7577f25",
+   "preview": "alibaba.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "oppo_sans",
+   "name": "OPPO Sans",
+   "group": "黑体",
+   "file": "oppo_sans.ttf",
+   "bytes": 2118744,
+   "sha256": "cbb1246415f45a7d3e7096d421a14a0135a6238e91f09431d379b53bdfcfb967",
+   "preview": "oppo_sans.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "youshe_bt",
+   "name": "优设标题黑",
+   "group": "黑体",
+   "file": "youshe_bt.ttf",
+   "bytes": 1414784,
+   "sha256": "dab883d69fb713233ea5d9aff8d1f27ccc2b71e249143edf6ea08367784c5dba",
+   "preview": "youshe_bt.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ruizi",
+   "name": "锐字真言",
+   "group": "黑体",
+   "file": "ruizi.ttf",
+   "bytes": 1433148,
+   "sha256": "ec8523db8f8373eb49e0fa87da5fd12c4d0d0896f2072a220c578c0e778d10da",
+   "preview": "ruizi.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "lushuai",
+   "name": "卢帅正锐黑",
+   "group": "黑体",
+   "file": "lushuai.ttf",
+   "bytes": 1387436,
+   "sha256": "8fcb9c5bd12ca685447ac0f0d10540466c43bf50230ea97ba6e7801a2ee119af",
+   "preview": "lushuai.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "fz_hei",
+   "name": "方正黑体",
+   "group": "黑体",
+   "file": "fz_hei.ttf",
+   "bytes": 2948136,
+   "sha256": "63455f68cc43d064821635a5f0a1227198203633d7dbc15968a0984c74079fdd",
+   "preview": "fz_hei.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "sige_md",
+   "name": "摩登小方体",
+   "group": "黑体",
+   "file": "sige_md.ttf",
+   "bytes": 1589532,
+   "sha256": "eb90123b43f4f26f5c4aca30412d8e89e8b6e63e8ae0a5e358f11dd7c997f078",
+   "preview": "sige_md.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "zhuojian",
+   "name": "卓健橄榄",
+   "group": "黑体",
+   "file": "zhuojian.ttf",
+   "bytes": 1654464,
+   "sha256": "414babc803f15f7fa2cbf7f2b7d93b158bf83d9209d6b7efda3ceb8fc54977a7",
+   "preview": "zhuojian.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "source_serif",
+   "name": "思源宋体",
+   "group": "宋体",
+   "file": "source_serif.ttf",
+   "bytes": 3217240,
+   "sha256": "15a806b91a65271508e9df398fa23ff28ffdf7f6d063a1b4656ce0cee7543208",
+   "preview": "source_serif.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "fz_shusong",
+   "name": "方正书宋",
+   "group": "宋体",
+   "file": "fz_shusong.ttf",
+   "bytes": 2673344,
+   "sha256": "d7c73fb16d3745541a3c9096b5eb0798e3c6368127bdeb157602fa09f48d58ae",
+   "preview": "fz_shusong.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "fz_fangsong",
+   "name": "方正仿宋",
+   "group": "宋体",
+   "file": "fz_fangsong.ttf",
+   "bytes": 3474344,
+   "sha256": "10ffd20d565c1106bb995e52f388a70813bd8dc80e7c5bafaddc49b1ed92302e",
+   "preview": "fz_fangsong.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "genryumin",
+   "name": "龙明体",
+   "group": "宋体",
+   "file": "genryumin.ttf",
+   "bytes": 3409096,
+   "sha256": "eefff19c5db3c35fb8d73beab61a9b4558063f2e7e6b91cdac52fbe3f8ef317b",
+   "preview": "genryumin.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "genyomin",
+   "name": "源样明体",
+   "group": "宋体",
+   "file": "genyomin.ttf",
+   "bytes": 2707468,
+   "sha256": "4689f6508b6db4625b87f687223e3d0706eaf7a95dc597163f59bf3b970695bd",
+   "preview": "genyomin.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "fz_kai",
+   "name": "方正楷体",
+   "group": "楷体",
+   "file": "fz_kai.ttf",
+   "bytes": 3655552,
+   "sha256": "1e2d8ab8995b5093dc48666ae99f8aad566cb38b7765066d943e93bd98f4c05e",
+   "preview": "fz_kai.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ys_youran",
+   "name": "悠然小楷",
+   "group": "楷体",
+   "file": "ys_youran.ttf",
+   "bytes": 12554164,
+   "sha256": "b84adbcbd610573180330d341d2f91ace26f4010e3f99d06ef379273b62f2c7f",
+   "preview": "ys_youran.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ys_chunfeng",
+   "name": "春风楷",
+   "group": "楷体",
+   "file": "ys_chunfeng.ttf",
+   "bytes": 9582416,
+   "sha256": "db876bb58e42dd31f4b49300c39806fca0ceba1dcb38da6add00e1b79501c875",
+   "preview": "ys_chunfeng.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ys_qiuhong",
+   "name": "秋鸿楷",
+   "group": "楷体",
+   "file": "ys_qiuhong.ttf",
+   "bytes": 14842112,
+   "sha256": "4e1e45bfe00e62cd108c597244f996733218bcdad2165619a3b1428ba58f6471",
+   "preview": "ys_qiuhong.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "muyao_ruanbi",
+   "name": "沐瑶软笔",
+   "group": "手写",
+   "file": "muyao_ruanbi.ttf",
+   "bytes": 4655560,
+   "sha256": "0dccadcb37f07eff81c85f5d1545a4646b5e23133ae97d0df9bd40f7acc53e30",
+   "preview": "muyao_ruanbi.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "muyao_suixin",
+   "name": "沐瑶随心",
+   "group": "手写",
+   "file": "muyao_suixin.ttf",
+   "bytes": 3494636,
+   "sha256": "ded211baa8f1294dad1f5238c463dc28bbc91c07872b055290b69a2a8a956305",
+   "preview": "muyao_suixin.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ys_xiaxing",
+   "name": "夏行楷",
+   "group": "手写",
+   "file": "ys_xiaxing.ttf",
+   "bytes": 9991932,
+   "sha256": "ce332401c29e30145e7eb4537b2c95aa280b19bb5d64e6ec6b114ab35a137fe6",
+   "preview": "ys_xiaxing.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "ys_foxi",
+   "name": "佛系体",
+   "group": "手写",
+   "file": "ys_foxi.ttf",
+   "bytes": 15092232,
+   "sha256": "2eb60afe933340ff1ea148f8349a83992ed360e8d6ea7eba518b08546d52bb95",
+   "preview": "ys_foxi.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "shoushu",
+   "name": "手书体",
+   "group": "手写",
+   "file": "shoushu.ttf",
+   "bytes": 8984832,
+   "sha256": "af5e2110718fdcc3de8c626fccfbdfc92948478b5031d74d5590612adabc6601",
+   "preview": "shoushu.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "pangmen_cs",
+   "name": "庞门正道粗书",
+   "group": "创意",
+   "file": "pangmen_cs.ttf",
+   "bytes": 9002324,
+   "sha256": "5138fd201ff9434bedd5b06a76d34544dad11c2c1ea986ad147405eea3da8a1c",
+   "preview": "pangmen_cs.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "pangmen_qs",
+   "name": "庞门正道轻松",
+   "group": "创意",
+   "file": "pangmen_qs.otf",
+   "bytes": 1530544,
+   "sha256": "cc49c9f25a7baf7cdf569b58617361a01c15f34ec9fb6be44708a91998eb3292",
+   "preview": "pangmen_qs.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "hxb_nanshen",
+   "name": "胡晓波男神",
+   "group": "创意",
+   "file": "hxb_nanshen.otf",
+   "bytes": 1825800,
+   "sha256": "7bec6b42950d6158eb929a929cbd678e86530c7af0b64d3babc26466e443d045",
+   "preview": "hxb_nanshen.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "hxb_zhenshuai",
+   "name": "胡晓波真帅",
+   "group": "创意",
+   "file": "hxb_zhenshuai.otf",
+   "bytes": 1119440,
+   "sha256": "ca9f4f9962c642105eb9de5a448257deb053ca58ca67452ede2adef9b5aeb56e",
+   "preview": "hxb_zhenshuai.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "hxb_saobao",
+   "name": "胡晓波骚包",
+   "group": "创意",
+   "file": "hxb_saobao.otf",
+   "bytes": 4777868,
+   "sha256": "7ba22632252b7e6a202b95dd81e7fc345843de0302384e93851cd59da34c1d4c",
+   "preview": "hxb_saobao.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "yangrendong",
+   "name": "杨任东竹石",
+   "group": "创意",
+   "file": "yangrendong.ttf",
+   "bytes": 2245352,
+   "sha256": "4a8cac8bdf8ef16ce733ae39af436a603760e4e11ea3b300ef2e4794cc6683cc",
+   "preview": "yangrendong.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "zcool_wenyi",
+   "name": "站酷文艺体",
+   "group": "创意",
+   "file": "zcool_wenyi.ttf",
+   "bytes": 1609616,
+   "sha256": "c0b1854df924fc292fc28885687f9dfbfc9804a9adb38df33b3b8ebdf6dbdd09",
+   "preview": "zcool_wenyi.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "zcool_gaoduan",
+   "name": "站酷高端黑",
+   "group": "创意",
+   "file": "zcool_gaoduan.ttf",
+   "bytes": 1227268,
+   "sha256": "7503cd886297dae9506fe8df4c800f8259be053dc330e73508a82fdd02aca51f",
+   "preview": "zcool_gaoduan.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "qiantu_tu",
+   "name": "千图小兔体",
+   "group": "创意",
+   "file": "qiantu_tu.ttf",
+   "bytes": 5420684,
+   "sha256": "c4bc028611e8b00f490c0609bb06e08b2fc050ef424f1a5ab428ab9044d3136d",
+   "preview": "qiantu_tu.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "faguang",
+   "name": "法棍体",
+   "group": "创意",
+   "file": "faguang.ttf",
+   "bytes": 2784408,
+   "sha256": "e1cff801ddc29c70617aa0b2790c5515ec0b8fcd5114776ee09f1a323c7b34a7",
+   "preview": "faguang.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "xinye",
+   "name": "新叶念体",
+   "group": "创意",
+   "file": "xinye.otf",
+   "bytes": 3646584,
+   "sha256": "80085e8e056b7cadc815607bba00d2d63187f11af4eba318a5105877a80e5b90",
+   "preview": "xinye.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "xianer",
+   "name": "贤二体",
+   "group": "创意",
+   "file": "xianer.ttf",
+   "bytes": 7441092,
+   "sha256": "0a568ac4423e0692ea385fa0a9feecd806df016589d0e39f30d6c5895266a20c",
+   "preview": "xianer.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "wencang",
+   "name": "问藏书房",
+   "group": "创意",
+   "file": "wencang.ttf",
+   "bytes": 2698384,
+   "sha256": "f1461f3e3070034c72d640853f1818c289a9b15d51f48d952ea3db13f73b5b68",
+   "preview": "wencang.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "lxgw_wenkai",
+   "name": "霞鹜文楷",
+   "group": "楷体",
+   "file": "lxgw_wenkai.ttf",
+   "bytes": 3466540,
+   "sha256": "b4a692e88f72623b23e6450b112ebfd5d69e971114d9d0a88b2429416611cf75",
+   "preview": "lxgw_wenkai.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "lxgw_wenkai_light",
+   "name": "霞鹜文楷细",
+   "group": "楷体",
+   "file": "lxgw_wenkai_light.ttf",
+   "bytes": 4052868,
+   "sha256": "b848d958c5bb64ccb9706be2cde49451ecd834ef3ddcadebc263cb0560adb860",
+   "preview": "lxgw_wenkai_light.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "lxgw_neo_xihei",
+   "name": "霞鹜新晰黑",
+   "group": "黑体",
+   "file": "lxgw_neo_xihei.ttf",
+   "bytes": 1737672,
+   "sha256": "e5844b46c31ab4a148298ff34db23b3ce9913c7a777c2384de1a7e3c0bc8bdfc",
+   "preview": "lxgw_neo_xihei.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "smiley_sans",
+   "name": "得意黑",
+   "group": "创意",
+   "file": "smiley_sans.otf",
+   "bytes": 1579496,
+   "sha256": "ebf4d9be7c64e0f6e0774009a1c23051f4aa902d91110d4cb67e1f023bdd7c63",
+   "preview": "smiley_sans.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "source_han_sans",
+   "name": "思源黑体",
+   "group": "黑体",
+   "file": "source_han_sans.otf",
+   "bytes": 1553620,
+   "sha256": "24367ab8d5a351872a24b88c5e558ef78b2f682f8acd1e3bda5af7eba9f0cac9",
+   "preview": "source_han_sans.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "source_han_serif",
+   "name": "思源宋体全",
+   "group": "宋体",
+   "file": "source_han_serif.otf",
+   "bytes": 2138516,
+   "sha256": "2e93a7e212a8e65b3d91b81befca68bf3df6c37a0303ce2b9a3eeac966d7e750",
+   "preview": "source_han_serif.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  },
+  {
+   "id": "lxgw_wenkai_mono",
+   "name": "霞鹜文楷等宽",
+   "group": "楷体",
+   "file": "lxgw_wenkai_mono.ttf",
+   "bytes": 3480144,
+   "sha256": "d6833acdb9d529b8e8167008f2b52d31ecb7f0ce432b018b7cd610fe0ae33179",
+   "preview": "lxgw_wenkai_mono.png",
+   "license": "免费字体 · 来源 wordshub/free-font 收录"
+  }
+ ]
+}

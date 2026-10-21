@@ -271,8 +271,8 @@ private val CampusType = Typography().let { base ->
  * 只改 App：小组件走它自己的 layout 变体（见 `WidgetFont`），两边各存各的 pref。
  * 注意 `Digits`（时间/数字）**不受影响** —— 它必须等宽，否则并排的数字会跳。
  */
-private fun Typography.withFamily(opt: FontOpt): Typography {
-    val f = opt.compose
+private fun Typography.withFamily(opt: AppFace): Typography {
+    val f = opt.family
     // 字重也一起铺：只换族名的话，"粗体/特粗/窄粗"这些选项在 App 里点了毫无反应
     // （2026-10-19 真机走查：字体胶囊长得一模一样，选了看不出变化）。
     fun androidx.compose.ui.text.TextStyle.w(): androidx.compose.ui.text.TextStyle =

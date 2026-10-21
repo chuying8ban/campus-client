@@ -52,7 +52,12 @@ open class CampusApplication : Application() {
         // 前台/后台：前台时不推桌面帧（用户看得见 App 时桌面根本看不见，推帧 = 白烧主线程 → 卡顿）
         runCatching { top.ccbase.campus.widget.AppForeground.register(this) }
         // 字体：App 与小组件各存各的（外观页改，见 ui/theme/Fonts.kt）
+        // ⚠️ 顺序有讲究：**先**扫一遍已下载的字体目录、**再**把清单读进内存，最后才 bind。
+        // 少了前面两步，用户选的是 `file:xxx` 而进程里既没有清单也没有文件 → 开机那一下回落成系统字体，
+        // 看起来就是"上次选的字体自己没了"（实测会误判成丢了下载的字体）。
         runCatching {
+            top.ccbase.campus.data.local.RemoteFontStore.ensureScanned(this)
+            top.ccbase.campus.data.remote.FontCatalog.loadCached(this)
             top.ccbase.campus.ui.theme.AppFont.bind(this)
             top.ccbase.campus.ui.theme.WidgetFont.bind(this)
         }

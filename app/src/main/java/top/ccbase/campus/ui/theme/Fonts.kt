@@ -112,6 +112,28 @@ enum class FontOpt(
     }
 }
 
+/**
+ * 当前生效的 App 字体 —— **已解析好的一层**（不是在界面里现算）。
+ *
+ * 为什么要这个中间层：字体要么来自系统族（[FontOpt]），要么来自磁盘上的 ttf（下载字体）。
+ * 两者的 File/Typeface 只在**赋值那一刻**读一次，界面拿到的永远是能直接给 Compose 用的
+ * [FontFamily]。这样切字体不会在组合过程中读磁盘，也不会出现"选了下拉但字没变"。
+ */
+data class AppFace(
+    /** pref 里存的键：`sys:<id>` 或 `file:<id>` */
+    val key: String,
+    val label: String,
+    val family: FontFamily,
+    /** 0 = 用族默认字重 */
+    val weight: Int = 0,
+    /** 系统/随包字体时非空（小组件那份也认它） */
+    val opt: FontOpt? = null,
+    /** 下载字体时非空 */
+    val remoteId: String? = null,
+) {
+    val isRemote: Boolean get() = remoteId != null
+}
+
 private const val K_APP = "app_font"
 private const val K_WIDGET = "widget_font"
 
@@ -121,27 +143,67 @@ interface FontStore {
     fun set(ctx: Context, opt: FontOpt)
 }
 
-/** App 的字体（只影响 App 内的 Compose 文字）。 */
+/**
+ * App 的字体（只影响 App 内的 Compose 文字）。
+ *
+ * 2026-10-21 起多了「从云端下载的字体」这条路：pref 里存 `file:<id>`，
+ * 真正的 ttf 在 `filesDir/fonts/<id>.ttf`（见 `RemoteFontStore`，升级 App 不会丢）。
+ * 历史值（`sans` / `kuaile` 这种裸 id）照样认，`of()` 会兜住老用户的 pref。
+ */
 object AppFont : FontStore {
 
-    val state = mutableStateOf(FontOpt.SANS)
+    /** 界面读这个 —— 已经是解析好的 FontFamily */
+    val state = mutableStateOf(faceOfStatic(FontOpt.SANS))
     @Volatile private var bound = false
 
     fun bind(ctx: Context) {
         if (bound) return
         bound = true
-        state.value = FontOpt.of(prefs(ctx).getString(K_APP, null))
+        state.value = faceOf(ctx, prefs(ctx).getString(K_APP, null))
     }
 
-    override fun read(ctx: Context): FontOpt = FontOpt.of(prefs(ctx).getString(K_APP, null))
+    override fun read(ctx: Context): FontOpt = faceOf(ctx, prefs(ctx).getString(K_APP, null)).opt ?: FontOpt.SANS
 
     override fun set(ctx: Context, opt: FontOpt) {
-        prefs(ctx).edit().putString(K_APP, opt.id).apply()
-        state.value = opt
+        val key = "sys:" + opt.id
+        prefs(ctx).edit().putString(K_APP, key).apply()
+        state.value = faceOfStatic(opt)
     }
+
+    /** 选一款**已下载**的字体。没下完/文件坏了 → 返回 false，界面据此提示，不许假装成功 */
+    fun setRemote(ctx: Context, remoteId: String, label: String): Boolean {
+        val fam = top.ccbase.campus.data.local.RemoteFontStore.family(ctx, remoteId) ?: return false
+        val key = "file:$remoteId"
+        prefs(ctx).edit().putString(K_APP, key).apply()
+        state.value = AppFace(key, label, fam, 0, null, remoteId)
+        return true
+    }
+
+    /** 切回系统默认（删掉正在用的下载字体前必须先走这一步） */
+    fun resetToSystem(ctx: Context) = set(ctx, FontOpt.SANS)
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences("campus_appearance", Context.MODE_PRIVATE)
+
+    /** 不需要 Context 的那部分：系统/随包字体 */
+    fun faceOfStatic(opt: FontOpt) = AppFace("sys:" + opt.id, opt.label, opt.compose, opt.weight, opt)
+
+    /** 把 pref 里的键解析成能直接用的字体 */
+    fun faceOf(ctx: Context, raw: String?): AppFace {
+        if (raw.isNullOrBlank()) return faceOfStatic(FontOpt.SANS)
+        if (raw.startsWith("file:")) {
+            val id = raw.removePrefix("file:")
+            val rf = top.ccbase.campus.data.remote.FontCatalog.byId(id)
+            val fam = top.ccbase.campus.data.local.RemoteFontStore.family(ctx, id)
+            if (fam != null) return AppFace(raw, rf?.name ?: id, fam, 0, null, id)
+            // 文件被清了/下载失败：静默回落到系统字体，但**别把 pref 改掉** ——
+            // 用户可能只是暂时没存储空间，下次装上文件自己就恢复了
+            return faceOfStatic(FontOpt.SANS)
+        }
+        // 老 pref（裸 id）与 sys:<id> 两种都认
+        val id = raw.removePrefix("sys:")
+        return faceOfStatic(FontOpt.of(id))
+    }
 }
 
 /** 小组件的字体（只影响桌面那张卡）。 */
@@ -203,7 +265,7 @@ fun FontPicker(
 ) {
     val ctx = LocalContext.current
     val sel = remember(widget) {
-        mutableStateOf(if (widget) WidgetFont.read(ctx) else AppFont.read(ctx))
+        mutableStateOf(if (widget) WidgetFont.read(ctx).label else AppFont.state.value.label)
     }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -215,10 +277,8 @@ fun FontPicker(
                 }
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    sel.value.label,
+                    sel.value,
                     fontSize = 15.sp,
-                    fontFamily = sel.value.compose,
-                    fontWeight = if (sel.value.weight > 0) FontWeight(sel.value.weight) else null,
                     color = C.txt,
                 )
             }
@@ -236,7 +296,7 @@ fun FontPicker(
         // 从库里回来时把"现在用的是哪款"对上（返回不重建 Composable，得自己重读）
         LaunchedEffect(widget) {
             while (true) {
-                val now = if (widget) WidgetFont.read(ctx) else AppFont.read(ctx)
+                val now = if (widget) WidgetFont.read(ctx).label else AppFont.state.value.label
                 if (now != sel.value) { sel.value = now; onPicked() }
                 kotlinx.coroutines.delay(400)
             }
