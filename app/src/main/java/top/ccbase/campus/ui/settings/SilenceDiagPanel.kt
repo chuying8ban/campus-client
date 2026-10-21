@@ -52,6 +52,8 @@ fun SilenceDiagPanel(modifier: Modifier = Modifier) {
     val verdict = remember(items) { SilenceDiag.verdict(items) }
     val log = remember(tick) { DiagLog.read(ctx, limit = 6) }
     val nextAlarm = remember(tick) { DiagLog.systemNextAlarm(ctx) }
+    // ④ 兜底那一层有没有排上（2026-10-21 用户报"下课不恢复"之后加的巡检任务）
+    val watchdog = remember(tick) { top.ccbase.campus.alarm.SilenceWatchdog.scheduled(ctx) }
 
     val allGood = items.all { it.ok }
 
@@ -142,6 +144,19 @@ fun SilenceDiagPanel(modifier: Modifier = Modifier) {
                 nextAlarm ?: "无 —— 说明一条都没排上",
                 color = if (nextAlarm == null) C.amber else C.cyan,
                 fontSize = 11.sp, style = Digits,
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+
+        // 兜底巡检：闹钟被 ROM 清掉时，靠这条 15 分钟的任务把铃声还回来
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("静音看门狗（15 分钟巡检）", color = C.txt3, fontSize = 11.sp)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (watchdog) "已排上" else "没排上 —— 恢复铃声就只剩闹钟一条路",
+                color = if (watchdog) C.cyan else C.amber,
+                fontSize = 11.sp,
             )
         }
 

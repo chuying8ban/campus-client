@@ -283,12 +283,26 @@ fun silenceSpans(windows: List<NudgeWindow>): List<Pair<LocalDateTime, LocalDate
     return out
 }
 
+/** 某个窗口所属的**合并后**时段几点结束（连堂课要看最后一节的结束，不是这一节的） */
+fun spanEndOf(w: NudgeWindow, windows: List<NudgeWindow>): LocalDateTime =
+    silenceSpans(windows).firstOrNull { !w.start.isAfter(it.second) && !it.first.isAfter(w.end) }?.second
+        ?: w.end
+
 /** 提醒：**每个**到点项一条（自习和课各算一条，不能合并） */
 fun planReminders(windows: List<NudgeWindow>, remind: Boolean): List<NudgeAction> {
     if (!remind) return emptyList()
     // 提醒那条到点会顺手静音（正文带"已静音"），所以它也要带结束时间：
     // 否则"兜底自愈"不知道这节课上到几点，可能在课中途就把铃声放回来。
-    return windows.map { NudgeAction(it.start, NudgeKind.REMIND, "", it.body, it.what, endAt = it.end) }
+    //
+    // 结束时间必须取**合并后时段**的末尾：09:30-10:15 与 10:20-11:05 之间只隔 5 分钟、
+    // 中间没有课间可响，取 10:15 的话兜底会在 10:15:30 把铃声放回来 ——
+    // 上一节课刚下、下一节课马上开始，手机在教室中间响一声，比不恢复更糟。
+    val spans = silenceSpans(windows)
+    return windows.map { w ->
+        val end = spans.firstOrNull { !w.start.isAfter(it.second) && !it.first.isAfter(w.end) }?.second
+            ?: w.end
+        NudgeAction(w.start, NudgeKind.REMIND, "", w.body, w.what, endAt = end)
+    }
 }
 
 /**
@@ -331,4 +345,37 @@ fun planActions(w: NudgeWindow, remind: Boolean, silence: Boolean): List<NudgeAc
     val rem = planReminders(listOf(w), remind)
     val sil = planSilence(listOf(w), silence, rem.map { it.at }.toSet())
     return (rem + sil).sortedBy { it.at }
+}
+
+/**
+ * 按闹钟上限挑动作：**静音/恢复按段成对留**，提醒填剩下的位置。
+ *
+ * 这条规则来自一个真实的坑（2026-10-21 用户报「下课后静音没有自动恢复」）：
+ * 一周的提醒和静音动作加起来远超上限，而之前的排法是"先全部提醒、再全部静音动作"，
+ * 截断时**先丢掉的恰好是恢复铃声**那几条 —— 手机从早自习一直静到第二天。
+ *
+ * 所以这里定两条：
+ *  ① 静音和它的恢复是一段，只能整段留或整段丢（留半段 = 手机静着不响，比不静音糟得多）；
+ *  ② 上限满了先砍提醒 —— 少排几条提醒只是"后几天还没轮到"，下次进 App/看门狗会补；
+ *     而少排一条恢复是**错误状态**，没人补就一直错着。
+ */
+fun fitActions(
+    silence: List<NudgeAction>,
+    reminders: List<NudgeAction>,
+    max: Int,
+): List<NudgeAction> {
+    val unsilenceAts = silence.filter { it.kind == NudgeKind.UNSILENCE }.map { it.at }.toSet()
+    // 只保留"有配对恢复"的静音段，整段整段地装
+    val pairs = silence
+        .filter { it.kind == NudgeKind.SILENCE && it.endAt != null && it.endAt in unsilenceAts }
+        .sortedBy { it.at }
+    val out = ArrayList<NudgeAction>(max)
+    for (s in pairs) {
+        if (out.size + 2 > max) break          // 放不下这一段就停，不留半段
+        out += s
+        out += NudgeAction(s.endAt!!, NudgeKind.UNSILENCE, "🔔 已恢复铃声", "")
+    }
+    val room = (max - out.size).coerceAtLeast(0)
+    out += reminders.sortedBy { it.at }.take(room)
+    return out.sortedBy { it.at }
 }

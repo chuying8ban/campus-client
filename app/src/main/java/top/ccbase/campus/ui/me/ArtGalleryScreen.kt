@@ -134,7 +134,6 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 打开后只问服务端要会动的那批，不再和静态混排。
     var animOnly by remember { mutableStateOf(false) }
     // 点图只入库、不立刻套用（本地素材库入口模式）
-    var saveToLib by remember { mutableStateOf(false) }
     // 每页大小（2026-10-19 用户："加载多少出来多少，一直往下拉就一直加载"）。
     // 以前一页 100 条 → 一次拉 100 个缩略图，等得久、也看不出"翻页"；
     // 现在动图 30 条一页，滑到底部就续，观感是连续的。
@@ -393,33 +392,14 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
             }
         }
 
-            // 「存到本地」开关（2026-10-20 用户："加一个支持将素材下载到本地的功能"）。
-        // 打开后点图只入库、不立刻套用 —— 这样图库就变成本地素材库的入口，
-        // 想用哪张再回素材库里挑，不用在几十张里反复下载。
-        Row(
-            Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (saveToLib) C.violet.copy(alpha = 0.20f) else C.card)
-                    .border(1.dp, if (saveToLib) C.violet else C.line, RoundedCornerShape(50))
-                    .clickable { saveToLib = !saveToLib }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    if (saveToLib) "✓ 点图只存到本地" else "存到本地素材库",
-                    color = if (saveToLib) C.violet else C.txt2,
-                    fontSize = 11.5.sp,
-                )
-            }
-            Spacer(Modifier.size(8.dp))
-            Text(
-                if (saveToLib) "不会立刻换主题" else "先存起来，回素材库再挑",
-                color = C.txt3, fontSize = 10.sp,
-            )
-        }
+            // 「存到本地」这个开关已经删了（2026-10-21 用户："点图用它就该自动进本地主题库，
+        // 别让我再点一次下载"）—— 现在是**套用即入库**，见 GalleryApply。
+        // 留一行说明，是因为用户会问"我点过的图去哪了"：
+        Text(
+            "点一下就直接用上，同时自动存进本地素材库（下次没网也能换回来）",
+            color = C.txt3, fontSize = 10.5.sp, lineHeight = 15.sp,
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp),
+        )
 
     // 板块切换：全部（静态+动态混排）/ 动图（只要会动的）。两个图库共用这一屏，
         // 所以 App 背景和桌面小组件都自动有这个板块。
@@ -625,43 +605,12 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                 if (item.animated) "正在保存动图到本机（关掉 App 也会继续）" else "正在保存图片到本机",
                                 "校园助手 · 素材下载",
                             )
-                            var bad = false
                             scope.launch {
-                                val libSlot = if (target == "background") {
-                                    top.ccbase.campus.ui.theme.MaterialLibrary.Slot.APP
-                                } else {
-                                    top.ccbase.campus.ui.theme.MaterialLibrary.Slot.WIDGET
-                                }
-                                // 只入库模式：下载完就进本地素材库，不套用、不关页面
-                                if (saveToLib) {
-                                    val added = withContext(Dispatchers.IO) {
-                                        val bytes = if (item.animated) ArtRepo.bytes(item) { _, _ -> }
-                                        else ArtRepo.full(item)?.let { bmp ->
-                                            java.io.ByteArrayOutputStream().also {
-                                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it)
-                                                bmp.recycle()
-                                            }.toByteArray()
-                                        }
-                                        if (bytes == null || bytes.isEmpty()) null
-                                        else top.ccbase.campus.ui.theme.MaterialLibrary.saveBytes(
-                                            ctx, libSlot, bytes,
-                                            item.title.ifBlank { "图库素材" },
-                                            if (item.animated) "video/mp4" else "image/jpeg",
-                                        )
-                                    }
-                                    busyId = null
-                                    MediaJob.finish()
-                                    MediaNotify.done(
-                                        ctx,
-                                        if (added != null) "已存到本地素材库（${added.name}）"
-                                        else (ArtRepo.lastError ?: "没存下来，再点一次"),
-                                    )
-                                    return@launch
-                                }
-                                val ok = withContext(Dispatchers.IO) {
-                                    // 动态：整段视频存下来当"动态壁纸"（解码成 Bitmap 就只剩一帧）
-                                    if (item.animated) {
-                                        val bytes = ArtRepo.bytes(item) { now, total ->
+                                // 下载 → 自动进本地素材库 → 标成"正在用" → 套上（见 GalleryApply）
+                                val r = withContext(Dispatchers.IO) {
+                                    // 动图要整段原片（解码成 Bitmap 就只剩一帧）；图片按 JPEG 重编码压体积
+                                    val bytes = if (item.animated) {
+                                        ArtRepo.bytes(item) { now, total ->
                                             MediaJob.progress(now, total)
                                             val pct = MediaJob.pct.value
                                             MediaNotify.update(
@@ -669,81 +618,45 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                                 if (pct >= 0) "校园助手 · 正在下载 $pct%"
                                                 else "校园助手 · 已下载 " + MediaJob.humanBytes(now),
                                             )
-                                        } ?: return@withContext false
-                                        // 存到各自的槽：给桌面小组件换视频不能把 App 背景也换掉
-                                        val slot = if (target == "background") {
-                                            UserMedia.Slot.APP
-                                        } else {
-                                            UserMedia.Slot.WIDGET
-                                        }
-                                        val kind = UserMedia.saveBytes(ctx, bytes, slot)
-                                            ?: return@withContext false
-                                        // 落盘之后立刻验能不能播：截断的 mp4 有大小、放不出来，
-                                        // 用它当背景 = 整屏黑（用户 2026-10-19 截图）
-                                        val saved = UserMedia.current(ctx, slot)
-                                        if (saved == null || !UserMedia.playable(saved.file)) {
-                                            UserMedia.clear(ctx, slot)
-                                            bad = true
-                                            return@withContext false
-                                        }
-                                        if (target == "background") {
-                                            BackgroundPhoto.clear(ctx)
-                                            AppearanceStore.setBackground(ctx, UserMedia.spec(kind))
-                                        } else {
-                                            // 桌面那边是先抽 4 帧再轮播的；抽不出帧就等于"设了也不显示"。
-                                            // 所以先试抽一遍，抽不出来就退回原来的主题并把原因说清楚，
-                                            // 别让用户以为是自己点错了。
-                                            val prev = WidgetThemes.spec(ctx)
-                                            val spec = UserMedia.spec(kind)
-                                            WidgetThemes.applyNow(ctx, spec)
-                                            val frames = runCatching {
-                                                top.ccbase.campus.widget.WidgetFrames
-                                                    .forSpec(ctx, spec, 900, 400)
-                                            }.getOrNull()
-                                            if (frames == null) {
-                                                WidgetThemes.set(ctx, prev)
-                                                TodayWidgetProvider.refresh(ctx)
-                                                bad = true
-                                                return@withContext false
-                                            }
-                                            TodayWidgetProvider.refresh(ctx)
-                                        }
-                                        return@withContext true
-                                    }
-                                    val bmp = ArtRepo.full(item) ?: return@withContext false
-                                    if (target == "background") {
-                                        // App 页面背景：和系统相册选图走同一条落盘逻辑（会量明暗极值算遮罩）
-                                        val stamp = BackgroundPhoto.saveBitmap(ctx, bmp)
-                                        if (stamp == null) false else {
-                                            AppearanceStore.setBackground(
-                                                ctx,
-                                                "${AppearanceStore.BG_PHOTO}:$stamp",
-                                            )
-                                            true
                                         }
                                     } else {
-                                        // 存到「图库图片」这一档，别盖掉用户自己上传的「我的图」
-                                        val saved = WidgetThemes.saveArtImage(ctx, bmp)
-                                        if (saved) {
-                                            WidgetThemes.set(ctx, WidgetThemes.ART_IMAGE_SPEC)
-                                            TodayWidgetProvider.refresh(ctx)
+                                        ArtRepo.full(item)?.let { bmp ->
+                                            java.io.ByteArrayOutputStream().also {
+                                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, it)
+                                                bmp.recycle()
+                                            }.toByteArray()
                                         }
-                                        saved
+                                    }
+                                    if (bytes == null || bytes.isEmpty()) {
+                                        top.ccbase.campus.ui.theme.GalleryApply.Result(
+                                            ok = false, item = null,
+                                            error = ArtRepo.lastError ?: "这张图没下下来，换一张试试",
+                                        )
+                                    } else {
+                                        top.ccbase.campus.ui.theme.GalleryApply.apply(
+                                            ctx = ctx,
+                                            target = target,
+                                            name = item.title.ifBlank { if (item.animated) "动图" else "图库素材" },
+                                            bytes = bytes,
+                                            mime = if (item.animated) "video/mp4" else "image/jpeg",
+                                        )
                                     }
                                 }
                                 busyId = null
                                 MediaJob.finish()          // 顶部那条/格子上的进度一起收
-                                if (ok) {
-                                    MediaNotify.done(ctx, if (item.animated) "动图已保存到本机" else "图片已保存")
+                                if (r.ok) {
+                                    MediaNotify.done(
+                                        ctx,
+                                        if (item.animated) "动图已存到本地素材库并设为背景"
+                                        else "已存到本地素材库并换上",
+                                    )
                                     onClose()
                                 } else {
                                     MediaNotify.cancel(ctx)
+                                    // 抽帧失败这种"存下了但用不了"也要说清，别让用户以为彻底失败
+                                    if (r.item != null) onClose()
+                                    msg = r.error
                                 }
-                                if (ok) Unit else msg =
-                                    // 有具体原因就说具体的（断网/图床 5xx/太大/抽不出帧），
-                                    // 别再用一句"没下完整"盖住五种病 —— 用户只会反复点。
-                                    ArtRepo.lastError
-                                        ?: if (bad) "这段视频抽不出画面，换一张试试" else "这张图没下下来，换一张试试"
                             }
                         },
                     )

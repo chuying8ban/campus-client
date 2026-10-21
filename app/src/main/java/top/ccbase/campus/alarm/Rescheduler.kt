@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.domain.nudgeWindows
+import top.ccbase.campus.domain.fitActions
 import top.ccbase.campus.domain.planReminders
 import top.ccbase.campus.domain.planSilence
 import java.time.LocalDateTime
@@ -71,7 +72,9 @@ object Rescheduler {
                 // 提醒按项排；静音按**合并后的时段**排 —— 自习时段会叠在一起，
                 // 逐项排会出现"21:00 恢复铃声"卡在晚自习中间的错（手机后半程响着）
                 val rem = planReminders(windows, remind)
-                val acts = rem + planSilence(windows, silence, rem.map { it.at }.toSet())
+                val sil = planSilence(windows, silence, rem.map { it.at }.toSet())
+                // 静音/恢复这对必须整对留下（截断只能截提醒）—— 见 fitActions 的注释
+                val acts = fitActions(sil, rem, AlarmScheduler.MAX_ALARMS)
                 val n = AlarmScheduler.schedule(app, acts)
                 Log.i(
                     TAG,

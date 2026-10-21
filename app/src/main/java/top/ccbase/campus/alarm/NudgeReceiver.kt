@@ -110,6 +110,9 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_TIME_CHANGED && intent.action != Intent.ACTION_TIMEZONE_CHANGED) return
         DailyTimetableCheck.schedule(context)
+        // 静音看门狗：JobScheduler 的持久任务其实重启后系统自己会恢复，
+        // 这里再 ensure 一次是因为个别 ROM 会把"过期未跑"的任务清掉
+        SilenceWatchdog.ensure(context)
         // 静默更新的闹钟同样会被重启清空（开关开着才重排）
         top.ccbase.campus.update.AutoUpdate.schedule(context)
         // 抢课提醒（手机直接弹通知）：重启后系统会清空闹钟，这里补上。

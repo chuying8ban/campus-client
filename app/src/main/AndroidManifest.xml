@@ -91,6 +91,18 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- 后台静默更新：闹钟叫醒 + 系统任务护住进程（Android 12+ 后台起不了前台服务时的正道） -->
+        <service
+            android:name=".update.UpdateJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- 静音看门狗：系统 JobScheduler 定期叫我们检查"是不是还静着"，见 SilenceWatchdog -->
+        <service
+            android:name=".alarm.SilenceWatchdog"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
         <!-- 后台静默更新：闹钟到点检查新版本并在后台下好（装包仍需用户点一下，系统规定） -->
         <receiver
             android:name=".update.AutoUpdateReceiver"

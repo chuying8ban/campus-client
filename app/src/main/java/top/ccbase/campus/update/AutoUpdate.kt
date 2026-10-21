@@ -48,7 +48,14 @@ object AutoUpdate {
 
     fun setEnabled(ctx: Context, on: Boolean) {
         ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE).edit().putBoolean(K_ON, on).apply()
-        if (on) schedule(ctx) else cancelAlarm(ctx)
+        if (on) {
+            schedule(ctx)
+            // 两条路一起排：闹钟负责"到点叫醒"，JobScheduler 负责"下载期间进程不被冻"
+            UpdateJobService.ensure(ctx)
+        } else {
+            cancelAlarm(ctx)
+            UpdateJobService.cancel(ctx)
+        }
     }
 
     fun wifiOnly(ctx: Context): Boolean =
@@ -90,6 +97,8 @@ object AutoUpdate {
             val at = System.currentTimeMillis() + ALARM_MS
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi(ctx))
         }.onFailure { Log.w(TAG, "排不上静默更新闹钟", it) }
+        // 幂等：同一个 id 再排只是更新参数，不会堆任务
+        UpdateJobService.ensure(ctx)
     }
 
     /**
@@ -137,11 +146,23 @@ object AutoUpdate {
     }
 
     /**
-     * 跑一次静默检查（必要时下载）。
+     * 跑一次静默检查（必要时下载），**排到自己的 IO 线程**（闹钟/进 App 这两条路用）。
      *
      * @param force 忽略 6 小时间隔（调试/闹钟触发用）
      */
     fun run(ctx: Context, reason: String = "alarm", force: Boolean = true) {
+        if (!enabled(ctx)) return
+        io.execute { runBody(ctx, reason) }
+    }
+
+    /**
+     * 同 [run]，但在**当前线程**跑。
+     *
+     * 给 [UpdateJobService] 用：那一层是系统 JobScheduler 起的任务，
+     * 任务没结束之前进程不会被冻结 —— 所以检查/开下这两步必须跑在它自己的线程里，
+     * 交回 [io] 就等于把"保命"这件事还给了运气。
+     */
+    fun runBody(ctx: Context, reason: String = "alarm") {
         if (!enabled(ctx)) return
         if (UpdateGate.state is UpdateGate.S.Working) {
             // 已经在下载了（不管是静默还是手动起的）：不掺和，绝不能开第二个
@@ -152,13 +173,13 @@ object AutoUpdate {
             Log.i(TAG, "跳过静默检查：只允许 Wi-Fi，当前不是 Wi-Fi")
             return
         }
-        io.execute {
+        run body@{
             try {
                 // 有半包就先接着下：续传不需要重新查清单（清单那一步恰恰最容易在弱网下失败）
                 if (UpdateGate.resumeIfPending(ctx, fromService = false)) {
                     Log.i(TAG, "静默续传已接着上次的半包开始（$reason）")
                     markRun(ctx)
-                    return@execute
+                    return@body
                 }
                 val installed = runCatching {
                     ctx.packageManager.getPackageInfo(ctx.packageName, 0).longVersionCode.toInt()
@@ -175,14 +196,15 @@ object AutoUpdate {
                 })
                 markRun(ctx)
                 val m = (outcome as? CheckOutcome.Update)?.manifest ?: run {
-                    schedule(ctx); return@execute
+                    schedule(ctx)
+                    return@body
                 }
                 UpdatePrefs.rememberAvailable(ctx, m.versionCode, m.versionName)
                 if (!Updater.canInstall(ctx)) {
                     // 没有"安装未知应用"权限就一个字节都不下 —— 下了也装不上，白耗流量
                     UpdateNotify.post(ctx, m, BuildConfig.VERSION_NAME)
                     schedule(ctx)
-                    return@execute
+                    return@body
                 }
                 when (UpdateGate.start(ctx, m, quiet = true)) {
                     UpdateGate.Start.STARTED -> Log.i(TAG, "静默下载已开始：${m.versionName}")

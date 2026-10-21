@@ -559,10 +559,12 @@ private fun AutoUpdateRow(
             // 这一行是「后台更新到底能不能真的在后台跑」的**可核对状态**：
             // 没开电池白名单时，Android 12+ 不许后台起前台服务，闹钟到点那次下载只能退回进程内，
             // 切走就可能被掐断 —— 这是事实，照实写出来并给一键去开，别让用户猜。
+            // 2026-10-21 起还多了一层 JobScheduler 任务（UpdateJobService）：即使没白名单，
+            // 下载期间进程也不会被冻结，所以文案改成"更稳"而不是"否则会被掐断"。
             Spacer(Modifier.height(6.dp))
             Text(
                 if (keepAliveOk) "后台保活：已允许（切走、锁屏也能下完）"
-                else "后台保活：未允许 —— 点这里开启，否则切走后下载可能被系统掐断",
+                else "后台保活：未允许 —— 已用系统定时任务兜住，允许后更稳（点这里开启）",
                 fontSize = 12.sp,
                 color = if (keepAliveOk) MeRowStyle.hintColor(MaterialTheme.colorScheme.onBackground)
                 else MaterialTheme.colorScheme.primary,

@@ -65,6 +65,8 @@ open class CampusApplication : Application() {
         // 兜底：#静音后手机重启/被清后台，下课那条恢复闹钟就没了。
         // 每次进程起来先还一次铃声（只在"我们按着静音、且已过该恢复的时间"时才动）。
         runCatching { top.ccbase.campus.alarm.Silence.healIfStuck(this) }
+        // 15 分钟一次的静音看门狗：闹钟被 ROM 清掉时，靠它把铃声还回来
+        runCatching { top.ccbase.campus.alarm.SilenceWatchdog.ensure(this) }
         // 更新说明：这一版还没提示过就发一条通知（用户 2026-10-18 要求"每次更新后要放一则更新内容"）
         runCatching { top.ccbase.campus.update.UpdateNotice.maybeNotify(this) }
         // 全 App 共用一个传输层，并把它选定的链路路线（直连/不带 SNI）落盘 —— 只探一次

@@ -34,8 +34,15 @@ object AlarmScheduler {
     private const val BASE_ID = 1000
     private const val K_NEXT = "next_ms"
 
-    /** 一次最多排多少个 —— 原生闹钟数量有上限，宁可少排、下次再续 */
-    const val MAX_ALARMS = 60
+    /**
+     * 一次最多排多少个。
+     *
+     * 原先是 60 —— 一周的提醒就有上百条，那个数直接导致"恢复铃声"整批被截（见 fitActions）。
+     * 现在按"7 天里所有提醒 + 所有静音段"的真实量级定：一天 8~10 段 × 2（静音/恢复）
+     * 加上同样多的提醒，约 200~260 条。系统对单应用的闹钟数上限是 500，
+     * 260 留了余量；每条都是 setAlarmClock，排一次也就几十毫秒。
+     */
+    const val MAX_ALARMS = 260
 
     private fun am(ctx: Context) = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     private fun sp(ctx: Context): SharedPreferences = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -83,7 +90,9 @@ object AlarmScheduler {
         var n = 0
         var idx = 0
         var earliest = 0L
-        for (a in actions) {
+        // 按真实时间顺序排：id 递增＝时间递增，出问题时看日志能一眼对上；
+        // 截断也发生在时间顺序上，不会出现"排了后天的、漏了明天的"
+        for (a in actions.sortedBy { it.at }) {
             if (n >= MAX_ALARMS) break
             val ms = msOf(a.at)
             val endMs = a.endAt?.let { msOf(it) } ?: 0L
@@ -156,6 +165,20 @@ object AlarmScheduler {
             val t = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
             String.format("%02d-%02d %02d:%02d", t.monthValue, t.dayOfMonth, t.hour, t.minute)
         } ?: "无"
+
+    /**
+     * 我们排的闹钟是不是"该有却没有"。
+     *
+     * 判据只有两条，都从"用户会不会因此漏提醒/一直静音"出发：
+     *  · 上一个都没排上（数量 0）—— 关了开关的情况由调用方先滤掉；
+     *  · 记下的"下一个"已经过去 10 分钟以上 —— 说明那次唤醒没来（或来了没续上）。
+     * 不做"逐个核对系统里还在不在"：那要把每个 PendingIntent 都重建一遍，代价远超收益。
+     */
+    fun isStale(ctx: Context): Boolean {
+        if (scheduledCount(ctx) == 0) return true
+        val next = sp(ctx).getLong(K_NEXT, 0L)
+        return next > 0L && next < System.currentTimeMillis() - 10 * 60 * 1000L
+    }
 
     fun scheduledCount(ctx: Context): Int =
         sp(ctx).all.keys.count { it.toIntOrNull() != null }   // 别把 K_NEXT 数进闹钟个数
