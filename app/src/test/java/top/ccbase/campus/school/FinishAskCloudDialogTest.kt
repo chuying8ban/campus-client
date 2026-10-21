@@ -78,8 +78,33 @@ class FinishAskCloudDialogTest {
         val js = CredentialVault.ssoCaptchaAutoSubmitJs()
         assertTrue("要点的就是页面自己的登录按钮", js.contains(".userButton"))
         assertTrue(js.contains("captcha"))
-        assertTrue("至少 4 位才提交，别把半截验证码发出去", js.contains(">= 4"))
+        assertTrue("不到 4 位不许提交，别把半截验证码发出去", js.contains("length < 4"))
         assertTrue("一次页面加载只提交一次", js.contains("fired"))
         assertTrue("绝不能绕过 encrypt() 直接 form.submit()", !js.contains("\$(\"#fm1\").submit()"))
+    }
+
+    /**
+     * 上一版只挂一次性监听：注入早于表单渲染就 `return 'nocaptcha'` 彻底失效 ——
+     * 用户截图里验证码框空着、页面毫无反应，正是这个状态。必须改成轮询。
+     */
+    @Test
+    fun `自动提交是轮询等表单出现的_不是一次性监听`() {
+        val js = CredentialVault.ssoCaptchaAutoSubmitJs()
+        assertTrue("要自己找表单，不能 DOM 没出来就放弃", js.contains("setInterval"))
+        assertTrue("每轮重新查节点，Vue 换了元素也能接上", js.contains("getElementById('captcha')"))
+        assertTrue("要有停止条件，别在页面上挂一个永不退出的定时器", js.contains("clearInterval"))
+    }
+
+    /**
+     * 学校模板在小屏上把页脚 fixed 到页面底部（深灰半透明），正压住「登录」按钮。
+     * 用户截图里那条盖着 ICP备案 的黑带就是它 —— 手指点下去点的是页脚。
+     */
+    @Test
+    fun `身份认证页把固定页脚放回正常流_挡住登录按钮的是页脚不是我们`() {
+        val js = CredentialVault.ssoLayoutFixJs()
+        assertTrue(js.contains(".footer"))
+        assertTrue("必须 !important，模板里是 fixed", js.contains("position:static!important"))
+        assertTrue("只说样式，不许碰输入框内容或提交逻辑",
+            !js.contains("value") && !js.contains("submit"))
     }
 }

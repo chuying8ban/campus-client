@@ -132,35 +132,79 @@ object CredentialVault {
      * 触发条件写得保守：验证码 ≥4 位、账号密码都非空、每次页面加载只提交一次。
      * 提交失败（验证码错）页面会重新加载，重新加载后计数清零 —— 不会无限循环提交。
      */
+    /**
+     * 验证码填够就让页面自己提交登录（用户 2026-10-21：「我希望它不需要我自己点就能自动登录」）。
+     *
+     * 为什么是**轮询**而不是挂一次监听（上一版就是监听，用户截图里验证码框还空着、页面毫无反应）：
+     * CAS 的表单是异步渲染的，注入时机稍早一点 `#captcha` 就还不存在，脚本直接 `return 'nocaptcha'`
+     * 走人 —— 之后再怎么输入都没人管。改成每 400ms 找一次，DOM 什么时候出来都能接上，
+     * 节点被 Vue 换掉也不怕（每轮重新查）。
+     *
+     * 提交方式必须是**点它自己的登录按钮**：CAS 的点击处理器里有 `encrypt()`（RSA 加密密码）和
+     * `_eventId`，直接 `form.submit()` 必然登录失败。
+     */
     fun ssoCaptchaAutoSubmitJs(): String = """
         (function(){
           try{
-            if (window.__campusAutoSubmit) return 'already';
-            var c = document.getElementById('captcha');
-            if (!c) return 'nocaptcha';
-            window.__campusAutoSubmit = true;
+            if (window.__campusWatcher) return 'already';
+            window.__campusWatcher = true;
             var fired = false;
-            function ready(){
-              if (fired) return false;
-              var u = document.getElementById('username'), p = document.getElementById('password');
-              if (!u || !p) return false;
-              if (!(u.value||'').trim() || !(p.value||'')) return false;
-              return ((c.value||'').trim().length >= 4);
+            function pick(){
+              var c = document.getElementById('captcha');
+              if (!c){
+                var ins = document.querySelectorAll('input');
+                for (var i=0;i<ins.length;i++){
+                  var ph = ins[i].placeholder || '';
+                  if (ph.indexOf('验证码') >= 0) { c = ins[i]; break; }
+                }
+              }
+              return c;
             }
             function go(){
-              if (!ready()) return;
+              if (fired) return;
+              var c = pick(); if (!c) return;
+              var u = document.getElementById('username'), p = document.getElementById('password');
+              if (!u || !p) return;
+              if (!(u.value||'').trim() || !(p.value||'')) return;
+              if ((c.value||'').trim().length < 4) return;
               fired = true;
               var b = document.querySelector('.userButton') || document.getElementById('accountLogin');
               if (b) { b.click(); return; }
               var f = document.getElementById('fm1');
               if (f) f.submit();
             }
-            ['input','change','keyup','paste','blur'].forEach(function(ev){
-              c.addEventListener(ev, function(){ setTimeout(go, 120); }, true);
-            });
-            // 验证码是最后一步，键盘弹起时用户往往直接敲 4 下就等结果
-            setTimeout(go, 400);
+            // 10 分钟封顶：够人慢吞吞输验证码，也不至于在页面上挂一个永不退出的定时器
+            var ticks = 0;
+            var t = setInterval(function(){
+              ticks++;
+              if (fired || ticks > 1500) { clearInterval(t); return; }
+              go();
+            }, 400);
             return 'watching';
+          }catch(e){ return 'err:' + e.message; }
+        })()
+    """.trimIndent()
+
+    /**
+     * 统一身份认证页的**版式**修正（只碰 CSS，不碰任何输入内容和提交逻辑）。
+     *
+     * 学校这套模板在小屏上把页脚 `.footer` 固定到了底部（`position:fixed;bottom:0`，深灰半透明），
+     * 结果它正好压住「登录」按钮 —— 用户截图里那条盖着 ICP备案 的黑带就是它，手指点下去点的是页脚。
+     * 桌面浏览器上不明显，手机上必现。这里把页脚放回正常流，按钮就露出来了。
+     */
+    fun ssoLayoutFixJs(): String = """
+        (function(){
+          try{
+            if (window.__campusFooterFix) return 'already';
+            window.__campusFooterFix = true;
+            var s = document.createElement('style');
+            s.id = 'campus-sso-layout';
+            s.textContent = '.footer{position:static!important;bottom:auto!important;left:auto!important;' +
+              'background:transparent!important;margin-top:18px!important;height:auto!important;}' +
+              '.footer p{color:#8a8a8a!important;opacity:1!important;line-height:1.6!important;height:auto!important;}' +
+              'body{padding-bottom:12px!important;}';
+            (document.head || document.documentElement).appendChild(s);
+            return 'ok';
           }catch(e){ return 'err:' + e.message; }
         })()
     """.trimIndent()

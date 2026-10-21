@@ -308,7 +308,10 @@ fun SchoolWebLogin(
         while (true) {
             delay(700)
             val has = SchoolCookie.hasSession(profile)
-            if (has && !loggedIn) {
+            // 停在统一身份认证页时，教务那张旧 SESSION 可能还没过期 —— 只看 cookie 就会判成
+            // "已登录"，底部亮出「重新读取课表」（用户截图就是这样）。以页面为准。
+            val onPortal = webView?.url.orEmpty().contains("cas.cupk.edu.cn")
+            if (has && !loggedIn && !onPortal) {
                 // 登录成功这一刻就把两件事办掉：
                 // ① 教务会话 + 门户票据一并改成持久 cookie —— 下次进门户 CAS 直接静默放行；
                 // ② 如果人还停在教务首页/门户回跳页，直接带到课表页。
@@ -532,6 +535,7 @@ fun SchoolWebLogin(
                                 diagnostic = it
                                 if (it.startsWith("资源") && firstScriptError.isEmpty()) firstScriptError = it
                             },
+                            onPortalLoginPage = { loggedIn = false },
                             onLegacyLoginPage = { url ->
                                 if (!useBackup && !bouncedToPortal) {
                                     bouncedToPortal = true
@@ -637,6 +641,8 @@ private fun configureSecureWebView(
     onFirstPaint: () -> Unit = {},
     onDiagnostic: (String) -> Unit = {},
     onLegacyLoginPage: (String) -> Unit = {},
+    /** 停在统一身份认证页（这一步还没登进去）时回调 —— 界面据此把底部从「重新读取课表」切回提示。 */
+    onPortalLoginPage: () -> Unit = {},
     onError: (String) -> Unit,
 ) {
     WebView.setWebContentsDebuggingEnabled(top.ccbase.campus.BuildConfig.DEBUG)
@@ -725,12 +731,23 @@ private fun configureSecureWebView(
             if (profile.allows(url) && runCatching { java.net.URI(url).host }.getOrNull()
                     ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
             ) {
-                // 验证码填够 4 位就替用户按一次登录（不再要求他去点"读取课表"）
-                view.postDelayed({
-                    if (runCatching { java.net.URI(view.url.orEmpty()).host }.getOrNull()
-                            ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
-                    ) view.evaluateJavascript(CredentialVault.ssoCaptchaAutoSubmitJs()) { }
-                }, 900L)
+                // 站在统一身份认证页 = 这趟还没登进去。以前 loggedIn 只看教务 SESSION，
+                // 于是人还卡在登录表单上、底部却亮着「重新读取课表」（用户截图就是这样），
+                // 等于告诉他"你已经登录了，点这个"，点了必然失败。
+                onPortalLoginPage()
+                // 页脚 fixed 在小屏上压住「登录」按钮（用户截图那条黑带），把页脚放回正常流。
+                val fixCss = CredentialVault.ssoLayoutFixJs()
+                listOf(120L, 900L, 3000L).forEach { at ->
+                    view.postDelayed({
+                        if (runCatching { java.net.URI(view.url.orEmpty()).host }.getOrNull()
+                                ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
+                        ) view.evaluateJavascript(fixCss) { }
+                    }, at)
+                }
+                // 验证码填够 4 位就替用户按一次登录（不再要求他去点"读取课表"）。
+                // 脚本自己是轮询的（每 400ms 找一次 #captcha），所以这里早注入也没关系 ——
+                // 上一版只挂监听、注入早于表单渲染就彻底失效（用户那张截图正是这个状态）。
+                view.evaluateJavascript(CredentialVault.ssoCaptchaAutoSubmitJs()) { }
                 val cred = CredentialVault.load(view.context)
                 if (cred != null) {
                     val js = CredentialVault.ssoAutofillJs(cred.first, cred.second)
