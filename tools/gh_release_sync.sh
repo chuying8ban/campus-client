@@ -141,6 +141,9 @@ fetch_apk() {
 # 推送走 github.com + token（origin 是 gh-proxy，只能读不能写，push 会要用户名）。
 ensure_pushed() {
   local ahead
+  # `git fetch origin main` 只更新 FETCH_HEAD、不建 origin/main，于是 `rev-list origin/main..HEAD`
+  # 会报 "Needed a single revision" —— 显式 refspec 才靠得住。
+  git fetch origin '+refs/heads/main:refs/remotes/origin/main' >/dev/null 2>&1 || true
   ahead="$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)"
   [ "$ahead" -eq 0 ] && return 0
   echo "  推送 $ahead 个提交到 GitHub…"
