@@ -287,6 +287,12 @@ fun SchoolWebLogin(
      * 会变成死循环，页面一直在跳、进度条一直在跑，比留在老页面还糟。
      */
     var bouncedToPortal by remember { mutableStateOf(false) }
+    /**
+     * 「登录成功 → 自动读课表」的开关（2026-10-21 用户原话：
+     * 「我希望它不需要我自己点就能自动登录」）。
+     * 用状态而不是直接调函数，是因为读取函数定义在这段 effect 之后；也顺手保证只自动读一次。
+     */
+    var autoReadPending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pageGate = remember { PageGate() }
 
@@ -309,6 +315,7 @@ fun SchoolWebLogin(
                 //    不加这一步，用户看到的是"老系统的首页"，会以为更新课表进错了地方。
                 if (SchoolSession.remembered(ctx, profile)) SchoolCookie.persistSession(profile)
                 loggedIn = true
+                autoReadPending = true
             } else if (!has && loggedIn) {
                 loggedIn = false
             }
@@ -325,6 +332,72 @@ fun SchoolWebLogin(
     fun fail(text: String) {
         webView?.let { SchoolCookie.clearAll(it,profile) }
         onWebError(text)
+    }
+
+    /**
+     * 读取课表（按钮和"登录成功自动读取"共用同一段）。
+     *
+     * 用户原话（2026-10-21）：「我点了登录完成才自动给我登进去，我希望它不需要我自己点就能自动登录」。
+     * 自动那条路和手动这条必须走**同一段代码** —— 分成两份迟早漂移，
+     * 到时候"自动读出来的和手动读出来的不一样"根本查不出来。
+     */
+    fun readTimetable() {
+        val wv = webView
+        if (wv == null) {
+            readError = "网页还没加载好，请稍等后重试"
+            return
+        }
+        if (busy) return
+        busy = true
+        readError = null
+        step = "正在从教务读取课表…"
+        scope.launch {
+            try {
+                val result = wv.extractTimetableJson(pageGate, profile)
+                // 学籍卡片：趁 WebView 还停在教务、会话还有效，顺手读一次。
+                // 失败一律不影响导课表 —— 导课表是主任务，学籍只是"顺便更好"。
+                runCatching {
+                    val app = wv.context.applicationContext as? top.ccbase.campus.CampusApplication
+                    val db = app?.db
+                    if (db != null) {
+                        wv.extractEamsProfile()?.let { SchoolProfileCache.save(db, it) }
+                        wv.extractEamsRecords()?.let { SchoolRecordsCache.save(db, it) }
+                    }
+                }
+                if (!SchoolSession.remembered(wv.context, profile)) SchoolCookie.clearAll(wv, profile) else SchoolSession.flush()
+                onTimetableJson(result)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                readError = "暂未读到课表。若学校会话已过期，请在官方页面重新登录后重试；原课表未改变。"
+                if (top.ccbase.campus.BuildConfig.DEBUG) diagnostic = "读取阶段：" + when {
+                    e.message.orEmpty().contains("学期") -> "学期标识未就绪"
+                    e.message.orEmpty().contains("加载超时") -> "目标课表页未完成加载"
+                    e.message.orEmpty().contains("HTTP") -> "课表请求返回错误状态"
+                    else -> "课表数据未就绪"
+                }
+            } finally {
+                busy = false
+                step = ""
+            }
+        }
+    }
+
+    /**
+     * 自动读取的两个触发点：
+     * ① 进来时**已经**是登录态（票据还有效，走门户静默通过）→ 不用点，直接读；
+     * ② 刚刚登录成功（轮询到会话）→ 不用点，直接读。
+     * 读失败不吞：落到 readError，底部按钮还在，可以手动重试。
+     */
+    LaunchedEffect(autoReadPending) {
+        if (!autoReadPending) return@LaunchedEffect
+        autoReadPending = false
+        // 稍等一下：Cookie 落盘 + 页面被带到课表页都需要一两帧
+        delay(600)
+        readTimetable()
+    }
+    LaunchedEffect(Unit) {
+        delay(1200)
+        if (!busy && SchoolCookie.hasSession(profile)) autoReadPending = true
     }
 
     DisposableEffect(Unit) {
@@ -525,49 +598,12 @@ fun SchoolWebLogin(
                     Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
-                        .clickable(enabled = !busy) {
-                            val wv = webView
-                            if (wv == null) {
-                                readError = "网页还没加载好，请稍等后重试"
-                                return@clickable
-                            }
-                            busy = true
-                            readError = null
-                            step = "正在从教务读取课表…"
-                            scope.launch {
-                                try {
-                                    val result = wv.extractTimetableJson(pageGate,profile)
-                                    // 学籍卡片：趁 WebView 还停在教务、会话还有效，顺手读一次。
-                                    // 失败一律不影响导课表 —— 导课表是主任务，学籍只是"顺便更好"。
-                                    runCatching {
-                                        val app = wv.context.applicationContext as? top.ccbase.campus.CampusApplication
-                                        val db = app?.db
-                                        if (db != null) {
-                                            wv.extractEamsProfile()?.let { SchoolProfileCache.save(db, it) }
-                                            wv.extractEamsRecords()?.let { SchoolRecordsCache.save(db, it) }
-                                        }
-                                    }
-                                    if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clearAll(wv,profile) else SchoolSession.flush()
-                                    onTimetableJson(result)
-                                } catch (e: Exception) {
-                                    if (e is kotlinx.coroutines.CancellationException) throw e
-                                    readError = "暂未读到课表。若学校会话已过期，请在官方页面重新登录后重试；原课表未改变。"
-                                    if (top.ccbase.campus.BuildConfig.DEBUG) diagnostic = "读取阶段：" + when {
-                                        e.message.orEmpty().contains("学期") -> "学期标识未就绪"
-                                        e.message.orEmpty().contains("加载超时") -> "目标课表页未完成加载"
-                                        e.message.orEmpty().contains("HTTP") -> "课表请求返回错误状态"
-                                        else -> "课表数据未就绪"
-                                    }
-                                } finally {
-                                    busy = false
-                                    step = ""
-                                }
-                            }
-                        }
+                        .clickable(enabled = !busy) { readTimetable() }
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("登录完成，读取课表", fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
+                    Text(if (busy) step.ifBlank { "正在读取课表…" } else "重新读取课表",
+                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onPrimary)
                 }
             } else {
                 // 没登录就一定导不出课表 —— 按钮先不出现，只说明"登录后才会出现"，
@@ -689,6 +725,12 @@ private fun configureSecureWebView(
             if (profile.allows(url) && runCatching { java.net.URI(url).host }.getOrNull()
                     ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
             ) {
+                // 验证码填够 4 位就替用户按一次登录（不再要求他去点"读取课表"）
+                view.postDelayed({
+                    if (runCatching { java.net.URI(view.url.orEmpty()).host }.getOrNull()
+                            ?.equals("cas.cupk.edu.cn", ignoreCase = true) == true
+                    ) view.evaluateJavascript(CredentialVault.ssoCaptchaAutoSubmitJs()) { }
+                }, 900L)
                 val cred = CredentialVault.load(view.context)
                 if (cred != null) {
                     val js = CredentialVault.ssoAutofillJs(cred.first, cred.second)

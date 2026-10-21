@@ -89,6 +89,10 @@ fun SchoolImportFlow(
     var busy by remember { mutableStateOf(false) }
     var cloudMessage by remember { mutableStateOf<String?>(null) }
     var cloudSynced by remember { mutableStateOf(false) }
+    // 2026-10-21 用户口径：课表导好了但没同步云端就点「完成」时，要先问一句。
+    var askCloudOnDone by remember { mutableStateOf(false) }
+    /** 用户在确认框里选了「同步到云端」→ 同步成功后再真正收尾（否则他会以为没导完）。 */
+    var finishAfterSync by remember { mutableStateOf(false) }
     var showCloudTerms by remember { mutableStateOf(false) }
     // 默认开启：用户口径是「登录过一次，以后进内置浏览器就该自动登录」。
     // 只保留**会话**（Cookie），不保存密码；从没选过的人（新装/老版本升级上来）默认按开启处理。
@@ -144,6 +148,13 @@ fun SchoolImportFlow(
                 is ApiResult.Err -> "云端同步没完成：${r.message}"
             }
             busy = false
+            if (cloudSynced && finishAfterSync) {
+                finishAfterSync = false
+                onDone()
+            } else if (!cloudSynced) {
+                // 没成就不替用户收尾：留在这一页，他还能再看一眼说明或重试
+                finishAfterSync = false
+            }
         }
     }
 
@@ -303,10 +314,10 @@ fun SchoolImportFlow(
             Spacer(Modifier.height(20.dp))
             Box(
                 Modifier.fillMaxWidth().background(C.violet, RoundedCornerShape(10.dp))
-                    .clickable { onDone() }
+                    .clickable { if (cloudSynced) onDone() else askCloudOnDone = true }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
-            ) { Text(if (cloudSynced) "完成" else "完成，仅保存在本机", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
+            ) { Text("完成", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
             Spacer(Modifier.height(12.dp))
             Text(
                 "可选：阅读并同意条款后才上传课表用于云端同步。已有账号会用现有账号；没有账号会新建一个随机访客账号，" +
@@ -337,9 +348,45 @@ fun SchoolImportFlow(
             Spacer(Modifier.height(20.dp))
         }
     }
+    if (askCloudOnDone) FinishAskCloudDialog(
+        onLocalOnly = { askCloudOnDone = false; onDone() },
+        onSyncCloud = { askCloudOnDone = false; finishAfterSync = true; showCloudTerms = true },
+        onCancel = { askCloudOnDone = false },
+    )
     if (showCloudTerms) CloudConsentDialog(
         onCancel = { showCloudTerms = false },
         onAgree = { showCloudTerms = false; consentCloud() },
+    )
+}
+
+/**
+ * 「课表导好了，但还没同步云端就点了完成」时的确认框。
+ *
+ * 用户口径（2026-10-21）：「如果用户未同步到云端就点击完成，我希望 app 会出现一个确认框，
+ * 询问用户是否不同步到云端，给用户两个选项，一个是不同步，一个是同步到云端，
+ * 点哪个就按哪个方式导课表」。
+ *
+ * 关键点：**两个选项都是"完成"**，不是"取消/去同步"。选了同步也不是把人扔到设置页，
+ * 而是走完同意 → 上传 → 成功后自动收尾（见 finishAfterSync）。
+ */
+@Composable
+internal fun FinishAskCloudDialog(
+    onLocalOnly: () -> Unit,
+    onSyncCloud: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text("还没同步到云端") },
+        text = {
+            Text(
+                "课表已经存到这台手机了。要不要也同步到云端？\n" +
+                    "同步后换手机、重装 App 都能找回来；不同步则只在这台手机上可用。",
+                fontSize = 13.sp, lineHeight = 20.sp,
+            )
+        },
+        confirmButton = { TextButton(onClick = onSyncCloud) { Text("同步到云端") } },
+        dismissButton = { TextButton(onClick = onLocalOnly) { Text("不同步，仅本机用") } },
     )
 }
 

@@ -121,6 +121,50 @@ object CredentialVault {
         """.trimIndent()
     }
 
+    /**
+     * 验证码填够位数就**自动提交**（2026-10-21 用户原话：
+     * 「我点了登录完成才自动给我登进去，我希望它不需要我自己点就能自动登录」）。
+     *
+     * 为什么要靠"点它的登录按钮"而不是 `form.submit()`：CAS 的提交前会
+     * `encrypt()`（RSA 加密密码）+ 写 `_eventId`，直接 submit 会漏掉这两步、登录必然失败。
+     * 所以这里只做"替用户按一下按钮"，页面的校验逻辑一行不碰。
+     *
+     * 触发条件写得保守：验证码 ≥4 位、账号密码都非空、每次页面加载只提交一次。
+     * 提交失败（验证码错）页面会重新加载，重新加载后计数清零 —— 不会无限循环提交。
+     */
+    fun ssoCaptchaAutoSubmitJs(): String = """
+        (function(){
+          try{
+            if (window.__campusAutoSubmit) return 'already';
+            var c = document.getElementById('captcha');
+            if (!c) return 'nocaptcha';
+            window.__campusAutoSubmit = true;
+            var fired = false;
+            function ready(){
+              if (fired) return false;
+              var u = document.getElementById('username'), p = document.getElementById('password');
+              if (!u || !p) return false;
+              if (!(u.value||'').trim() || !(p.value||'')) return false;
+              return ((c.value||'').trim().length >= 4);
+            }
+            function go(){
+              if (!ready()) return;
+              fired = true;
+              var b = document.querySelector('.userButton') || document.getElementById('accountLogin');
+              if (b) { b.click(); return; }
+              var f = document.getElementById('fm1');
+              if (f) f.submit();
+            }
+            ['input','change','keyup','paste','blur'].forEach(function(ev){
+              c.addEventListener(ev, function(){ setTimeout(go, 120); }, true);
+            });
+            // 验证码是最后一步，键盘弹起时用户往往直接敲 4 下就等结果
+            setTimeout(go, 400);
+            return 'watching';
+          }catch(e){ return 'err:' + e.message; }
+        })()
+    """.trimIndent()
+
     fun autofillJs(user: String, pass: String): String {
         fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'")
             .replace("\n", "\\n").replace("\r", "\\r")
