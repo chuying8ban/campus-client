@@ -24,6 +24,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -246,9 +252,6 @@ class PageGate {
 }
 
 @SuppressLint("SetJavaScriptEnabled")
-/** 用例抓手：主/备登录入口切换 */
-const val SWITCH_ENTRY = "school-switch-entry"
-
 @Composable
 fun SchoolWebLogin(
     onTimetableJson: (String) -> Unit,
@@ -336,41 +339,98 @@ fun SchoolWebLogin(
         }
     }
 
+    // ── 界面留给网页多少地方，是「更新课表能不能用」的关键 ──────────────────────
+    // 用户原话：「键盘一出来就把屏幕全占了，而且桌面模式和手机模式根本没有区别」。
+    // 旧版顶部顶着两行纯文字工具栏（后退/前进/刷新/桌面/缩小/放大/提示）、底部再压一段
+    // 三行隐私说明，键盘一弹起来，网页只剩一条缝 —— 打字时连验证码框都看不见。
+    // 现在：① 键盘弹起时两侧 chrome 全部收掉，只留一条 32dp 的"完成输入"；
+    //      ② 浏览器功能全收进右上角菜单（不占常驻高度）；
+    //      ③ 桌面模式真的改渲染（UA + 视口 + 缩放），不再是"按了没反应"。
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    var menuOpen by remember { mutableStateOf(false) }
+    var textZoom by remember { mutableStateOf(100) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    fun closeAndCancel() {
+        webView?.let { if (!SchoolSession.remembered(it.context, profile)) SchoolCookie.clearAll(it, profile) else SchoolSession.flush() }
+        onCancel()
+    }
+
     Column(Modifier.fillMaxSize().background(C.bg)) {
-        Row(
-            Modifier.fillMaxWidth().background(C.card).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("← 取消导入", fontSize = 13.sp, color = C.txt2,
-                modifier = Modifier.clickable {
-                    webView?.let { if (!SchoolSession.remembered(it.context,profile)) SchoolCookie.clearAll(it,profile) else SchoolSession.flush() }
-                    onCancel()
-                }.padding(vertical = 8.dp))
-            Spacer(Modifier.weight(1f))
-            Column {
-                Text("融合门户 · 统一身份认证", fontSize = 15.sp, color = C.txt)
-                Text("${profile.host} → ${SchoolCookieRules.PORTAL_HOST} · HTTPS", fontSize = 12.sp, color = C.txt2)
+        if (imeVisible) {
+            Row(
+                Modifier.fillMaxWidth().height(32.dp).background(C.card).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("输入中 · 网页已让出全部高度", fontSize = 11.sp, color = C.txt3,
+                    modifier = Modifier.weight(1f), maxLines = 1)
+                Text("完成", fontSize = 12.sp, color = C.cyan,
+                    modifier = Modifier.clickable { keyboard?.hide() }.padding(horizontal = 8.dp, vertical = 4.dp))
             }
-            if (top.ccbase.campus.BuildConfig.DEBUG) Text("诊断", color = C.txt3, fontSize = 12.sp,
-                modifier = Modifier.clickable { showDiagnostics = !showDiagnostics }.padding(10.dp))
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
-            Text("后退", color = C.txt2, modifier = Modifier.clickable { webView?.let { if (it.canGoBack()) it.goBack() } }.padding(6.dp))
-            Text("前进", color = C.txt2, modifier = Modifier.clickable { webView?.let { if (it.canGoForward()) it.goForward() } }.padding(6.dp))
-            Text("刷新", color = C.txt2, modifier = Modifier.clickable { webView?.reload() }.padding(6.dp))
-            Text(if (desktop) "桌面模式 · 切换" else "手机模式 · 切换", color = C.txt2, modifier = Modifier.clickable {
-                desktop = !desktop
-                webView?.let { wv ->
-                    applySchoolBrowserMode(wv, desktop)
-                    wv.reload()
+        } else {
+            Row(
+                Modifier.fillMaxWidth().background(C.card).padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("✕", fontSize = 16.sp, color = C.txt2,
+                    modifier = Modifier.clickable { closeAndCancel() }.padding(horizontal = 10.dp, vertical = 8.dp))
+                Text(
+                    "融合门户登录",
+                    fontSize = 14.sp, color = C.txt,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                Box {
+                    Text("⋮", fontSize = 18.sp, color = C.txt2,
+                        modifier = Modifier
+                            .testTag("school-menu")
+                            .clickable { menuOpen = true }
+                            .padding(horizontal = 12.dp, vertical = 6.dp))
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        val item: @Composable (String, () -> Unit) -> Unit = { label, action ->
+                            DropdownMenuItem(text = { Text(label, fontSize = 13.sp, color = C.txt) },
+                                onClick = { menuOpen = false; action() })
+                        }
+                        item("后退") { webView?.let { if (it.canGoBack()) it.goBack() } }
+                        item("前进") { webView?.let { if (it.canGoForward()) it.goForward() } }
+                        item("刷新") { webView?.reload() }
+                        item(fieldZoomLabel(textZoom)) {
+                            textZoom = when (textZoom) { 100 -> 130; 130 -> 160; else -> 100 }
+                            webView?.settings?.textZoom = textZoom
+                        }
+                        item(if (desktop) "页面模式：桌面（点回手机版）" else "页面模式：手机（点用桌面版）") {
+                            desktop = !desktop
+                            webView?.let { wv ->
+                                applySchoolBrowserMode(wv, desktop, textZoom)
+                                // 不 reload 的话 UA/视口只在"net 新请求"时生效，页面看着毫无变化 ——
+                                // 用户说的"桌面模式和手机模式没区别"就是这来的。
+                                wv.reload()
+                            }
+                        }
+                        item(if (useBackup) "入口：教务直登（点回门户）" else "入口：融合门户（点用教务直登）") {
+                            useBackup = !useBackup
+                            webView?.loadUrl(if (useBackup) profile.backupLoginUrl else profile.loginUrl)
+                            step = ""
+                        }
+                        item("在系统浏览器打开") {
+                            runCatching {
+                                ctx.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(webView?.url ?: profile.loginUrl),
+                                    ),
+                                )
+                            }
+                        }
+                        // 内核信息常驻一条（不可点）：出问题时它的版本号就是第一手证据，
+                        // 免得每次都要让用户去别处翻 —— 学校页面打不开十次有八次是老内核。
+                        item(webViewKernel(ctx).let { "浏览器内核：$it" }) { }
+                        if (top.ccbase.campus.BuildConfig.DEBUG) {
+                            item("诊断：页面进度 $progress% · $diagnostic") { showDiagnostics = !showDiagnostics }
+                        }
+                    }
                 }
-            }.padding(6.dp))
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween) {
-            Text("缩小 −", color = C.txt2, modifier = Modifier.clickable { webView?.zoomOut() }.padding(6.dp))
-            Text("放大 ＋", color = C.txt2, modifier = Modifier.clickable { webView?.zoomIn() }.padding(6.dp))
-            Text("可双指缩放、横向拖动网页", color = C.txt2, fontSize = 12.sp, modifier = Modifier.padding(6.dp))
+            }
         }
         if (showDiagnostics && top.ccbase.campus.BuildConfig.DEBUG) {
         Text(if (softwareRender) "诊断：兼容绘制已开启（点此恢复）" else "诊断：切换兼容绘制", fontSize = 12.sp, color = C.txt2, modifier = Modifier.clickable {
@@ -451,7 +511,7 @@ fun SchoolWebLogin(
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        if (!imeVisible) Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
             readError?.let { Text(it, color = C.red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp)) }
             if (busy) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -516,36 +576,18 @@ fun SchoolWebLogin(
                     CircularProgressIndicator(Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp, color = C.txt3)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "已进入学校登录页 —— 登录成功后，这里才会出现「登录完成，读取课表」",
+                        "在门户页登录成功后，这里会出现「读取课表」",
                         fontSize = 12.sp, lineHeight = 18.sp, color = C.txt2,
                     )
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            // 主/备切换（2026-10-19）：默认走融合门户的统一身份认证；
-            // 门户抽风或 CAS 改版时，一键切回教务直登，不用等发版。
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (useBackup) "现在走的是教务直登（备用入口）" else "现在走的是融合门户统一身份认证",
-                    fontSize = 11.5.sp, color = C.txt3, modifier = Modifier.weight(1f),
-                )
-                Text(
-                    if (useBackup) "改用融合门户" else "改用教务直登",
-                    fontSize = 11.5.sp, color = C.cyan,
-                    modifier = Modifier
-                        .testTag(SWITCH_ENTRY)
-                        .clickable {
-                            useBackup = !useBackup
-                            webView?.loadUrl(if (useBackup) profile.backupLoginUrl else profile.loginUrl)
-                            step = ""
-                        }
-                        .padding(start = 10.dp, top = 4.dp, bottom = 4.dp),
-                )
-            }
-            Spacer(Modifier.height(6.dp))
+            // 主/备入口切换已经搬进右上角菜单（2026-10-21）：底部这段常驻文字
+            // 原来要吃掉 3 行高度，用户报"键盘一出来屏幕全占了"，这里先瘦身。
+            Spacer(Modifier.height(8.dp))
             Text(
-                "只打开 ${profile.origin} 与统一身份认证（cas.cupk.edu.cn）。密码在学校的登录页里输入，App 不读取、不保存。",
-                fontSize = 13.sp, lineHeight = 19.sp, color = C.txt2,
+                "密码在门户页输入，App 不读取、不保存 · 更多在右上角 ⋮",
+                fontSize = 11.sp, color = C.txt3, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
     }
@@ -723,13 +765,36 @@ private fun configureSecureWebView(
     }
 }
 
-internal fun applySchoolBrowserMode(view: WebView, desktop: Boolean) {
+internal fun applySchoolBrowserMode(view: WebView, desktop: Boolean, textZoom: Int = 100) {
     view.settings.userAgentString = if (desktop)
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     else WebSettings.getDefaultUserAgent(view.context)
     view.settings.useWideViewPort = desktop
     view.settings.loadWithOverviewMode = desktop
-    view.setInitialScale(0)
+    view.settings.textZoom = textZoom
+    // 只改 UA 是不够的：学校的页面都写死 `<meta name=viewport content="width=device-width">`，
+    // 浏览器版还是手机版布局一模一样 —— 这就是用户说的"桌面模式和手机模式没区别"。
+    // 桌面模式下把初缩放压到 50%，页面按桌面宽度排版再整体缩小，才看得出来。
+    view.setInitialScale(if (desktop) 50 else 0)
+}
+
+/**
+ * 当前 WebView 内核的版本（`Chrome/131.0.6778.39` → `131`）。
+ *
+ * 学校那几个页面都是 Vue3 + 现代 CSS，内核低于 105（Android 7~9 常见）会白屏或排版错乱。
+ * 把版本号摆在菜单里，是为了让"是不是内核太老"这个问题一眼可答。
+ */
+internal fun webViewKernel(ctx: android.content.Context): String {
+    val ua = runCatching { android.webkit.WebSettings.getDefaultUserAgent(ctx) }.getOrNull().orEmpty()
+    val m = Regex("""Chrome/(\d+)""").find(ua) ?: return "未知"
+    return "Chrome " + m.groupValues[1]
+}
+
+/** 字号菜单那一行该显示什么（三档循环，不记开关状态就不会两处打架）。 */
+internal fun fieldZoomLabel(zoom: Int): String = when (zoom) {
+    100 -> "字号：标准（点一下变大）"
+    130 -> "字号：大（点一下更大）"
+    else -> "字号：特大（点一下回标准）"
 }
 
 private val json = Json { ignoreUnknownKeys = true }

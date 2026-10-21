@@ -40,9 +40,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Campus">
 
+        <!-- 键盘必须"压缩窗口"而不是"盖住窗口"：内置浏览器里要一边打字一边看到验证码框。
+             默认 adjustUnspecified 在部分 ROM 上按 pan 处理，页面被顶走、下半屏全被键盘盖住
+             —— 就是用户报的"键盘一出来屏幕全占了"。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Campus">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
