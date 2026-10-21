@@ -188,6 +188,9 @@ publish_one() {
       if "$GH" release view "v$v" --repo "$REPO" --json assets \
            -q '.assets[].name' 2>/dev/null | grep -qx "campus-$v.apk"; then
         echo "  ✅ GitHub Release v$v 已就绪（含 campus-$v.apk）"
+        # 包已经在 GitHub 上了，本地这份缓存没有第二次用途：28 个版本就是 800MB，
+        # 留着只会把磁盘塞满（这台机器的旧机空间本来就紧）。
+        rm -f "$apk"
         return 0
       fi
       echo "  !! v$v release 建好了但资产里没有 campus-$v.apk（第 $try 次）"
