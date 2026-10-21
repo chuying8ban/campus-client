@@ -42,7 +42,11 @@
 1. 改代码 → 跑**全部单元测试** → 文档与代码**同一个 commit**（文档不进 APK，但仍在最终 HEAD 上记一次指纹）。
 2. 打包；**验签**等于你发布的证书。
 3. 把包放上服务端、换 manifest、换 `latest.apk`（三处一起）。
-4. 建 GitHub Release：正文**只放发布内容**（别把维护者说明、占位符提示那份草稿直接当 `--notes-file` 发出去，它会被原样公开）；附上 sha256、大小、签名证书前 8 位。
+4. 建 GitHub Release：**这一步已经自动化**（`tools/publish.sh` 第 ⑨ 步调 `tools/gh_release_sync.sh`）。
+   它会先推送本地提交（`gh release create --target <sha>` 要求该提交在 GitHub 上真存在，否则 422），
+   再用本版 notes 建 release 并回读资产名。GitHub 连不上时**不阻塞发版**（用户从 dl 拿包），
+   只记账到 `~/.config/study-native/gh-pending.txt`，下次发布或手跑 `tools/gh_release_sync.sh --backfill` 补齐。
+   正文**只放发布内容**：传进去的就是闸门验过的那份 notes，别把维护者说明、占位符提示那份草稿直接当 `--notes-file` 发出去。
 5. 回读校验：Release 附件能下载且 sha256 与打包件一致；manifest 的版本号与包一致；已装用户点「检查更新」能看到新版本。
 6. **产物不是逐字节可复现的**：换了构建机、或重打一次包，`sha256` 必须**重取**，别沿用上一次那个数；发出去之前用**最终那个文件**自己算一遍，再写进 Release 正文。
 
