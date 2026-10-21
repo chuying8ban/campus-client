@@ -56,12 +56,12 @@ class MigrationEvidenceTest {
             }
         }
         rule.waitUntil(20_000) {
-            rule.onAllNodesWithText("打开官方教务登录").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("打开融合门户登录").fetchSemanticsNodes().isNotEmpty()
         }
         rule.waitForIdle()
         val tree = rule.onRoot().printToString(maxDepth = 30)
         dump("import_intro_tree.txt", tree)
-        assertTrue("介绍页该有官方登录入口", tree.contains("打开官方教务登录"))
+        assertTrue("介绍页该有融合门户登录入口", tree.contains("打开融合门户登录"))
         assertTrue("介绍页该写明密码不读取/不保存", tree.contains("不读取"))
     }
 

@@ -18,6 +18,8 @@ object SchoolSession {
   if(profile.id==SchoolRegistry.cupk.id) edit.remove("remember")
   edit.commit()
   SchoolCookie.clear(profile.host)
+  // 门户票据也要删（2026-10-21）：留着它下次进门户还是静默登录，等于"没退出"。
+  SchoolCookie.clearPortal()
   WebStorage.getInstance().deleteOrigin(profile.origin)
  }
  /** 用户是否已经就「本机记住登录」做过选择（没选过 = 新装/老版本升级上来）。 */

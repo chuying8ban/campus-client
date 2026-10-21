@@ -63,9 +63,16 @@ data class LivePage(
 
 object ArtRepo {
 
-    /** 图和清单都挂在这个站上（和更新清单同一个域名、同一条无 SNI 链路） */
-    const val BASE = "https://study.ccbase.top"
-    const val DIR = "/updates/art"
+    /**
+     * 图库的清单、成品图、以及搜索/图片代理，全部走**快的那台**（dl 镜像）。
+     *
+     * 2026-10-21 用户：「图库和字体的下载也使用那个快速的下载源」。
+     * 之前图库挂在 ECS（study）上：ECS 带宽小、还要跨"入口链路"，用户点一张图要等好几秒；
+     * dl 那台（47.116.73.244）出口 ~140Mbps，也正是更新包和字体在用的那一台。
+     * 服务端为此多跑了一个 artapi（搜索 + 上游图片代理），见部署说明。
+     */
+    const val BASE = "https://dl.ccbase.top"
+    const val DIR = "/art"
 
     private val thumbs = LruCache<String, Bitmap>(24)
 

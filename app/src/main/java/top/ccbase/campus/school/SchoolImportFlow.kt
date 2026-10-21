@@ -218,7 +218,8 @@ fun SchoolImportFlow(
             Spacer(Modifier.height(10.dp))
             Text(
                 "课表默认只导入到你自己的手机里，不会发给任何服务器。\n"
-                    + "登录发生在学校官方页面 ${school.origin}；App 默认不读取、不保存你的教务密码。",
+                    + "登录走学校的融合门户统一身份认证（${SchoolCookieRules.PORTAL_HOST}），"
+                    + "App 不读取、不保存你的教务密码。",
                 fontSize = 13.sp, lineHeight = 21.sp, color = C.txt2,
             )
             err?.let {
@@ -269,7 +270,7 @@ fun SchoolImportFlow(
                     }
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
-            ) { Text("打开官方教务登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
+            ) { Text("打开融合门户登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
             Spacer(Modifier.height(16.dp))
             Text(
                 "联网后可从「课表 → 更新课表」重新导入；本机内容可离线查看。",

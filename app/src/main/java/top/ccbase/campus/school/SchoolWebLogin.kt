@@ -73,6 +73,31 @@ object SchoolCookie {
 
     fun host(): String = EamsClient.DEFAULT_BASE.substringAfter("https://").trimEnd('/')
 
+    /**
+     * 清掉统一身份认证（CAS）的票据。
+     *
+     * 用户把「记住登录」关掉时必须一起删：只删教务会话、把 CAS 票据留着的话，
+     * 下次进门户 CAS 还是会静默放行 —— 用户以为已经退出了，其实没退。
+     */
+    fun clearPortal(expire: ((String, String) -> Unit)? = null) {
+        onMain {
+            val cm = CookieManager.getInstance() ?: return@onMain
+            val h = SchoolCookieRules.PORTAL_HOST
+            for (path in SchoolCookieRules.PORTAL_PATHS) {
+                val probe = "https://$h$path"
+                val names = (SchoolCookieRules.PORTAL_NAMES + namesIn(cm.getCookie(probe)))
+                    .map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                for (name in names) {
+                    for (suffix in listOf("Path=$path", "Path=$path; Secure")) {
+                        val removal = "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; $suffix"
+                        if (expire == null) cm.setCookie(probe, removal) else expire(probe, removal)
+                    }
+                }
+            }
+            cm.flush()
+        }
+    }
+
     /** 只清 Cookie（课程表读完、但页面还在时用）。 */
     fun clear(host: String = host(), expire: ((String, String) -> Unit)? = null) {
         onMain {
@@ -93,6 +118,21 @@ object SchoolCookie {
                 }
             }
             cm.flush()
+        }
+    }
+
+    /**
+     * 统一身份认证那边还有没有票据（`CASTGC`/`TGC`）。
+     *
+     * 有票据 = 下次进 SSO 入口时 CAS 不会弹登录页，直接带着 ticket 回到教务 ——
+     * 「更新课表」点进去就是登录态，一个输入框都不出现。
+     */
+    fun hasPortalTicket(profile: SchoolProfile = SchoolRegistry.cupk): Boolean {
+        val cm = CookieManager.getInstance() ?: return false
+        val host = SchoolCookieRules.PORTAL_HOST
+        if (!profile.allows("https://$host/cas/login")) return false
+        return SchoolCookieRules.PORTAL_PATHS.any { path ->
+            SchoolCookieRules.hasPortalTicket(cm.getCookie("https://$host$path"))
         }
     }
 
@@ -119,7 +159,12 @@ object SchoolCookie {
      *
      * @return 至少改写成功一条才算 true
      */
-    fun persistSession(profile: SchoolProfile = SchoolRegistry.cupk, days: Long = 30): Boolean {
+    fun persistSession(
+        profile: SchoolProfile = SchoolRegistry.cupk,
+        days: Long = 30,
+        /** 测试注入：真实运行时为 null（直接写 CookieManager）。 */
+        set: ((String, String) -> Unit)? = null,
+    ): Boolean {
         var done = false
         onMain {
             val cm = CookieManager.getInstance() ?: return@onMain
@@ -133,11 +178,25 @@ object SchoolCookie {
                 val header = cm.getCookie(probe).orEmpty()
                 for (name in SchoolCookieRules.SESSION_NAMES) {
                     val value = SchoolCookieRules.valueOf(header, name) ?: continue
-                    cm.setCookie(
-                        probe,
-                        SchoolCookieRules.persistent("$name=$value", path, maxAge, expires),
-                    )
+                    val spec = SchoolCookieRules.persistent("$name=$value", path, maxAge, expires)
+                    if (set == null) cm.setCookie(probe, spec) else set(probe, spec)
                     done = true
+                }
+            }
+            // 统一身份认证的票据同样要改成持久 cookie（2026-10-21）：
+            // 少了这一步，教务会话过期后 CAS 那边也没票，用户每次都得重新输密码 + 验证码，
+            // 表现出来就是"自动登录根本没生效"。
+            val ph = SchoolCookieRules.PORTAL_HOST
+            if (profile.allows("https://$ph/cas/login")) {
+                for (path in SchoolCookieRules.PORTAL_PATHS) {
+                    val probe = "https://$ph$path"
+                    val header = cm.getCookie(probe).orEmpty()
+                    for (name in SchoolCookieRules.PORTAL_NAMES) {
+                        val value = SchoolCookieRules.valueOf(header, name) ?: continue
+                        val spec = SchoolCookieRules.persistent("$name=$value", path, maxAge, expires)
+                        if (set == null) cm.setCookie(probe, spec) else set(probe, spec)
+                        done = true
+                    }
                 }
             }
             if (done) cm.flush()
@@ -218,6 +277,13 @@ fun SchoolWebLogin(
     var readError by remember { mutableStateOf<String?>(null) }
     // 主入口 = 融合门户统一身份认证；备用 = 教务直登（2026-10-19 用户拍板）
     var useBackup by remember { mutableStateOf(false) }
+    /**
+     * 老登录页只改道一次。
+     *
+     * 不加这个,"被甩到 /student/login → 去门户 → 门户又把我们送回 /student/login"
+     * 会变成死循环，页面一直在跳、进度条一直在跑，比留在老页面还糟。
+     */
+    var bouncedToPortal by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pageGate = remember { PageGate() }
 
@@ -234,6 +300,10 @@ fun SchoolWebLogin(
             delay(700)
             val has = SchoolCookie.hasSession(profile)
             if (has && !loggedIn) {
+                // 登录成功这一刻就把两件事办掉：
+                // ① 教务会话 + 门户票据一并改成持久 cookie —— 下次进门户 CAS 直接静默放行；
+                // ② 如果人还停在教务首页/门户回跳页，直接带到课表页。
+                //    不加这一步，用户看到的是"老系统的首页"，会以为更新课表进错了地方。
                 if (SchoolSession.remembered(ctx, profile)) SchoolCookie.persistSession(profile)
                 loggedIn = true
             } else if (!has && loggedIn) {
@@ -278,8 +348,8 @@ fun SchoolWebLogin(
                 }.padding(vertical = 8.dp))
             Spacer(Modifier.weight(1f))
             Column {
-                Text("官方教务登录", fontSize = 15.sp, color = C.txt)
-                Text("${profile.host} · HTTPS", fontSize = 12.sp, color = C.txt2)
+                Text("融合门户 · 统一身份认证", fontSize = 15.sp, color = C.txt)
+                Text("${profile.host} → ${SchoolCookieRules.PORTAL_HOST} · HTTPS", fontSize = 12.sp, color = C.txt2)
             }
             if (top.ccbase.campus.BuildConfig.DEBUG) Text("诊断", color = C.txt3, fontSize = 12.sp,
                 modifier = Modifier.clickable { showDiagnostics = !showDiagnostics }.padding(10.dp))
@@ -329,6 +399,13 @@ fun SchoolWebLogin(
                                 diagnostic = it
                                 if (it.startsWith("资源") && firstScriptError.isEmpty()) firstScriptError = it
                             },
+                            onLegacyLoginPage = { url ->
+                                if (!useBackup && !bouncedToPortal) {
+                                    bouncedToPortal = true
+                                    diagnostic = "老教务登录页 → 已切到融合门户"
+                                    webView?.loadUrl(SchoolEntry.startUrl(profile))
+                                }
+                            },
                         ) { fail(it) }
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
@@ -349,9 +426,10 @@ fun SchoolWebLogin(
                             }
                         }
                         loadUrl(
-                            if (SchoolSession.remembered(ctx, profile)) profile.origin + profile.timetablePath
-                            else if (useBackup) profile.backupLoginUrl
-                            else profile.loginUrl
+                            // 2026-10-21 起一律从融合门户的统一身份认证进（见 SchoolEntry）：
+                            // 以前"有会话就直奔课表页"看着省事，其实是把用户留在了没有门户的那条路上，
+                            // 会话一过期就落到老教务登录页 —— 用户报的就是这个。
+                            if (useBackup) profile.backupLoginUrl else SchoolEntry.startUrl(profile)
                         )
                     }
                 },
@@ -480,6 +558,7 @@ private fun configureSecureWebView(
     profile: SchoolProfile = SchoolRegistry.cupk,
     onFirstPaint: () -> Unit = {},
     onDiagnostic: (String) -> Unit = {},
+    onLegacyLoginPage: (String) -> Unit = {},
     onError: (String) -> Unit,
 ) {
     WebView.setWebContentsDebuggingEnabled(top.ccbase.campus.BuildConfig.DEBUG)
@@ -503,6 +582,7 @@ private fun configureSecureWebView(
     }
     if (!SchoolSession.remembered(wv.context,profile)) SchoolCookie.clear(profile.host)
 
+    var jumpedToTable = false
     wv.webViewClient = object : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             if (!profile.allows(request.url.toString())) {
@@ -524,7 +604,11 @@ private fun configureSecureWebView(
             if (!profile.allows(url)) {
                 view.stopLoading()
                 onError("阻止加载非官方教务地址")
+                return
             }
+            // 老教务登录页 = 用户说的"老的教务系统"：不改道的话，用户永远看不到融合门户。
+            // 只在主框架上改道（子资源里的同名路径不管），由调用方决定改道次数。
+            if (SchoolEntry.isOldLoginPage(url)) onLegacyLoginPage(url)
         }
 
         /** 首个页面真正上屏（API 23+）：这时才把"正在进入"的覆盖层收掉。 */
@@ -534,6 +618,16 @@ private fun configureSecureWebView(
 
         override fun onPageFinished(view: WebView, url: String) {
             onFirstPaint()
+            // 门户登录成功后会落在教务首页（老系统的首页）。用户点的是「更新课表」，
+            // 停在首页会以为进错了地方 —— 首页只当跳板，直接带到课表页（一次，绝不循环）。
+            if (!jumpedToTable) {
+                val path = runCatching { java.net.URI(url).path }.getOrNull().orEmpty().trimEnd('/')
+                if (url.contains(profile.host) && (path == "/student" || path == "/student/home")) {
+                    jumpedToTable = true
+                    view.loadUrl(profile.origin + profile.timetablePath)
+                    return
+                }
+            }
             // 让“导航到课表页并等它加载完”有据可依（见 extractTimetableJson）。
             gate.finishedTick += 1
             gate.finishedUrl = url

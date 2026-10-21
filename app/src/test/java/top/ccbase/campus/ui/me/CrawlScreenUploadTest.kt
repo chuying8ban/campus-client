@@ -116,7 +116,7 @@ class CrawlScreenUploadTest {
             }
         }
         rule.waitUntil(20_000) {
-            rule.onAllNodesWithText("打开官方教务登录").fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithText("打开融合门户登录").fetchSemanticsNodes().isNotEmpty()
         }
         rule.waitForIdle()
         assertTrue("导入页打开时不该有任何自有服务器请求：${seen.rows}", seen.rows.isEmpty())

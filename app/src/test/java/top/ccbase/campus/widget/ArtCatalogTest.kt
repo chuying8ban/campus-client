@@ -32,8 +32,8 @@ class ArtCatalogTest {
         val items = ArtRepo.parseCatalog(json)
         assertEquals("缺 file 的条目应被跳过，不能拖垮整页", 3, items.size)
         assertEquals("01_starry", items[0].id)
-        assertEquals("https://study.ccbase.top/updates/art/01_starry.jpg", items[0].url)
-        assertEquals("https://study.ccbase.top/updates/art/01_starry_t.jpg", items[0].thumbUrl)
+        assertEquals("https://dl.ccbase.top/art/01_starry.jpg", items[0].url)
+        assertEquals("https://dl.ccbase.top/art/01_starry_t.jpg", items[0].thumbUrl)
         // 没写 thumb 时退回原图，不能变成空链接
         assertEquals(items[1].url, items[1].thumbUrl)
         assertEquals("校园助手", items[0].author)

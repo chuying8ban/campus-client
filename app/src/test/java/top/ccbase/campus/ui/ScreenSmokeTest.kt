@@ -179,7 +179,7 @@ class ScreenSmokeTest {
                 )
             }
         }
-        waitFor("打开官方教务登录")
+        waitFor("打开融合门户登录")
         // 新契约：这一页没有密码框（登录发生在学校官方 HTTPS 页面里）
         assertTrue(
             "引导登录页不该再有密码输入框",

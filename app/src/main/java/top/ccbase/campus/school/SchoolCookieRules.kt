@@ -14,6 +14,25 @@ object SchoolCookieRules {
     /** 教务把会话挂在这两个名字上；两个都要认。 */
     val SESSION_NAMES = listOf("SESSION", "__pstsid__")
 
+    /**
+     * 融合门户统一身份认证（CAS）的登录票据（2026-10-21）。
+     *
+     * 有了它以后，进「更新课表」时 CAS 会**直接静默放行**回到教务，不再弹登录页和验证码 ——
+     * 这才是"自动登录"真正依赖的东西。以前只持久化了教务的 `SESSION`，
+     * 于是 CAS 那边每次都是新会话，用户即便刚登录过也会被要求重新输一遍。
+     *
+     * `CASTGC` 是当前 CAS 的标准名，`TGC` 是旧版/兼容名，`JSESSIONID` 是登录过程中的会话，
+     * 三个都带上：名字多认一个不会出错，漏一个就会白弹一次登录页。
+     */
+    val PORTAL_NAMES = listOf("CASTGC", "TGC", "JSESSIONID")
+
+    /** 统一身份认证的域名与它挂 cookie 的路径。 */
+    const val PORTAL_HOST = "cas.cupk.edu.cn"
+    val PORTAL_PATHS = listOf("/cas", "/cas/")
+
+    /** 这段 Cookie 头里有没有 CAS 票据（= 下次能静默过）。 */
+    fun hasPortalTicket(header: String?): Boolean = PORTAL_NAMES.any { valueOf(header, it) != null }
+
     /** 从 `name=value; other=x` 这种 Cookie 头里取某个名字的值；没有/为空则 null。 */
     fun valueOf(header: String?, name: String): String? {
         header.orEmpty().split(";").forEach { part ->
