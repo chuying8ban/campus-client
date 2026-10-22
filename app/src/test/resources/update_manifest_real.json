@@ -1,12 +1,11 @@
 {
-  "version_code": 197,
-  "version_name": "3.4.77",
-  "url": "/updates/campus-3.4.77.apk",
-  "sha256": "94a60dba16453e8857de8bf309445183c1505ef0609c0bfd888faeeb68d6b19e",
-  "size": 29333499,
+  "version_code": 198,
+  "version_name": "3.4.78",
+  "url": "/updates/campus-3.4.78.apk",
+  "sha256": "840e3bd203207ee1573f1b614a17e4e52bfb72b22ebcf0ad7f943309cc67d475",
+  "size": 29333575,
   "notes": [
-    "验证码输完就自动登录，不会再有「输了没反应」",
-    "修认证页页脚压住「登录」按钮的问题",
-    "没登录时不再显示「重新读取课表」"
+    "顶部核对提示条改成下滑自动收起",
+    "往回翻或切换页面时它会自己回来"
   ]
 }

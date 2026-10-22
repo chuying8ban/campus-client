@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.domain.nudgeWindows
+import top.ccbase.campus.domain.ensureRestore
 import top.ccbase.campus.domain.fitActions
 import top.ccbase.campus.domain.planReminders
 import top.ccbase.campus.domain.planSilence
@@ -74,7 +75,12 @@ object Rescheduler {
                 val rem = planReminders(windows, remind)
                 val sil = planSilence(windows, silence, rem.map { it.at }.toSet())
                 // 静音/恢复这对必须整对留下（截断只能截提醒）—— 见 fitActions 的注释
-                val acts = fitActions(sil, rem, AlarmScheduler.MAX_ALARMS)
+                var acts = fitActions(sil, rem, AlarmScheduler.MAX_ALARMS)
+                // ★ 正在静音时，重排绝不能把"这一课几点恢复铃声"撤掉。
+                // 上面的窗口是从 `now` 起算的，正在上的那节已经落在过去、不在 windows 里，
+                // 重排（每次都会 cancelAll）就会顺手撤掉它的恢复闹钟 —— 铃声要等看门狗 15 分钟一次的
+                // 巡检才还回来（2026-10-22 用户报「恢复晚了十几分钟」）。
+                acts = ensureRestore(acts, Silence.oursUntil(app), LocalDateTime.now(), AlarmScheduler.MAX_ALARMS)
                 val n = AlarmScheduler.schedule(app, acts)
                 Log.i(
                     TAG,

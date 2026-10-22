@@ -379,3 +379,38 @@ fun fitActions(
     out += reminders.sortedBy { it.at }.take(room)
     return out.sortedBy { it.at }
 }
+
+/**
+ * 重排时如果**我们正按着静音**，必须保住"这一段几点恢复"那条闹钟。
+ *
+ * 2026-10-22 用户报「铃声恢复有延迟，慢了一刻钟」。追下来不是闹钟没响，
+ * 是**我们自己把它撤掉的**：
+ *  ① 重排的窗口从 `now` 起算（[top.ccbase.campus.alarm.Rescheduler] 这么调本身是对的 ——
+ *     课表随时可能被改过），于是「08:45-09:15 早自习」这一段在 09:1x 重排时整段落在过去，
+ *     连它的"恢复铃声"一起从列表里消失；
+ *  ② `AlarmScheduler.schedule()` 每次都先 `cancelAll()`，那条已经在系统里的恢复闹钟就被真的撤了；
+ *  ③ 之后只能等看门狗下一次巡检（系统允许的最小周期 15 分钟）由 `healIfStuck` 兜回来 ——
+ *     用户听到的就是"铃声晚了十几分钟"。下课铃都响完了，手机还静着。
+ *
+ * 所以这里加一道**不依赖课表**的保险：只要静音标记还在、结束时刻还没到，
+ * 恢复闹钟就必须在列表里 —— 这节课在不在窗口里都无所谓。
+ *
+ * @param until 当前这段静音该在什么时候恢复（null = 现在没按着静音，什么也不用做）
+ */
+fun ensureRestore(
+    acts: List<NudgeAction>,
+    until: LocalDateTime?,
+    now: LocalDateTime,
+    max: Int = Int.MAX_VALUE,
+): List<NudgeAction> {
+    if (until == null || !until.isAfter(now)) return acts
+    // 已经有"现在之后、且不晚于结束时刻"的恢复闹钟 → 不用补（它已经在这段里兜住了）
+    if (acts.any { it.kind == NudgeKind.UNSILENCE && !it.at.isBefore(now) && !it.at.isAfter(until) }) return acts
+    val withRestore = acts + NudgeAction(until, NudgeKind.UNSILENCE, "🔔 已恢复铃声", "")
+    // 超上限只能砍**提醒**：少一条提醒只是"后几天还没轮到"，少一条恢复是错误状态
+    val trimmed = if (withRestore.size > max) {
+        withRestore.filter { it.kind == NudgeKind.REMIND }.maxByOrNull { it.at }
+            ?.let { withRestore - it } ?: withRestore
+    } else withRestore
+    return trimmed.sortedBy { it.at }
+}

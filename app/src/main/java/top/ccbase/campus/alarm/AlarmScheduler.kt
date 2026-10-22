@@ -35,6 +35,17 @@ object AlarmScheduler {
     private const val K_NEXT = "next_ms"
 
     /**
+     * 排上的所有时刻（毫秒，升序逗号分隔）。
+     *
+     * 为什么要落全表，"记住最早那一个"不够：`isStale` 原来只看 `K_NEXT`（排程时的最早一条），
+     * 它响过之后就永远停在过去 —— 于是**每天第一条闹钟响后 10 分钟起，看门狗就认定"该响的没响"**，
+     * 每 15 分钟全量重排一次。重排本身不致命，但它会 `cancelAll` 再按"从此刻起"的课表重排，
+     * 正在上的那节课连同它的"恢复铃声"一起被撤掉（2026-10-22 用户报"铃声恢复慢了一刻钟"就是这个）。
+     * 有了全表，每条闹钟真的响过就把自己划掉，"下一个"跟着往前走，判断才是准的。
+     */
+    private const val K_TIMES = "times"
+
+    /**
      * 一次最多排多少个。
      *
      * 原先是 60 —— 一周的提醒就有上百条，那个数直接导致"恢复铃声"整批被截（见 fitActions）。
@@ -90,6 +101,7 @@ object AlarmScheduler {
         var n = 0
         var idx = 0
         var earliest = 0L
+        val times = ArrayList<Long>(actions.size)
         // 按真实时间顺序排：id 递增＝时间递增，出问题时看日志能一眼对上；
         // 截断也发生在时间顺序上，不会出现"排了后天的、漏了明天的"
         for (a in actions.sortedBy { it.at }) {
@@ -98,6 +110,7 @@ object AlarmScheduler {
             val endMs = a.endAt?.let { msOf(it) } ?: 0L
             if (set(ctx, BASE_ID + idx, actionName(a.kind), a.at, ms, a.title, a.body, a.what, endMs)) {
                 n++
+                times += ms
                 if (earliest == 0L || ms < earliest) earliest = ms
             }
             idx++
@@ -106,8 +119,36 @@ object AlarmScheduler {
         // 那个 API 返回的是**全系统**下一个闹钟（任何 App 排的都算），
         // 把它显示在"共 N 个"旁边，用户会读成"我们排的下一个是 0 点"——
         // 实测就发生过：系统的 09-17 00:00（别人的 0 点提醒）盖住了我们真正的 09-18 09:29。
-        sp(ctx).edit().putLong(K_NEXT, earliest).apply()
+        sp(ctx).edit()
+            .putLong(K_NEXT, earliest)
+            .putString(K_TIMES, times.sorted().joinToString(","))
+            .apply()
         return n
+    }
+
+    /** 排上的时刻表（毫秒，升序）。落盘时间缺失（老版本）时返回空表 → 当成"该重排了" */
+    fun scheduledTimes(ctx: Context): List<Long> =
+        sp(ctx).getString(K_TIMES, "").orEmpty()
+            .split(",")
+            .mapNotNull { it.trim().toLongOrNull() }
+            .sorted()
+
+    /**
+     * 某条闹钟**真的到点响了**时调一次：把自己从时刻表里划掉。
+     *
+     * 不划的后果见 [K_TIMES] 的注释 —— "下一个闹钟"会永远停在今天第一条，
+     * 看门狗就整天以为闹钟丢了，反复重排（并且把正在静音那段的恢复闹钟撤掉）。
+     *
+     * @param atMs 这条闹钟原定的触发时刻（[NudgeReceiver] 从 Intent 里带过来的 `at`）。
+     *             晚响也照它算：晚响的那些"本该在几点响"仍是准的。
+     */
+    fun noteFired(ctx: Context, atMs: Long) {
+        val cut = if (atMs > 0L) atMs else System.currentTimeMillis()
+        val rest = scheduledTimes(ctx).filter { it > cut }
+        sp(ctx).edit()
+            .putString(K_TIMES, rest.joinToString(","))
+            .putLong(K_NEXT, rest.firstOrNull() ?: 0L)
+            .apply()
     }
 
     private fun set(
@@ -169,15 +210,20 @@ object AlarmScheduler {
     /**
      * 我们排的闹钟是不是"该有却没有"。
      *
-     * 判据只有两条，都从"用户会不会因此漏提醒/一直静音"出发：
-     *  · 上一个都没排上（数量 0）—— 关了开关的情况由调用方先滤掉；
-     *  · 记下的"下一个"已经过去 10 分钟以上 —— 说明那次唤醒没来（或来了没续上）。
+     * 判据只看用户会不会因此漏提醒 / 一直静音（判定本身是纯函数 [staleOf]，好在 JVM 上钉住）：
+     *  · 一个都没排上（开关全关的情况由调用方先滤掉）；
+     *  · 时刻表是空的 —— 排的那些全响完了，该续下一周了；
+     *  · 该响的那条已经过了 10 分钟还没响（被 ROM 清了 / 没唤醒）。
      * 不做"逐个核对系统里还在不在"：那要把每个 PendingIntent 都重建一遍，代价远超收益。
      */
-    fun isStale(ctx: Context): Boolean {
-        if (scheduledCount(ctx) == 0) return true
-        val next = sp(ctx).getLong(K_NEXT, 0L)
-        return next > 0L && next < System.currentTimeMillis() - 10 * 60 * 1000L
+    fun isStale(ctx: Context): Boolean =
+        staleOf(scheduledCount(ctx), scheduledTimes(ctx), System.currentTimeMillis())
+
+    /** [isStale] 的判定本体（纯函数）：[times] 是**还没响**的那些时刻，升序 */
+    internal fun staleOf(count: Int, times: List<Long>, nowMs: Long): Boolean {
+        if (count <= 0) return true
+        if (times.isEmpty()) return true
+        return times.first() < nowMs - 10 * 60 * 1000L
     }
 
     fun scheduledCount(ctx: Context): Int =

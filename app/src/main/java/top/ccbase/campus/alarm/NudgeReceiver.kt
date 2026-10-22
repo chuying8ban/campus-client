@@ -31,6 +31,8 @@ class NudgeReceiver : BroadcastReceiver() {
         // 每一次实际触发都落一条记录（成功也记）。
         // 理由：用户没法目视、也没法连 logcat，"到底响没响"必须能从文件里读出来。
         val at = DiagLog.now()
+        // 同时把这一条从"待响时刻表"里划掉：看门狗靠它判断"下一个闹钟是不是该响没响"
+        AlarmScheduler.noteFired(context, atMs)
         val label = { prefix: String -> if (body.isBlank()) prefix else "$prefix·$body" }
 
         // 兜底：任何一条闹钟醒来都顺手检查一次"我们是不是还按着静音但早该结束了"。

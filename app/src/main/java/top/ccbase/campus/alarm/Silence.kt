@@ -92,6 +92,24 @@ object Silence {
     }
 
     /**
+     * 当前这段静音该在什么时候恢复（epoch → LocalDateTime）。
+     *
+     * 给重排用：重排会 `cancelAll` 再按新课表排，如果这段课已经不在这批窗口里，
+     * 恢复闹钟就会跟着消失 —— 拿着这个时刻补一条回去（见 `ensureRestore`）。
+     * null = 现在不是我们在静音（或者不知道结束时间）。
+     */
+    fun oursUntil(ctx: Context): java.time.LocalDateTime? {
+        val sp = prefs(ctx)
+        if (!sp.getBoolean(K_OURS, false)) return null
+        val until = sp.getLong(K_UNTIL, 0L)
+        if (until <= 0L) return null
+        return java.time.LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(until),
+            java.time.ZoneId.systemDefault(),
+        )
+    }
+
+    /**
      * 兜底自愈：如果我们还按着静音、而这一段早该结束了 → 立刻恢复。
      * 返回 true 表示"这次真的动手恢复了"（调用方可以补一条通知）。
      */
