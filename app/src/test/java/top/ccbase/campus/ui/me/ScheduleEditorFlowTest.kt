@@ -214,6 +214,50 @@ class ScheduleEditorFlowTest {
         assertEquals("别的课的地点保持原样", "Y", next.slots.first { it.course_id == 2 }.room)
     }
 
+    @Test
+    fun `一个课占两节_表单里能拆成两条单节`() {
+        seedTwoSlotsSameCourse()
+        rule.setContent { CampusTheme { ScheduleEditor(ctx, db, {}) } }
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("day:1").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("day:1").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("slot:1500000001").fetchSemanticsNodes().isNotEmpty() }
+
+        rule.onNodeWithTag("slot:1500000001").performScrollTo().performClick()
+        // 占第 1-2 节 → 表单里必须给出拆分入口
+        rule.onNodeWithTag("splitSpan").performScrollTo().assertExists()
+        rule.onNodeWithTag("splitSpan").performClick()
+
+        waitForSave { runBlocking { db.dao().slots().first().count { it.p_start == 1 && it.p_end == 1 } == 1 } }
+        val slots = runBlocking { db.dao().slots().first() }
+        assertEquals("1-2 拆成 1 + 2，另一段 6-7 不动 = 3 条", 3, slots.size)
+        assertEquals(listOf(1, 2, 6), slots.sortedBy { it.p_start }.map { it.p_start })
+        assertTrue(
+            "拆分只动节次：课程/教室/周次都得照抄",
+            slots.all { it.room == "I区212" && it.weeks == "1,2,3" && it.course_id == 1500000001 },
+        )
+    }
+
+    @Test
+    fun `拆开后把第2节换成另一门课_第1节不许被改名`() {
+        // 拆完就是两条同课记录，和第 1 节各改各的 —— 这条规则在 applyTo 里，界面只是入口
+        val plan = Seed(
+            courses = listOf(Course(1, "大学英语")),
+            slots = listOf(
+                Slot(11, 1, 1, p_start = 1, p_end = 1, weeks = "1"),
+                Slot(12, 1, 1, p_start = 2, p_end = 2, weeks = "1"),
+            ),
+        )
+        val f = EditState.of(plan, plan.slots.first { it.id == 12 }).copy(name = "高等数学")
+        val next = f.applyTo(plan)
+
+        val first = next.slots.first { it.id == 11 }
+        val second = next.slots.first { it.id == 12 }
+        assertEquals("第 1 节还是原来的课", "大学英语", next.courses.first { it.id == first.course_id }.name)
+        assertEquals("第 2 节挂到新课上", "高等数学", next.courses.first { it.id == second.course_id }.name)
+        assertNotEquals("两节不能共用一个 course_id（否则改名会串）", first.course_id, second.course_id)
+        assertEquals("课程总数 +1", 2, next.courses.size)
+    }
+
     /** 等保存落库；超时就把界面上的文字全打出来（弹出的说明就是原因，别猜） */
     private fun waitForSave(timeoutMs: Long = 8_000, cond: () -> Boolean) {
         val end = System.currentTimeMillis() + timeoutMs

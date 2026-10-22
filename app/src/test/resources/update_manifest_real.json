@@ -1,11 +1,12 @@
 {
-  "version_code": 198,
-  "version_name": "3.4.78",
-  "url": "/updates/campus-3.4.78.apk",
-  "sha256": "840e3bd203207ee1573f1b614a17e4e52bfb72b22ebcf0ad7f943309cc67d475",
-  "size": 29333575,
+  "version_code": 199,
+  "version_name": "3.4.79",
+  "url": "/updates/campus-3.4.79.apk",
+  "sha256": "c2cb4ebb4c0cba68aecd9e9751ebf421d252d5fbd1fd5cd68dce0a130686132d",
+  "size": 29350067,
   "notes": [
-    "顶部核对提示条改成下滑自动收起",
-    "往回翻或切换页面时它会自己回来"
+    "下课、下自习后铃声准时恢复，不再迟十几分钟",
+    "课时中途重排课程表，这一节的下课恢复也保得住",
+    "修掉每天第一条闹钟响过后反复重排、白耗电的问题"
   ]
 }

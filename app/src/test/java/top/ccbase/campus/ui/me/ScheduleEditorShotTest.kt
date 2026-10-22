@@ -149,4 +149,35 @@ class ScheduleEditorShotTest {
         rule.onNodeWithTag("slot:1001").performScrollTo().performClick()
         shot("editor_form")
     }
+
+    /** 跨节的课在表单里的「拆成单节」入口（第 1-2 节那条） */
+    @Test
+    fun `表单里的拆成单节`() {
+        rule.activity.setContent { CampusTheme { ScheduleEditor(rule.activity, db, {}) } }
+        runCatching {
+            rule.waitUntil(8_000) { rule.onAllNodesWithText("按天编辑").fetchSemanticsNodes().isNotEmpty() }
+        }
+        rule.onNodeWithTag("day:1").performClick()
+        rule.onNodeWithTag("slot:1001").performScrollTo().performClick()
+        rule.onNodeWithTag("splitSpan").performScrollTo()
+        shot("editor_form_split")
+    }
+
+    /** 拆完返回按天页：第 1 节、第 2 节各一张卡（不再合成「第 1-2 节」） */
+    @Test
+    fun `拆完之后一天两张卡`() {
+        rule.activity.setContent { CampusTheme { ScheduleEditor(rule.activity, db, {}) } }
+        runCatching {
+            rule.waitUntil(8_000) { rule.onAllNodesWithText("按天编辑").fetchSemanticsNodes().isNotEmpty() }
+        }
+        rule.onNodeWithTag("day:1").performClick()
+        rule.onNodeWithTag("slot:1001").performScrollTo().performClick()
+        rule.onNodeWithTag("splitSpan").performScrollTo().performClick()
+        // 拆完会弹「已拆成 2 条单节」的说明，关掉后表单停在拆出来的第 1 节上 → 取消回列表
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("操作结果").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("知道了").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("取消").performScrollTo().performClick()
+        shot("editor_day_split")
+    }
 }

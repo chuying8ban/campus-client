@@ -110,14 +110,41 @@ fun ScheduleEditor(ctx: Context, db: CampusDb, close: () -> Unit) {
     Surface(Modifier.fillMaxSize(), color = C.bg) {
         val f = form
         if (f != null) {
+            val id = f.slotId
             EditArrangement(
                 state = f,
                 plan = plan,
                 saving = saving,
                 onChange = { form = it },
                 onSave = { applyEdit(f) },
-                onDelete = if (f.slotId != null) ({ askDelete = true }) else null,
+                onDelete = if (id != null) ({ askDelete = true }) else null,
                 onCancel = { form = null },
+                // 拆成单节：只对「按节次排、并且真的跨节」的已有课程开放
+                onSplit = if (id != null && f.studyKind == null && !f.customTime && f.endUnit > f.startUnit) {
+                    {
+                        val p = plan
+                        if (p != null) {
+                            // 先按表单**当前**的值落一次（用户可能刚把 1-2 改成 1-3 就点拆分），
+                            // 再拆 —— 否则拆的是数据库里的旧节次，界面会回退一下。
+                            val cur = f.applyTo(p)
+                            val (next, n) = ManualSchedule.splitSpan(cur, id)
+                            val first = next.slots.firstOrNull {
+                                it.weekday == f.weekday && it.p_start == f.startUnit && it.course_id == f.courseId
+                            }
+                            if (n == 0) {
+                                message = "拆不开：这一天第 ${f.startUnit}-${f.endUnit} 节里已经有别的课占着，先把那一条挪走"
+                            } else {
+                                form = first?.let { EditState.of(next, it) }
+                                commit(
+                                    next,
+                                    note = "已拆成 $n 条单节，从此每一节都能单独改" +
+                                        (if (first != null) "；已给你打开第 ${f.startUnit} 节" else ""),
+                                    closeForm = first == null,
+                                )
+                            }
+                        }
+                    }
+                } else null,
             )
         } else {
             Column(Modifier.fillMaxSize()) {
@@ -571,8 +598,22 @@ internal data class EditState(
         }
 
         val id = slotId ?: newId
-        val courseId = plan.slots.firstOrNull { it.id == id }?.course_id ?: courseId ?: id
-        val old = plan.courses.firstOrNull { it.id == courseId }
+        val existing = plan.slots.firstOrNull { it.id == id }
+        val oldCourseId = existing?.course_id
+        val old = oldCourseId?.let { cid -> plan.courses.firstOrNull { it.id == cid } }
+        val shareCount = oldCourseId?.let { cid -> plan.slots.count { it.course_id == cid } } ?: 0
+        // 改课名有两种结果（2026-10-22）：
+        //  · 这门课只有这一节 → 原地改名（和以前一样）；
+        //  · 这门课还有别的时段（典型：刚把 1-2 节拆成两条）→ **给这一节单开一门新课**。
+        //    用户要的是「每节课都能改」：把第 2 节换成另一门课时，第 1 节不能跟着被改名 ——
+        //    原地改名是悄悄发生的，用户要等到下次上课看课表才发现。
+        val forkCourse = existing != null && oldCourseId != null && shareCount > 1 &&
+            name.trim() != old?.name.orEmpty()
+        val courseId = if (forkCourse) {
+            (plan.slots.map { it.id } + plan.selfstudy.map { it.id } + plan.courses.map { it.id }).maxOrNull()!! + 1
+        } else {
+            oldCourseId ?: courseId ?: id
+        }
         val sorted = weeks.sorted()
         val slot = Slot(
             id = id,
@@ -588,12 +629,20 @@ internal data class EditState(
             week_to = sorted.last(),
             weeks = sorted.joinToString(","),
         )
-        var next = plan.copy(
-            courses = plan.courses.filter { it.id != courseId } + (old ?: Course(courseId, name.trim())).copy(
+        val courses = if (forkCourse) {
+            plan.courses + Course(courseId, name.trim()).copy(
+                short = name.trim().take(8),
+                teacher = teacher.trim().ifBlank { null },
+            )
+        } else {
+            plan.courses.filter { it.id != courseId } + (old ?: Course(courseId, name.trim())).copy(
                 name = name.trim(),
                 short = name.trim().take(8),
                 teacher = teacher.trim().ifBlank { null },
-            ),
+            )
+        }
+        var next = plan.copy(
+            courses = courses,
             slots = plan.slots.filter { it.id != id } + slot,
         )
         if (syncRoom) {
@@ -704,6 +753,8 @@ private fun EditArrangement(
     onSave: () -> Unit,
     onDelete: (() -> Unit)?,
     onCancel: () -> Unit,
+    /** 「拆成单节」—— 只有跨节、按节次排的课才有（null = 这个表单不提供） */
+    onSplit: (() -> Unit)? = null,
 ) {
     val table = PeriodTableStore.table
     val units = PeriodTableStore.units()
@@ -847,6 +898,30 @@ private fun EditArrangement(
             }
             if (preview.isNotBlank()) {
                 Text(preview, color = C.cyan, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+            // —— 跨节的课要能拆成单节（2026-10-22 用户：每节课都要能单独改）
+            val spanUnits = state.endUnit - state.startUnit + 1
+            if (onSplit != null && spanUnits > 1) {
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 10.dp).testTag("splitHint")
+                        .background(C.card, RoundedCornerShape(12.dp))
+                        .border(0.9.dp, C.line, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "这一门课占了 $spanUnits 节，现在是一条记录",
+                        color = C.txt, fontSize = 12.5.sp, fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "拆开后每一节都能单独改（换课、换教室、换周次都行）；课程和教室照抄现在这份",
+                        color = C.txt3, fontSize = 10.5.sp, modifier = Modifier.padding(top = 3.dp),
+                    )
+                    OutlinedButton(
+                        onClick = onSplit,
+                        enabled = !saving,
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("splitSpan"),
+                    ) { Text("拆成 $spanUnits 条单节") }
+                }
             }
         }
 

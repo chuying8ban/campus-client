@@ -61,6 +61,39 @@ object ManualSchedule {
  fun syncStudyPlace(plan: Seed, kind: String, place: String?): Seed =
   plan.copy(selfstudy = plan.selfstudy.map { if (it.kind == kind) it.copy(place = place) else it })
 
+ /**
+  * 把一条跨节的课（第 a-b 节）**拆成每节一条**（2026-10-22 用户要求：
+  * 「编辑课表那里要每节课都能改，那种一个课占两节课的要分开」）。
+  *
+  * 为什么必须拆记录而不是只在界面里画成两行：一条 Slot 的 p_start/p_end 只描述整段，
+  * 教室、周次、甚至课程本身都是**整段共用的** —— 用户想把第 2 节换成另一门课、
+  * 或者只是第 2 节换教室，在一条记录上根本表达不出来。
+  *
+  * 拆分**只拆节次**：课程、教室、周次、星期全部照抄，所以拆完看不出任何变化，
+  * 只是从此每节能各改各的。自定义时间的课（p_start=null）本来就不按节次，返回原样。
+  *
+  * @return (新计划, 拆出了几条)；0 表示这条本来就只占一节 / 已经被别的课占着
+  */
+ fun splitSpan(plan: Seed, slotId: Int): Pair<Seed, Int> {
+  val s = plan.slots.firstOrNull { it.id == slotId } ?: return plan to 0
+  val a = s.p_start ?: return plan to 0
+  val b = s.p_end ?: a
+  if (b <= a) return plan to 0
+  // 同一天里已经被**别的**时段占掉的节次不拆（拆了就是两条课压在同一个格子上）
+  val taken = plan.slots.filter { it.id != slotId && it.weekday == s.weekday }
+   .mapNotNull { o -> o.p_start?.let { f -> f..(o.p_end ?: f) } }
+   .flatten().toSet()
+  val units = (a..b).filter { it !in taken }
+  if (units.isEmpty()) return plan to 0
+  // 新 id 取现有最大值往后数：本机新增走的是 1_500_000_000+ 这段，别和种子/远端撞号
+  var next = (plan.slots.map { it.id } + plan.selfstudy.map { it.id }).maxOrNull() ?: 0
+  val pieces = units.map { u ->
+   next += 1
+   s.copy(id = next, p_start = u, p_end = u)
+  }
+  return plan.copy(slots = plan.slots.filter { it.id != slotId } + pieces) to pieces.size
+ }
+
  fun validate(name:String,weekday:Int,start:String,end:String,weeks:String): String? {
   if(name.isBlank()) return "请填写名称"
   if(weekday !in 1..7) return "星期须为1至7"
