@@ -288,6 +288,13 @@ private fun AppThemePane(
     // 「预览」板块已删（2026-10-18 用户要求）：改主题当场就落到这一页上，
     // 再摆一个假预览框只会让人以为那才是真的。
 
+    // 精选主题（2026-11-03 用户：「生成一套适配这个校园助手的主题…在主题页里加一个精选主题」）：
+    // 一整套搭配放在最上面 —— 大部分人不想从色环上试，先给成品，再给细调。
+    // 点一张卡＝明暗、强调色、背景、浓淡一次全换（ThemePacks.apply）。
+    SectionLabel("精选主题")
+    FeaturedThemesSection()
+    Spacer(Modifier.height(20.dp))
+
     // 明暗：三档并排，不再一人一行
     SectionLabel("明暗")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
