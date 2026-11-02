@@ -101,8 +101,10 @@ fun SchoolImportFlow(
     }
     var confirmRemember by remember { mutableStateOf(false) }
     // 「记住账号密码」：可选，默认关。开了以后学校会话过期也能自动填表登录（见 CredentialVault）。
-    var saveCred by remember { mutableStateOf(CredentialVault.has(ctx)) }
+    // 门户与教务**各存一份**：2026-11-02 用户报"门户页被自动填了教务密码"，根因是只有一个槽。
+    var saveCred by remember { mutableStateOf(CredentialVault.hasAny(ctx)) }
     var credDialog by remember { mutableStateOf(false) }
+    var credRealm by remember { mutableStateOf(CredentialVault.Realm.PORTAL) }
     var credUser by remember { mutableStateOf("") }
     var credPass by remember { mutableStateOf("") }
     var credErr by remember { mutableStateOf<String?>(null) }
@@ -166,13 +168,37 @@ fun SchoolImportFlow(
         credToast = null
     }
     if (credDialog) AlertDialog(
-        onDismissRequest = { credDialog = false; saveCred = CredentialVault.has(ctx) },
-        title = { Text("记住账号密码") },
+        onDismissRequest = { credDialog = false; saveCred = CredentialVault.hasAny(ctx) },
+        title = { Text("记住${credRealm.title}密码") },
         text = {
             Column {
+                // 两套口令各存各的：以前只有一个槽，门户页被填进教务密码就是这么来的。
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                    CredentialVault.Realm.entries.forEach { r ->
+                        val on = r == credRealm
+                        val saved = CredentialVault.has(ctx, r)
+                        Box(
+                            Modifier.weight(1f)
+                                .background(if (on) C.violet else C.card, RoundedCornerShape(8.dp))
+                                .clickable {
+                                    credRealm = r; credErr = null; credPass = ""
+                                    credUser = CredentialVault.load(ctx, r)?.first ?: ""
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                r.title + if (saved) " · 已存" else "",
+                                fontSize = 12.sp,
+                                color = if (on) MaterialTheme.colorScheme.onPrimary else C.txt2,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "只存在这台手机，用系统密钥库加密，不上传、不参与云同步。" +
-                        "共用手机不建议开启；关闭开关即删除。",
+                    "两个系统的密码不一样，各存各的，登录时各填各的。只存在这台手机，用系统密钥库加密，"
+                        + "不上传、不参与云同步。共用手机不建议开启；关闭开关即删除。",
                     fontSize = 12.sp, color = C.txt2, lineHeight = 18.sp,
                 )
                 Spacer(Modifier.height(10.dp))
@@ -184,7 +210,7 @@ fun SchoolImportFlow(
                 Spacer(Modifier.height(8.dp))
                 androidx.compose.material3.OutlinedTextField(
                     value = credPass, onValueChange = { credPass = it },
-                    label = { Text("密码") }, singleLine = true,
+                    label = { Text("${credRealm.title}密码") }, singleLine = true,
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
@@ -201,18 +227,18 @@ fun SchoolImportFlow(
             TextButton(onClick = {
                 if (credUser.isBlank() || credPass.isEmpty()) {
                     credErr = "账号和密码都要填"
-                } else if (CredentialVault.save(ctx, credUser.trim(), credPass)) {
+                } else if (CredentialVault.save(ctx, credRealm, credUser.trim(), credPass)) {
                     saveCred = true
                     credDialog = false
                     credPass = ""
-                    credToast = "已保存在本机，下次自动登录"
+                    credToast = "已保存${credRealm.title}账号密码，下次自动填"
                 } else {
                     credErr = "没存上，稍后再试一次"
                 }
             }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = { credDialog = false; saveCred = CredentialVault.has(ctx) }) { Text("取消") }
+            TextButton(onClick = { credDialog = false; saveCred = CredentialVault.hasAny(ctx) }) { Text("取消") }
         },
     )
     if (forgetNotice) AlertDialog(onDismissRequest={forgetNotice=false},title={Text("已忘记学校登录")},text={Text("本机学校会话已清除，原课表和云端账号未改变。")},confirmButton={TextButton(onClick={forgetNotice=false}){Text("知道了")}})
@@ -230,7 +256,7 @@ fun SchoolImportFlow(
             Text(
                 "课表默认只导入到你自己的手机里，不会发给任何服务器。\n"
                     + "登录走学校的融合门户统一身份认证（${SchoolCookieRules.PORTAL_HOST}），"
-                    + "App 不读取、不保存你的教务密码。",
+                    + "App 默认不读取、不保存你的密码。",
                 fontSize = 13.sp, lineHeight = 21.sp, color = C.txt2,
             )
             err?.let {
@@ -256,17 +282,42 @@ fun SchoolImportFlow(
                 androidx.compose.material3.Checkbox(
                     checked = saveCred,
                     onCheckedChange = { on ->
-                        if (on) { credUser = ""; credPass = ""; credErr = null; credDialog = true }
-                        else { CredentialVault.clear(ctx); saveCred = false; credToast = "已删掉本机保存的账号密码" }
+                        if (on) {
+                            credRealm = CredentialVault.Realm.entries.firstOrNull { !CredentialVault.has(ctx, it) }
+                                ?: CredentialVault.Realm.PORTAL
+                            credUser = (CredentialVault.load(ctx, CredentialVault.Realm.PORTAL)
+                                ?: CredentialVault.load(ctx, CredentialVault.Realm.EAMS))?.first ?: ""
+                            credPass = ""; credErr = null; credDialog = true
+                        } else { CredentialVault.clearAll(ctx); saveCred = false; credToast = "已删掉本机保存的账号密码" }
                     },
                 )
                 Column(Modifier.weight(1f)) {
                     Text("账号密码也记住（自动登录）", color = C.txt2, fontSize = 13.sp)
                     Text(
-                        if (saveCred) "已加密保存在本机；登录页会自动填好并提交"
-                        else "不勾选：只保留登录会话，学校那边会话过期就要重新输",
+                        if (saveCred) {
+                            val p = CredentialVault.has(ctx, CredentialVault.Realm.PORTAL)
+                            val e = CredentialVault.has(ctx, CredentialVault.Realm.EAMS)
+                            "已加密保存在本机：" + listOfNotNull(
+                                "门户".takeIf { p }, "教务".takeIf { e },
+                            ).joinToString(" / ")
+                        } else "不勾选：只保留登录会话，学校那边会话过期就要重新输",
                         color = C.txt3, fontSize = 11.sp, lineHeight = 16.sp,
                     )
+                    // 已经存了一份时，还得能补存另一个：勾选框再点一下是「全删」，不是「再存一份」，
+                    // 所以这里单给一个入口（2026-11-02：两个系统的密码不一样，只存了教务那份很常见）。
+                    if (saveCred) {
+                        val missing = CredentialVault.Realm.entries.firstOrNull { !CredentialVault.has(ctx, it) }
+                        if (missing != null) Text(
+                            "＋ 补存${missing.title}密码",
+                            color = C.violet, fontSize = 11.sp,
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .clickable {
+                                    credRealm = missing; credUser = ""; credPass = ""; credErr = null
+                                    credDialog = true
+                                },
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

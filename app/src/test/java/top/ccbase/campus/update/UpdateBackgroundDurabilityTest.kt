@@ -66,7 +66,9 @@ class UpdateBackgroundDurabilityTest {
         ctx.getSharedPreferences("campus_update_gate", Context.MODE_PRIVATE).edit().clear().commit()
     }
 
-    private fun waitUntil(ms: Long = 3_000, cond: () -> Boolean): Boolean {
+    // 默认 6 秒：全套单测并发跑的时候机器很紧张，3 秒会偶尔误红（2026-11-02 发 3.4.81 撞到一次）。
+    // 这是个"等到就立刻返回"的轮询，宽松上限不增加正常耗时。
+    private fun waitUntil(ms: Long = 6_000, cond: () -> Boolean): Boolean {
         val end = System.currentTimeMillis() + ms
         while (System.currentTimeMillis() < end) {
             if (cond()) return true

@@ -26,11 +26,38 @@ import javax.crypto.spec.GCMParameterSpec
 object CredentialVault {
 
     private const val PREFS = "school_cred"
-    private const val K_BLOB = "blob"
+    /** 旧版单一槽位（只存过一份）。只作为迁移来源，不再直接写。 */
+    private const val K_LEGACY = "blob"
     private const val KEY_ALIAS = "campus_school_cred"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 
+    /**
+     * 凭据**按系统分槽**（2026-11-02 用户：「这俩密码不一样，你要分清楚」）。
+     *
+     * 融合门户（CAS `cas.cupk.edu.cn`）与教务系统（`eams.cupk.edu.cn`）是**两套独立口令**，
+     * 而以前只有一个 `blob` 槽：在哪个页面勾的「记住密码」都会把那一份填到**两个**登录页上 ——
+     * 结果门户登录页被填进了教务密码，一点登录就报错，用户还得每次手动清掉重输。
+     *
+     * 现在各存各的、各填各的；**门户页永远不会用到教务那份**（哪怕它存在）。
+     */
+    enum class Realm(val key: String, val title: String) {
+        /** 融合门户统一身份认证（主入口） */
+        PORTAL("blob_portal", "融合门户"),
+        /** 教务系统直登（备用入口） */
+        EAMS("blob_eams", "教务系统"),
+    }
+
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** 旧版那一份只可能来自教务侧（那时主入口还是直登），迁移到 EAMS 槽；绝不给 PORTAL 用。 */
+    private fun migrateLegacy(ctx: Context) {
+        val p = prefs(ctx)
+        if (p.getString(K_LEGACY, null) == null) return
+        if (p.getString(Realm.EAMS.key, null) == null) {
+            p.edit().putString(Realm.EAMS.key, p.getString(K_LEGACY, null)).commit()
+        }
+        p.edit().remove(K_LEGACY).commit()
+    }
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -48,19 +75,22 @@ object CredentialVault {
         return gen.generateKey()
     }
 
-    /** 存一份（覆盖旧的）。失败返回 false —— 调用方要告诉用户"没存上"。 */
-    fun save(ctx: Context, user: String, pass: String): Boolean = runCatching {
+    /** 存一份到指定系统（覆盖同槽旧的）。失败返回 false —— 调用方要告诉用户"没存上"。 */
+    fun save(ctx: Context, realm: Realm, user: String, pass: String): Boolean = runCatching {
         if (user.isBlank() || pass.isEmpty()) return false
+        migrateLegacy(ctx)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val ct = cipher.doFinal("$user\n$pass".toByteArray(Charsets.UTF_8))
         val blob = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
             Base64.encodeToString(ct, Base64.NO_WRAP)
-        prefs(ctx).edit().putString(K_BLOB, blob).commit()
+        prefs(ctx).edit().putString(realm.key, blob).commit()
     }.getOrDefault(false)
 
-    fun load(ctx: Context): Pair<String, String>? = runCatching {
-        val blob = prefs(ctx).getString(K_BLOB, null) ?: return null
+    /** 只读指定系统那一份；另一个系统的凭据**永远不会**从这里漏出来。 */
+    fun load(ctx: Context, realm: Realm): Pair<String, String>? = runCatching {
+        migrateLegacy(ctx)
+        val blob = prefs(ctx).getString(realm.key, null) ?: return null
         val (ivB64, ctB64) = blob.split(":", limit = 2).takeIf { it.size == 2 } ?: return null
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(
@@ -73,10 +103,20 @@ object CredentialVault {
         plain.substring(0, nl) to plain.substring(nl + 1)
     }.getOrNull()
 
-    fun has(ctx: Context): Boolean = prefs(ctx).getString(K_BLOB, null) != null
+    fun has(ctx: Context, realm: Realm): Boolean {
+        migrateLegacy(ctx)
+        return prefs(ctx).getString(realm.key, null) != null
+    }
 
-    fun clear(ctx: Context) {
-        prefs(ctx).edit().remove(K_BLOB).commit()
+    fun hasAny(ctx: Context): Boolean = Realm.entries.any { has(ctx, it) }
+
+    fun clear(ctx: Context, realm: Realm) {
+        prefs(ctx).edit().remove(realm.key).commit()
+    }
+
+    /** 全清（关掉「记住账号密码」开关时用）。 */
+    fun clearAll(ctx: Context) {
+        prefs(ctx).edit().remove(Realm.PORTAL.key).remove(Realm.EAMS.key).remove(K_LEGACY).commit()
     }
 
     /**
@@ -93,20 +133,32 @@ object CredentialVault {
      *  ① CAS 页有**稳定 id**（`#username` / `#password`），不用按 placeholder 猜；
      *  ② CAS **强制验证码**（`enableCaptcha=Y`）—— 所以**绝不自动提交**，
      *    填完就把光标送进验证码框。自动点「登录」只会被驳回，还会白攒失败次数。
+     *
+     * `pass = null` = **只填学号、不碰密码框**（2026-11-02）：门户口令与教务口令是两套，
+     * 没单独存过门户那份时宁可空着让用户自己输，也绝不拿教务密码顶上 —— 填错的密码
+     * 会让用户以为"App 记错了"，还得先清掉再重输。
      */
-    fun ssoAutofillJs(user: String, pass: String): String {
+    fun ssoAutofillJs(user: String, pass: String? = null): String {
         fun esc(s: String) = s.replace("\\", "\\\\").replace("'", "\\'")
             .replace("\n", "\\n").replace("\r", "\\r")
+        val pLiteral = if (pass == null) "null" else "'${esc(pass)}'"
         return """
         (function(){
           try {
-            var U = '${esc(user)}', P = '${esc(pass)}';
+            var U = '${esc(user)}', P = $pLiteral;
             var u = document.getElementById('username') || document.querySelector('input[name=username]');
             var p = document.getElementById('password') || document.querySelector('input[name=password]');
             if (!u || !p) return 'noform';
             var set = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
             set.call(u, U); u.dispatchEvent(new Event('input',{bubbles:true}));
             u.dispatchEvent(new Event('change',{bubbles:true}));
+            if (P === null) {
+              // 只填学号：**一个字都不写密码框**。
+              // 以前这里会 set.call(p,'') 清空，但重试会打在第 600/1800/4200ms，
+              // 用户中途手输的密码会被自己抹掉。门户密码只由用户输入。
+              p.focus();
+              return 'filled-user-only';
+            }
             set.call(p, P); p.dispatchEvent(new Event('input',{bubbles:true}));
             p.dispatchEvent(new Event('change',{bubbles:true}));
             var c = document.getElementById('captcha');

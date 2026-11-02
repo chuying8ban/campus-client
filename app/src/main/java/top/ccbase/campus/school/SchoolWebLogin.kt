@@ -748,9 +748,13 @@ private fun configureSecureWebView(
                 // 脚本自己是轮询的（每 400ms 找一次 #captcha），所以这里早注入也没关系 ——
                 // 上一版只挂监听、注入早于表单渲染就彻底失效（用户那张截图正是这个状态）。
                 view.evaluateJavascript(CredentialVault.ssoCaptchaAutoSubmitJs()) { }
-                val cred = CredentialVault.load(view.context)
-                if (cred != null) {
-                    val js = CredentialVault.ssoAutofillJs(cred.first, cred.second)
+                // 门户与教务是**两套口令**（2026-11-02 用户报"门户页被自动填了教务密码"）：
+                // 门户页只认门户那份；没有就只填学号，密码留给用户自己输 —— 绝不拿教务那份顶上。
+                val portalCred = CredentialVault.load(view.context, CredentialVault.Realm.PORTAL)
+                val account = portalCred?.first
+                    ?: CredentialVault.load(view.context, CredentialVault.Realm.EAMS)?.first
+                if (account != null) {
+                    val js = CredentialVault.ssoAutofillJs(account, portalCred?.second)
                     listOf(600L, 1800L, 4200L).forEach { at ->
                         view.postDelayed({
                             if (runCatching { java.net.URI(view.url.orEmpty()).host }.getOrNull()
@@ -760,6 +764,8 @@ private fun configureSecureWebView(
                                 when {
                                     r?.contains("filled-need-captcha") == true ->
                                         onDiagnostic("已填好账号密码，请输入验证码")
+                                    r?.contains("filled-user-only") == true ->
+                                        onDiagnostic("已填好学号，请输入融合门户密码（与教务密码不同）")
                                     r?.contains("clicked") == true ->
                                         onDiagnostic("已用记住的账号自动登录")
                                 }
@@ -771,7 +777,7 @@ private fun configureSecureWebView(
             // 记住账号密码的用户：会话过期落到登录页时自动填表并提交。
             // 默认没有存凭据，这里就什么都不做（行为和以前一样）。
             if (profile.allows(url) && android.net.Uri.parse(url).path == "/student/login") {
-                val cred = CredentialVault.load(view.context)
+                val cred = CredentialVault.load(view.context, CredentialVault.Realm.EAMS)
                 if (cred != null) {
                     val js = CredentialVault.autofillJs(cred.first, cred.second)
                     // 表单是 Vue 异步渲染的，一次填不进去：错开几次重试；翻走/登录成功就自然不再命中
