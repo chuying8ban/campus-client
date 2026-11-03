@@ -47,7 +47,7 @@ def main():
             continue
         if bg["type"] != "image":
             continue
-        for key, want in (("url", (1080, 1920)), ("cover", (480, 270))):
+        for key, want in (("url", (1080, 1920)), ("cover", (540, 960))):
             u = bg.get(key)
             if not u:
                 bad.append("%s 缺 bg.%s" % (pid, key))
@@ -58,6 +58,11 @@ def main():
                 im = Image.open(io.BytesIO(blob))
                 if im.size != want:
                     bad.append("%s %s 尺寸 %s != %s" % (pid, key, im.size, want))
+                # 封面必须是竖的：横图摆在竖版卡里会被裁成一条，看着像桌面小组件缩略图
+                # （2026-11-03 用户原话「咋都是小组件的主题」）。竖版是一眼能看出来的东西，
+                # 这个断言就是防它再退回去。
+                if key == "cover" and im.height <= im.width:
+                    bad.append("%s cover 是横的 %s，必须竖版 9:16" % (pid, im.size))
                 print("  %-12s %-6s %-7s %s %6.1f KB" % (pid, key, im.size, im.format, len(blob) / 1024))
             except Exception as e:
                 bad.append("%s %s 取不到：%s" % (pid, key, e))
@@ -66,7 +71,7 @@ def main():
         for b in bad:
             print("  -", b)
         sys.exit(1)
-    print("\n✓ %d 套全部核对通过：清单、背景 1080x1920、封面 480x270、字段合法" % len(items))
+    print("\n✓ %d 套全部核对通过：清单、背景 1080x1920、封面 540x960（竖版）、字段合法" % len(items))
 
 
 if __name__ == "__main__":
