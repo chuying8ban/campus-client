@@ -105,7 +105,7 @@ fun FeaturedThemesSection(
     }
 
     Text(
-        "整套换：深淡、主色、背景一起变",
+        "竖版预览：点一下整套换，明暗、主色、背景一起变",
         fontSize = 10.5.sp,
         color = C.txt3,
         lineHeight = 15.sp,
@@ -182,24 +182,28 @@ private fun PackCard(
     busy: Boolean,
     onClick: () -> Unit,
 ) {
+    // 竖版卡：9:16，和手机屏幕一个比例 —— 封面就是"这套主题套在 App 上"的样子。
+    // 2026-11-03 用户：旧的 132x99 横方块"咋都是小组件的主题"，一排看过去像桌面卡片，
+    // 认不出这是 App 的主题。改成竖版后高度跟着宽度走（112 * 16/9 ≈ 199dp）。
+    val w = 112.dp
+    val h = 199.dp
     Column(
         Modifier
-            .width(132.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .width(w)
+            .clip(RoundedCornerShape(14.dp))
             .background(C.card)
             .border(
                 if (active) 1.5.dp else 1.dp,
                 if (active) C.violet.copy(alpha = 0.75f) else C.line,
-                RoundedCornerShape(12.dp),
+                RoundedCornerShape(14.dp),
             )
-            .clickable(onClick = onClick)
-            .padding(bottom = 8.dp),
+            .clickable(onClick = onClick),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(99.dp)
-                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                .height(h)
+                .clip(RoundedCornerShape(14.dp))
                 .background(
                     Brush.verticalGradient(
                         listOf(C.violet.copy(alpha = 0.30f), C.card),
@@ -214,16 +218,43 @@ private fun PackCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            // 封面是"这套主题那张图"本身：图上压一层暗，白字才压得住
+            // 下半截压暗：名字压在图上，白字要压得住（封面本身也是暗底，这条不能省）
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
+                            0.00f to Color.Transparent,
+                            0.42f to Color.Transparent,
+                            0.72f to Color.Black.copy(alpha = 0.42f),
+                            1.00f to Color.Black.copy(alpha = 0.80f),
                         ),
                     ),
             )
+            Column(
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 9.dp, end = 9.dp, bottom = 8.dp),
+            ) {
+                Text(
+                    pack.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (pack.tag.isNotBlank()) {
+                    Text(
+                        pack.tag,
+                        fontSize = 9.sp,
+                        color = Color.White.copy(alpha = 0.74f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
+            }
             if (busy) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
@@ -246,25 +277,6 @@ private fun PackCard(
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
-        }
-        Text(
-            pack.name,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = C.txt,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 9.dp, end = 9.dp, top = 7.dp),
-        )
-        if (pack.tag.isNotBlank()) {
-            Text(
-                pack.tag,
-                fontSize = 9.5.sp,
-                color = C.txt3,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 9.dp, end = 9.dp, top = 2.dp),
-            )
         }
     }
 }
