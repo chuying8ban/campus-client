@@ -638,7 +638,16 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                             target = target,
                                             name = item.title.ifBlank { if (item.animated) "动图" else "图库素材" },
                                             bytes = bytes,
-                                            mime = if (item.animated) "video/mp4" else "image/jpeg",
+                                            // 动图的 mime 得按真实后缀给：换了图源之后上游是 gif，
+                                            // 一律写 video/mp4 会让 UserMedia 按视频去解、解不开（2026-11-03）。
+                                            mime = if (item.animated) {
+                                                val u = item.url.lowercase()
+                                                when {
+                                                    u.contains(".gif") -> "image/gif"
+                                                    u.contains(".webm") -> "video/webm"
+                                                    else -> "video/mp4"
+                                                }
+                                            } else "image/jpeg",
                                         )
                                     }
                                 }
