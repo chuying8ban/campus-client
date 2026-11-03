@@ -6,6 +6,9 @@ import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -56,6 +59,19 @@ object MaterialLibrary {
         val isVideoOrGif: Boolean get() = kind != Kind.IMAGE
     }
 
+    /**
+     * 素材库版本号：任何写操作 +1。
+     *
+     * 为什么要它（2026-11-03 实测）：外观页那行「已存 10 个」是在 `LaunchedEffect(Unit)`
+     * 里读一次的，从图库下完三张再回来看，数字还停在 10 —— 文件其实都进去了
+     * （`index.json` 里真有），只是没人通知界面重算。用户会以为"下了但没存上"。
+     * 现在写操作 bump，界面按这个版本号重读。
+     */
+    var revision by mutableIntStateOf(0)
+        private set
+
+    private fun bump() { revision += 1 }
+
     private const val TAG = "MaterialLibrary"
     private const val MAX_BYTES = 200L * 1024 * 1024
 
@@ -105,9 +121,121 @@ object MaterialLibrary {
             )
         }
         val f = indexFile(ctx, slot)
+        // 先留一份上一版：写一半断电／改名失败时，索引还能从 .bak 回来（用户 2026-11-03：
+        // "每次更新已经下载的素材不要消失" —— 索引丢了，文件还在，但列表会空）
+        if (f.isFile && f.length() > 0) {
+            runCatching { f.copyTo(File(f.parentFile, "index.json.bak"), overwrite = true) }
+        }
         val tmp = File(f.parentFile, "index.json.tmp")
         tmp.writeText(arr.toString())
-        tmp.renameTo(f)
+        if (!tmp.renameTo(f)) {
+            // 改名偶尔会失败（同名占用）；退回直接覆盖写，别把整本索引丢在这儿
+            runCatching { f.writeText(arr.toString()) }
+            runCatching { tmp.delete() }
+        }
+        bump()   // 库变了 → 外观页那行「已存 N 个」跟着重算
+    }
+
+    /**
+     * 自愈：保证"已经下载过的素材"不会因为升级、索引损坏或清理工具而消失。
+     *
+     * 2026-11-03 用户："每次更新已经下载的素材不要消失"。
+     *
+     * 三件事，全部以**磁盘上的文件**为准（索引只是目录，丢了能重建）：
+     *  ① 目录里有、索引里没有的素材文件 → 收回来（索引写坏、被清、或早先版本没写索引）；
+     *  ② `index.json` 整个丢了 → 从 `index.json.bak` 恢复；
+     *  ③ 旧版本的单槽文件（`filesDir/appearance/theme_media_*`）→ 复制进素材库，升级前下过的还在。
+     *
+     * 幂等：跑多少次结果都一样；不删任何用户文件。
+     */
+    fun repair(ctx: Context) {
+        Slot.entries.forEach { repairSlot(ctx, it) }
+        adoptLegacy(ctx)
+    }
+
+    private fun repairSlot(ctx: Context, slot: Slot) {
+        val d = dir(ctx, slot)
+        val f = indexFile(ctx, slot)
+        // ② 索引被清掉/只剩空文件：拿 .bak 顶上，后面 ① 再把文件补全
+        if (!f.isFile || f.length() == 0L) {
+            val bak = File(d, "index.json.bak")
+            if (bak.isFile && bak.length() > 0) runCatching { bak.copyTo(f, overwrite = true) }
+        }
+        val items = list(ctx, slot).toMutableList()
+        val known = items.map { it.id }.toHashSet()
+        var changed = false
+        // ① 收养目录里的孤儿文件
+        d.listFiles()?.sortedBy { it.lastModified() }?.forEach { file ->
+            if (!file.isFile || file.length() == 0L) return@forEach
+            val n = file.name
+            if (n.endsWith(".json") || n.endsWith(".tmp") || n.endsWith(".thumb.jpg")) return@forEach
+            val id = n.substringBefore('.')
+            if (id.isBlank() || known.contains(id)) return@forEach
+            val ext = n.substringAfterLast('.', "").lowercase()
+            val kind = kindOf(file, ext)
+            // 只收养真能用的：截断文件收进来，点开就崩，比不显示更糟
+            val ok = if (kind == Kind.IMAGE) {
+                runCatching { decodeSampled(file, 64) != null }.getOrDefault(false)
+            } else {
+                UserMedia.playable(file)
+            }
+            if (!ok) return@forEach
+            items += Item(
+                id = id,
+                name = "已下载素材",
+                kind = kind,
+                ext = ext,
+                bytes = file.length(),
+                addedAt = file.lastModified(),
+                source = "download",
+            )
+            known += id
+            changed = true
+        }
+        if (changed) {
+            write(ctx, slot, items)
+            Log.i(TAG, "${slot.key} 素材库自愈：收养 ${items.size} 件")
+        }
+    }
+
+    /** 旧版只留一份 `theme_media_<slot>.<ext>` 在 `appearance/` 下：升级后把它复制进素材库。 */
+    private fun adoptLegacy(ctx: Context) {
+        val p = prefs(ctx)
+        if (p.getBoolean("legacy_adopted", false)) return
+        val srcDir = File(ctx.filesDir, "appearance")
+        val old = srcDir.listFiles()?.filter { it.isFile && it.name.startsWith("theme_media") } ?: emptyList()
+        var any = false
+        old.forEach { file ->
+            val n = file.name
+            val slot = when {
+                n.startsWith("theme_media_widget.") -> Slot.WIDGET
+                else -> Slot.APP
+            }
+            val ext = n.substringAfterLast('.', "").lowercase()
+            if (ext.isBlank()) return@forEach
+            // 复制而不是移动：旧背景如果正引用 `media:` 这条，搬走了就白屏
+            runCatching {
+                val id = "m" + file.lastModified().toString(36) + (100..999).random()
+                val out = File(dir(ctx, slot), "$id.$ext")
+                file.copyTo(out, overwrite = true)
+                if (out.length() == 0L) { out.delete(); return@forEach }
+                val kind = kindOf(out, ext)
+                val item = Item(
+                    id = id,
+                    name = "升级前用的素材",
+                    kind = kind,
+                    ext = ext,
+                    bytes = out.length(),
+                    addedAt = file.lastModified(),
+                    source = "download",
+                )
+                write(ctx, slot, list(ctx, slot) + item)
+                ensureThumb(ctx, slot, item)
+                any = true
+            }
+        }
+        p.edit().putBoolean("legacy_adopted", true).apply()
+        if (any) Log.i(TAG, "旧版单槽素材已并入素材库")
     }
 
     fun file(ctx: Context, slot: Slot, id: String): File? =

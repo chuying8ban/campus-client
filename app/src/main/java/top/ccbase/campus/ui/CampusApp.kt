@@ -701,10 +701,12 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
     // 图库素材还在下（用户 2026-10-19："离开图库后如果有正在下载的图要在上面放一个弹窗
     // 提示正在下载以及下载进度"）。这里读的是全局 MediaJob —— 下载协程活在页面之外，
     // 所以退出图库、切到别的页，这条照样在走。
-    val dlId = top.ccbase.campus.ui.me.MediaJob.id.value
-    if (dlId != null) {
-        val pct = top.ccbase.campus.ui.me.MediaJob.pct.value
-        val now = top.ccbase.campus.ui.me.MediaJob.bytes.value
+    // 2026-11-03 起可以并行下多件，这条改成汇总：N 个在下、总进度、最近一件的名字。
+    val dlJobs = top.ccbase.campus.ui.me.MediaJob.active
+    if (dlJobs.isNotEmpty()) {
+        val pct = top.ccbase.campus.ui.me.MediaJob.aggregatePct()
+        val now = top.ccbase.campus.ui.me.MediaJob.aggregateBytes()
+        val label = if (dlJobs.size == 1) dlJobs.first().label else "${dlJobs.size} 个素材一起下"
         Box(
             // 用户 2026-10-19："上面的正在下载素材把关闭按钮挡住了，放到下面去"
             // → 贴底（在导航栏上方），顶部给各页留出自己的标题/关闭区。
@@ -722,7 +724,7 @@ fun CampusShell(version: String, onLogin: () -> Unit) {
                     Text("正在下载素材", color = C.txt, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        top.ccbase.campus.ui.me.MediaJob.label.value,
+                        label,
                         color = C.txt3, fontSize = 11.sp, modifier = Modifier.weight(1f),
                         maxLines = 1,
                     )

@@ -111,6 +111,15 @@ object UserMedia {
      * 断了/被截断也会落盘成一个"看着有大小、其实放不了"的 mp4 —— 于是 VideoView 不出画面、
      * 抽封面也失败，整层就剩底色。落盘之后必须验一遍，验不过就删掉重下，别把它当主题用。
      */
+    /**
+     * 动图的可播放 drawable（2026-11-03 给本地素材库复用：用户
+     * "素材库里面的动图为什么是静态的" —— 格子上以前只画缩略图那一帧，
+     * 明明存的是会动的 gif 却看着像张死图）。
+     *
+     * `AnimatedImageDrawable` 自带循环与播放时钟，不用自己刷帧。
+     */
+    fun animatedDrawable(f: File, ctx: Context): Drawable? = loadAnimated(f, ctx)
+
     fun playable(f: File): Boolean = runCatching {
         if (!f.isFile || f.length() == 0L) return false
         when (f.extension.lowercase()) {

@@ -141,7 +141,25 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
     // 排序（用户 2026-10-19："给图库加一个排序功能（时间，热门，评分等，与你所选取的图源网站对齐，
     // 默认为时间排序）"）。图源是 safebooru：默认就是最新，另两种用它的 score 现算。
     var sort by remember { mutableStateOf("time") }
-    var busyId by remember { mutableStateOf<String?>(null) }
+    // 2026-11-03 用户："我希望可以同时下载多个素材" —— 不再有"一次只许下一件"的闸门，
+    // 哪一件在下由全局 MediaJob 那张表说了算；这里只补一个"已经存进库的名字"用于打勾。
+    var savedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var savedTick by remember { mutableIntStateOf(0) }
+    // 打开页面时先把"素材库里已有的"名字读出来，给格子打「已存」勾 ——
+    // 这也是用户"更新后已下载的素材不要消失"最直观的体现：装完新版本再进来，勾还在。
+    LaunchedEffect(savedTick) {
+        val slot = if (target == "background") {
+            top.ccbase.campus.ui.theme.MaterialLibrary.Slot.APP
+        } else {
+            top.ccbase.campus.ui.theme.MaterialLibrary.Slot.WIDGET
+        }
+        val names = withContext(Dispatchers.IO) {
+            runCatching {
+                top.ccbase.campus.ui.theme.MaterialLibrary.list(ctx, slot).map { it.name }.toSet()
+            }.getOrDefault(emptySet())
+        }
+        savedNames = savedNames + names
+    }
     var msg by remember { mutableStateOf<String?>(null) }
     // 现在屏幕上这批图是**哪个词**搜出来的。以前计数行按 query 写，清空关键词后
     // 旧结果还挂在网格上，标题却已经说"全部 47 张" —— 真机上看到的就是"明明全是原神，
@@ -589,17 +607,20 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                 items(shown, key = { it.id }) { item ->
                     ArtCard(
                         item = item,
-                        busy = busyId == item.id,
+                        // 每一格看自己那件在不在下 —— 并行下的时候不会互相串进度
+                        busy = MediaJob.isRunning(item.id),
+                        saved = savedNames.contains(item.title.ifBlank { if (item.animated) "动图" else "图库素材" }),
                         onClick = {
-                            if (busyId != null) return@ArtCard
-                            busyId = item.id
+                            // 同一件已经在下就别重复点（重复点会把进度打回 0）
+                            if (MediaJob.isRunning(item.id)) return@ArtCard
+                            val shownName = item.title.ifBlank { if (item.animated) "动图" else "图库素材" }
                             // 动态要点下载整段视频（1~10MB），不给一句话用户会以为卡死
-                            msg = if (item.animated) {
-                                "正在后台下载这段动图…可以离开这一页，下载不会中断"
+                            if (item.animated) {
+                                msg = "正在后台下载这段动图…可以继续点别的，一起下"
                             } else {
-                                null
+                                msg = null
                             }
-                            MediaJob.start(item.id, item.title.ifBlank { if (item.animated) "动图" else "图片" })
+                            MediaJob.start(item.id, shownName)
                             MediaNotify.start(
                                 ctx,
                                 if (item.animated) "正在保存动图到本机（关掉 App 也会继续）" else "正在保存图片到本机",
@@ -611,8 +632,8 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                     // 动图要整段原片（解码成 Bitmap 就只剩一帧）；图片按 JPEG 重编码压体积
                                     val bytes = if (item.animated) {
                                         ArtRepo.bytes(item) { now, total ->
-                                            MediaJob.progress(now, total)
-                                            val pct = MediaJob.pct.value
+                                            MediaJob.progress(item.id, now, total)
+                                            val pct = MediaJob.pct(item.id)
                                             MediaNotify.update(
                                                 ctx, pct,
                                                 if (pct >= 0) "校园助手 · 正在下载 $pct%"
@@ -651,19 +672,29 @@ fun ArtGalleryScreen(kind: String, target: String, onClose: () -> Unit) {
                                         )
                                     }
                                 }
-                                busyId = null
-                                MediaJob.finish()          // 顶部那条/格子上的进度一起收
+                                MediaJob.finish(item.id)   // 这一格/顶部那条的这份进度一起收
                                 if (r.ok) {
-                                    MediaNotify.done(
-                                        ctx,
-                                        if (item.animated) "动图已存到本地素材库并设为背景"
-                                        else "已存到本地素材库并换上",
-                                    )
-                                    onClose()
+                                    savedNames = savedNames + shownName
+                                    savedTick += 1
+                                    // 并行下的时候**不关页**：关掉就没法接着点下一张（用户 2026-11-03：
+                                    // "同时下载多个素材"）。留在这里，底部一句话确认，勾打在格子上。
+                                    msg = if (MediaJob.count > 0) {
+                                        "已存进素材库并换上（还有 ${MediaJob.count} 个在下）"
+                                    } else {
+                                        "已存进素材库并换上 —— 可以接着点别的，一起下"
+                                    }
+                                    if (MediaJob.count == 0) {
+                                        MediaNotify.done(
+                                            ctx,
+                                            if (item.animated) "动图已存到本地素材库并设为背景"
+                                            else "已存到本地素材库并换上",
+                                        )
+                                    }
                                 } else {
-                                    MediaNotify.cancel(ctx)
+                                    // 还有别的在下就别把通知收掉，那份进度还要用
+                                    if (MediaJob.count == 0) MediaNotify.cancel(ctx)
                                     // 抽帧失败这种"存下了但用不了"也要说清，别让用户以为彻底失败
-                                    if (r.item != null) onClose()
+                                    if (r.item != null) savedTick += 1
                                     msg = r.error
                                 }
                             }
@@ -700,7 +731,13 @@ private fun CenterHint(text: String, spinner: Boolean = false) {
 }
 
 @Composable
-private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
+private fun ArtCard(
+    item: ArtItem,
+    busy: Boolean,
+    /** 这件已经在本地素材库里（下载过）—— 打一个勾，装完新版本再进来勾还在 */
+    saved: Boolean = false,
+    onClick: () -> Unit,
+) {
     val bmp by produceState<android.graphics.Bitmap?>(initialValue = null, item.id) {
         value = withContext(Dispatchers.IO) { ArtRepo.thumb(item) }
     }
@@ -737,9 +774,23 @@ private fun ArtCard(item: ArtItem, busy: Boolean, onClick: () -> Unit) {
                 Text("▶ 动", color = Color.White, fontSize = 9.5.sp)
             }
         }
+        if (saved && !busy) {
+            Row(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xA6000000))
+                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("✓ 已存", color = Color.White, fontSize = 9.5.sp)
+            }
+        }
         if (busy) {
-            val pct = MediaJob.pct.value
-            val now = MediaJob.bytes.value
+            val job = MediaJob.job(item.id)
+            val pct = job?.pct ?: -1
+            val now = job?.bytes ?: 0L
             Box(
                 Modifier.fillMaxSize().background(Color(0x88000000)),
                 contentAlignment = Alignment.Center,

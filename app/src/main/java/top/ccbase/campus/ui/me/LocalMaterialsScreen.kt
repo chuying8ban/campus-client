@@ -295,6 +295,17 @@ private fun Cell(
         MaterialLibrary.thumb(ctx, slot, item.id)
             ?: runCatching { MaterialLibrary.ensureThumb(ctx, slot, item) }.getOrNull()
     }
+    val animated: android.graphics.drawable.Drawable? = remember(item.id) {
+        // 动图格子上必须是**会动的**（用户 2026-11-03："素材库里面的动图为什么是静态的"）。
+        // 以前这里一律解缩略图那帧 .thumb.jpg，存的是 gif 也像张死图。
+        if (item.kind == MaterialLibrary.Kind.GIF) {
+            MaterialLibrary.file(ctx, slot, item.id)?.let {
+                top.ccbase.campus.ui.theme.UserMedia.animatedDrawable(it, ctx)
+            }
+        } else {
+            null
+        }
+    }
     val bmp = remember(thumb?.absolutePath, thumb?.lastModified()) {
         thumb?.let { runCatching { BitmapFactory.decodeFile(it.absolutePath) }.getOrNull() }
     }
@@ -310,7 +321,26 @@ private fun Cell(
             )
             .clickable { onClick() },
     ) {
-        if (bmp != null) {
+        if (animated != null) {
+            // 动图：真播。用 AndroidView 套一个 ImageView —— Compose 这边没有现成的
+            // AnimatedImageDrawable 宿主，自己逐帧刷反而更费电。
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { c ->
+                    android.widget.ImageView(c).apply {
+                        scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                        setImageDrawable(animated)
+                        (animated as? android.graphics.drawable.AnimatedImageDrawable)?.start()
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                onRelease = { v ->
+                    // 划走就停：动图在后台一直解码只会白耗电
+                    runCatching {
+                        (v.getDrawable() as? android.graphics.drawable.AnimatedImageDrawable)?.stop()
+                    }
+                },
+            )
+        } else if (bmp != null) {
             Image(
                 bmp.asImageBitmap(),
                 null,

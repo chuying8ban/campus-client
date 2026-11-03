@@ -85,6 +85,14 @@ open class CampusApplication : Application() {
         // "主 looper 一直不空闲"（`AppNotIdleException`，2026-09-30 实见：全量跑时 11 条红、单类全绿）。
         // 读一次、之后纯内存，既省事也把这个测试环境陷阱消掉。
         runCatching { top.ccbase.campus.ui.theme.AppearanceStore.bind(this) }
+        // 素材库自愈（2026-11-03 用户："每次更新已经下载的素材不要消失"）：
+        // 升级/索引写坏/被清理工具动过之后，以磁盘上的素材文件为准把索引补回来，
+        // 并把旧版单槽的 theme_media_* 并进库里。放后台线程，不挡首帧。
+        runCatching {
+            Thread({
+                runCatching { top.ccbase.campus.ui.theme.MaterialLibrary.repair(applicationContext) }
+            }, "materials-repair").start()
+        }
         // 抢课提醒：开关开着就把闹钟补上（重启、升级、被杀进程后都能自愈）
         runCatching { top.ccbase.campus.alarm.RetiredMonitorCleanup.cancel(this) }
         seedJob = scope.launch {

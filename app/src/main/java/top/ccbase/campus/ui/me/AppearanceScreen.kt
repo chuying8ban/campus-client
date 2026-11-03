@@ -84,13 +84,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 /**
  * 「外观」—— 两页，互不干扰：
  *
- *  ① **App 主题**：明暗、强调色（12 套预置 + 自己的色环）、页面背景；
+ *  ① **App 主题**：明暗、强调色（12 套预置，2026-11-03 起取消自调色环）、页面背景；
  *  ② **桌面小组件**：只改桌面上那张卡的配色，和 App 里用什么色是两件事。
  *
  * 2026-10-18 重做（用户："外观那一块重做一下，要简洁明了，app 主题和小控件主题要分开"）：
  * 原来是一页长条，App 主题、背景、小组件配色全串在一起，中间还夹着 158dp 的色环，
  * 想改个小组件配色得滑过半个屏幕。现在拆成两页切换，每页只放这件事的东西；
- * 色环默认收起（正在用自定义色时才展开），页面长度立减一屏。
+ * 自调色环已整块移除（用户 2026-11-03："把自己调颜色的功能取消掉"），页面再短一屏。
  *
  * 代码要守住的三条承诺（`AppearanceGuardTest` 扫源码盯着）：
  *  1. **不申请任何存储权限**：选图走系统照片选择器（`PickVisualMedia`），只拿到选中那一张；
@@ -972,7 +972,10 @@ private fun MaterialsEntry(slotKey: String, onOpen: () -> Unit) {
     val slot = top.ccbase.campus.ui.theme.MaterialLibrary.Slot.entries.first { it.key == slotKey }
     var n by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
     var bytes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    // 按库的版本号重读：在图库里下完素材回到这页，数字必须当场变
+    // （2026-11-03 实测过：只写 `LaunchedEffect(Unit)` 会一直停在旧数字，看着像没存上）
+    val rev = top.ccbase.campus.ui.theme.MaterialLibrary.revision
+    androidx.compose.runtime.LaunchedEffect(rev) {
         n = top.ccbase.campus.ui.theme.MaterialLibrary.list(ctx, slot).size
         bytes = top.ccbase.campus.ui.theme.MaterialLibrary.totalBytes(ctx, slot)
     }
