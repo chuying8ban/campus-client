@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,6 +135,39 @@ fun SchoolImportFlow(
             } catch (e: Exception) {
                 err = e.message ?: "本地导入失败"
                 stage = Stage.Intro
+            }
+        }
+    }
+
+    /**
+     * 粘贴导入的落库路径。
+     *
+     * 和 handleRaw 的区别只有一个：不经过学校 adapter —— 表格解析器输出的**已经**是
+     * activities 字段（courseName/weekday/startUnit/endUnit/weeks），再走 adapter 会被当成
+     * print-data 再转一遍。落库、白名单、翻状态全部同一套，避免两条路径行为不一样。
+     */
+    fun handleActivities(activitiesJson: String) {
+        scope.launch {
+            busy = true
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val cleaned = SchoolImportPolicy.activityAllowlist(activitiesJson)
+                    EamsLocalImport.import(db, cleaned, keepManual).let {
+                        if (!it.imported) throw IllegalStateException("这些课程都没能写进课表")
+                        it to cleaned
+                    }
+                }
+                imported = result.first
+                cleanedActivities = result.second
+                cloudMessage = null
+                top.ccbase.campus.alarm.DailyTimetableCheck.markUpdated(ctx)
+                top.ccbase.campus.widget.TodayWidgetProvider.refresh(ctx)
+                stage = Stage.Summary
+            } catch (e: Exception) {
+                err = e.message ?: "粘贴导入失败"
+                stage = Stage.Manual
+            } finally {
+                busy = false
             }
         }
     }
@@ -333,7 +367,13 @@ fun SchoolImportFlow(
                     .padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center,
             ) { Text("打开融合门户登录", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp) }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(6.dp))
+            // 保底路线：教务页打不开、学校改版、WebView 白屏时，用户手上还剩一张能看见的课表
+            Box(Modifier.fillMaxWidth().clickable { err = null; stage = Stage.Manual }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center) {
+                Text("教务页打不开？粘贴课表导入", color = C.violet, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(10.dp))
             Text(
                 "联网后可从「课表 → 更新课表」重新导入；本机内容可离线查看。",
                 fontSize = 12.sp, lineHeight = 19.sp, color = C.txt3,
@@ -349,6 +389,15 @@ fun SchoolImportFlow(
                 stage = Stage.Intro
             },
             onCancel = onCancel,
+        )
+
+        Stage.Manual -> ManualPasteScreen(
+            keepManual = keepManual,
+            onKeepManualChange = { keepManual = it },
+            busy = busy,
+            err = err,
+            onBack = { err = null; stage = Stage.Intro },
+            onImport = ::handleActivities,
         )
 
         Stage.Summary -> Column(
@@ -454,7 +503,7 @@ internal fun CloudConsentDialog(onCancel: () -> Unit, onAgree: () -> Unit) {
     )
 }
 
-private enum class Stage { Intro, Web, Summary }
+private enum class Stage { Intro, Web, Manual, Summary }
 
 /**
  * 显式同意后的云端同步。只上传白名单后的 activities，绝不把学号/密码/ Cookie 发过去。
@@ -514,5 +563,148 @@ object SchoolCloudSync {
                 ApiResult.Ok(Consent(g.value.token, true, g.value.recovery))
             }
         }
+    }
+}
+
+/**
+ * 粘贴课表导入页 —— 内置教务流程之外的**保底通道**。
+ *
+ * 什么时候用：教务页白屏 / 学校改版导致接口取不到 / 会话怎么都过不去，
+ * 但学生手上永远有一张能在浏览器里看见的课表。
+ *
+ * 吃三种东西（解析见 [ScheduleGridImport]）：
+ *  ① 课表页 HTML（电脑上另存一份、或 View Source 复制过来的整页）；
+ *  ② 手机上长按全选复制出来的表格文字；
+ *  ③ Excel 一行一课导出的清单。
+ *
+ * 认不出的格子会当场报出来，不静默丢掉 —— 学生比我们清楚哪一格是什么课。
+ */
+@Composable
+private fun ManualPasteScreen(
+    keepManual: Boolean,
+    onKeepManualChange: (Boolean) -> Unit,
+    busy: Boolean,
+    err: String?,
+    onBack: () -> Unit,
+    onImport: (String) -> Unit,
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var text by remember { mutableStateOf("") }
+    val parsed = remember(text) { if (text.isBlank()) null else ScheduleGridImport.parse(text) }
+
+    fun pasteFromClipboard() {
+        val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+        val clip = cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+        val t = runCatching { clip?.coerceToText(ctx)?.toString().orEmpty() }.getOrDefault("")
+        if (t.isNotBlank()) text = t
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(C.bg)
+            // 键盘弹起来时预览块和按钮要能被顶上来，否则打完字看不到「认出几门课」
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 22.dp),
+    ) {
+        Text("← 返回", fontSize = 13.sp, color = C.txt3,
+            modifier = Modifier.clickable(enabled = !busy) { onBack() }.padding(vertical = 6.dp))
+        Spacer(Modifier.height(14.dp))
+        Text("粘贴课表导入", color = C.txt, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "教务页打不开、或者学校刚改过版时用这条。\n\n"
+                + "手机：在浏览器里打开课表页 → 长按全选 → 复制 → 点下面「从剪贴板粘贴」。\n"
+                + "电脑：课表页按 Ctrl+U 看源码 → 全选复制 → 发到手机粘进来（带表格源码认得更准）。\n\n"
+                + "只在本机解析，不上传任何内容。",
+            fontSize = 12.5.sp, lineHeight = 20.sp, color = C.txt2,
+        )
+        Spacer(Modifier.height(14.dp))
+        androidx.compose.material3.OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.fillMaxWidth().height(160.dp),
+            label = { Text("课表内容 / 网页源码") },
+            placeholder = { Text("例：\n高等数学\t张三\t逸夫楼201\t周一 第1-2节 1-16周", fontSize = 12.sp) },
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            TextButton(onClick = { pasteFromClipboard() }, enabled = !busy) { Text("从剪贴板粘贴") }
+            TextButton(onClick = { text = "" }, enabled = !busy && text.isNotEmpty()) { Text("清空") }
+        }
+
+        err?.let {
+            Box(
+                Modifier.fillMaxWidth().background(Color(0x1FE5484D), RoundedCornerShape(10.dp)).padding(12.dp),
+            ) { Text(it, fontSize = 12.sp, color = Color(0xFFC4454A)) }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        if (parsed != null) {
+            Box(Modifier.fillMaxWidth().background(C.card, RoundedCornerShape(10.dp)).padding(12.dp)) {
+                Column {
+                    Text(
+                        if (parsed.isEmpty) "没认出课程" else "认出 ${parsed.summary()}",
+                        fontSize = 13.sp, color = if (parsed.isEmpty) Color(0xFFC4454A) else C.txt,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (parsed.courses.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        parsed.courses.take(6).forEach { c ->
+                            Text(
+                                "· ${c.courseName}  周${"一二三四五六日"[(c.weekday - 1).coerceIn(0, 6)]} "
+                                    + "第${c.startUnit}-${c.endUnit}节  ${c.room ?: "地点未写"}",
+                                fontSize = 11.5.sp, lineHeight = 17.sp, color = C.txt2,
+                            )
+                        }
+                        if (parsed.courses.size > 6) {
+                            Text("…还有 ${parsed.courses.size - 6} 段", fontSize = 11.sp, color = C.txt3)
+                        }
+                    }
+                    parsed.warnings.take(3).forEach {
+                        Spacer(Modifier.height(4.dp))
+                        Text("⚠ $it", fontSize = 11.sp, lineHeight = 16.sp, color = Color(0xFFC4454A))
+                    }
+                    if (parsed.warnings.size > 3) {
+                        Text("…还有 ${parsed.warnings.size - 3} 个格子没认出", fontSize = 11.sp, color = C.txt3)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Checkbox(checked = keepManual, onCheckedChange = { onKeepManualChange(it) }, enabled = !busy)
+            Text(
+                "保留本机手动课表\n取消勾选：用这次导入的课程替换（早晚自习保留）",
+                color = C.txt2, fontSize = 12.sp, modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        val canImport = parsed != null && !parsed.isEmpty && !busy
+        Box(
+            Modifier.fillMaxWidth()
+                .background(if (canImport) C.violet else C.card, RoundedCornerShape(10.dp))
+                .clickable(enabled = canImport) { parsed?.let { onImport(it.activitiesJson()) } }
+                .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                when {
+                    busy -> "正在写入…"
+                    parsed == null || parsed.isEmpty -> "先粘贴课表内容"
+                    else -> "导入这 ${parsed.courses.size} 段课"
+                },
+                color = if (canImport) MaterialTheme.colorScheme.onPrimary else C.txt3,
+                fontSize = 14.sp,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "课表的「第几节」按学校作息表换成具体时间；如果导入后时间不对，"
+                + "先到「设置 → 作息时间」核对每节课的起止时间。",
+            fontSize = 11.5.sp, lineHeight = 18.sp, color = C.txt3,
+        )
+        Spacer(Modifier.height(26.dp))
     }
 }
