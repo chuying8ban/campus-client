@@ -56,7 +56,7 @@
 所以走 `SchoolImportPolicy.activityAllowlist` 之后**直接** `EamsLocalImport.import`，不再过学校 adapter
 （再过一遍会被当成 `print-data` 再转一次）。节次由 `PeriodTableStore` 换算成钟点。
 
-空内容 / 一门课都没认出来时 `import` 返回 `imported=false`，**不覆盖**已有课表。
+导入成功后用新课程时段替换本机旧时段（包括手动修改），早晚自习保持原样。空内容 / 一门课都没认出来时 `import` 返回 `imported=false`，**不覆盖**已有课表。
 
 ## 验收
 

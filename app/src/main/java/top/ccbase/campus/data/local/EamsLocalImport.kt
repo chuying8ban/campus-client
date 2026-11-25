@@ -7,7 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import androidx.room.withTransaction
-import kotlinx.coroutines.flow.first
+
 import top.ccbase.campus.data.remote.PlanApplier
 
 /**
@@ -114,7 +114,7 @@ object EamsLocalImport {
      *     同一门课还会在课表里出现两次 —— 所以先按名字对齐 id，再写；
      *   · 空/无效课表直接返回未导入，绝不覆盖有效旧数据。
      */
-    suspend fun import(db: CampusDb, activitiesJson: String, keepManual: Boolean = true): ImportResult {
+    suspend fun import(db: CampusDb, activitiesJson: String): ImportResult {
         val plan = build(activitiesJson)
         if (plan.courses.isEmpty() && plan.slots.isEmpty()) {
             return ImportResult(false, mapOf("courses" to 0, "slots" to 0))
@@ -151,15 +151,12 @@ object EamsLocalImport {
                     Meta(PlanApplier.K_SOURCE, SOURCE),
                     Meta(PlanApplier.K_AT, at),
                     Meta(PlanApplier.K_ONBOARD, "1"),
+                    // 清除旧课程覆盖快照；独立的早晚自习表不写入。
+                    Meta(ManualSchedule.KEY, null),
                 ),
             )
 
-            if (keepManual) {
-                val merged = ManualSchedule.overlay(db, top.ccbase.campus.data.seed.Seed(courses=courses, slots=slots, selfstudy=dao.selfStudy().first()))
-                if (dao.metaGet(ManualSchedule.KEY) != null) ManualSchedule.save(db, merged)
-            } else {
-                dao.putMeta(listOf(Meta(ManualSchedule.KEY, null)))
-            }
+
             ImportResult(
                 imported = true,
                 counts = mapOf("courses" to courses.size, "slots" to slots.size),

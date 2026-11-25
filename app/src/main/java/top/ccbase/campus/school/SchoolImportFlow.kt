@@ -73,7 +73,7 @@ fun SchoolImportFlow(
             val rows=kotlinx.serialization.json.Json.parseToJsonElement(raw) as kotlinx.serialization.json.JsonArray
             require(rows.all {e->val o=e as kotlinx.serialization.json.JsonObject;listOf("startTime","endTime").all{k->(o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.matches(Regex("\\d{2}:\\d{2}"))==true}}) { "已识别课程，但缺少学校精确作息时间；尚未保存，原课表未改变" }
             rows.forEach {e->val o=e as kotlinx.serialization.json.JsonObject;val start=java.time.LocalTime.parse((o.getValue("startTime") as kotlinx.serialization.json.JsonPrimitive).content);val end=java.time.LocalTime.parse((o.getValue("endTime") as kotlinx.serialization.json.JsonPrimitive).content);require(start<end){"学校时间不合法，原课表未改变"}}
-            val result=withContext(Dispatchers.IO){EamsLocalImport.import(db,raw,true)}
+            val result=withContext(Dispatchers.IO){EamsLocalImport.import(db,raw)}
             check(result.imported){"没有可保存课程，原课表未改变"}
             withContext(Dispatchers.Main) {
                 top.ccbase.campus.alarm.DailyTimetableCheck.markUpdated(ctx)
@@ -111,7 +111,7 @@ fun SchoolImportFlow(
     var credErr by remember { mutableStateOf<String?>(null) }
     var credToast by remember { mutableStateOf<String?>(null) }
     var forgetNotice by remember { mutableStateOf(false) }
-    var keepManual by remember { mutableStateOf(true) }
+
 
     androidx.activity.compose.BackHandler { if (!busy) onCancel() }
 
@@ -120,7 +120,7 @@ fun SchoolImportFlow(
             try {
                 val result = withContext(Dispatchers.IO) {
                     val cleaned = SchoolRegistry.adapter(school).normalizedActivities(raw)
-                    EamsLocalImport.import(db, cleaned, keepManual).let {
+                    EamsLocalImport.import(db, cleaned).let {
                         if (!it.imported) throw IllegalStateException("课表里没有可导入的课程")
                         it to cleaned
                     }
@@ -152,7 +152,7 @@ fun SchoolImportFlow(
             try {
                 val result = withContext(Dispatchers.IO) {
                     val cleaned = SchoolImportPolicy.activityAllowlist(activitiesJson)
-                    EamsLocalImport.import(db, cleaned, keepManual).let {
+                    EamsLocalImport.import(db, cleaned).let {
                         if (!it.imported) throw IllegalStateException("这些课程都没能写进课表")
                         it to cleaned
                     }
@@ -299,10 +299,7 @@ fun SchoolImportFlow(
                     Modifier.fillMaxWidth().background(Color(0x1FE5484D), RoundedCornerShape(10.dp)).padding(12.dp),
                 ) { Text(it, fontSize = 12.sp, color = Color(0xFFC4454A)) }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.Checkbox(checked = keepManual, onCheckedChange = { keepManual = it })
-                Text("保留本机手动课表\n取消勾选：使用官方课程时段替换；早晚自习保留", color = C.txt2, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            }
+            Text("导入成功后，官方课表将替换本机课程时段（含手动修改）。早晚自习不变。", color = C.txt2, fontSize = 12.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 androidx.compose.material3.Checkbox(checked=rememberLogin,onCheckedChange={if(it)confirmRemember=true else {SchoolSession.setRemembered(ctx,false,school);rememberLogin=false;forgetNotice=true}})
                 Text("登录一次，以后进入自动登录\n只在本机保留登录会话，默认不保存密码",color=C.txt2,fontSize=13.sp)
@@ -392,8 +389,6 @@ fun SchoolImportFlow(
         )
 
         Stage.Manual -> ManualPasteScreen(
-            keepManual = keepManual,
-            onKeepManualChange = { keepManual = it },
             busy = busy,
             err = err,
             onBack = { err = null; stage = Stage.Intro },
@@ -535,7 +530,7 @@ object SchoolCloudSync {
         }
         if (upload is ApiResult.Err) return upload
 
-        val refreshed = RemoteSync.sync(ctx, db, api, token, allowLocalOverride = true)
+        val refreshed = RemoteSync.sync(ctx, db, api, token, allowLocalOverride = true, preserveLocalSelfStudy = true)
         val guestNote = if (ok.guest) "（随机访客账号，非学校学号，卸载后无法找回）" else ""
         val suffix = if (ok.recovery.isNotBlank()) "\n${ok.recovery}" else ""
         return when (refreshed) {
@@ -581,8 +576,6 @@ object SchoolCloudSync {
  */
 @Composable
 private fun ManualPasteScreen(
-    keepManual: Boolean,
-    onKeepManualChange: (Boolean) -> Unit,
     busy: Boolean,
     err: String?,
     onBack: () -> Unit,
@@ -672,13 +665,7 @@ private fun ManualPasteScreen(
             Spacer(Modifier.height(12.dp))
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.Checkbox(checked = keepManual, onCheckedChange = { onKeepManualChange(it) }, enabled = !busy)
-            Text(
-                "保留本机手动课表\n取消勾选：用这次导入的课程替换（早晚自习保留）",
-                color = C.txt2, fontSize = 12.sp, modifier = Modifier.weight(1f),
-            )
-        }
+        Text("导入成功后将替换本机课程时段（含手动修改）。早晚自习不变。", color = C.txt2, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
 
         val canImport = parsed != null && !parsed.isEmpty && !busy

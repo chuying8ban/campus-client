@@ -228,6 +228,8 @@ object RemoteSync {
         templates: Templates? = null,
         /** 本地课表只允许在用户显式同意云端同步后由云端覆盖。 */
         allowLocalOverride: Boolean = false,
+        /** 教务更新只管理课程，不从云端回写早晚自习。 */
+        preserveLocalSelfStudy: Boolean = false,
     ): ApiResult<PlanApplier.Result> = withContext(Dispatchers.IO) {
         if (!allowLocalOverride && PlanApplier.source(db) == PlanApplier.LOCAL) {
             return@withContext ApiResult.Err(409, "本机课表来自本地导入；只有明确同意云端同步后才会覆盖")
@@ -235,8 +237,9 @@ object RemoteSync {
         when (val p = api.planBundle(token)) {
             is ApiResult.Err -> p
             is ApiResult.Ok -> {
+                val seed = p.value.seed.let { if (preserveLocalSelfStudy) it.copy(selfstudy = emptyList()) else it }
                 val res = PlanApplier.apply(
-                    db, p.value.seed, at = nowIso(),
+                    db, seed, at = nowIso(),
                     templates = templates ?: TplLoader.get(ctx),
                 )
                 if (res.counts.isNotEmpty()) PlanApplier.recordTimetable(db, p.value.timetable)

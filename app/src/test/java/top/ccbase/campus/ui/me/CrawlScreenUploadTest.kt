@@ -5,6 +5,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,6 +18,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import top.ccbase.campus.CampusApplication
 import top.ccbase.campus.data.local.CampusDb
+import top.ccbase.campus.data.local.SelfStudy
 import top.ccbase.campus.data.remote.TokenStore
 import top.ccbase.campus.net.ApiUser
 import top.ccbase.campus.net.CampusApi
@@ -80,7 +82,7 @@ class CrawlScreenUploadTest {
         """[{"courseName":"数学分析","lessonName":"数学分析（I）","courseCode":"M1","weekday":1,"startUnit":1,"endUnit":2,"weekIndexes":[1,2,3]}]"""
 
     /** 假服务端：guest / 上传 / plan。上传返回 [uploadCode]。 */
-    private fun server(seen: Seen, uploadCode: Int) = Transport { m, u, h, b ->
+    private fun server(seen: Seen, uploadCode: Int, plan: String = """{"courses":[],"tasks":[]}""") = Transport { m, u, h, b ->
         val path = u.substringAfter("example.invalid")
         when {
             path.endsWith("/api/v2/guest") -> {
@@ -93,7 +95,7 @@ class CrawlScreenUploadTest {
                 seen.uploadBody = b
                 HttpReply(uploadCode, """{"ok":true,"counts":{},"stats":{}}""")
             }
-            path.endsWith("/plan") -> HttpReply(200, """{"courses":[],"tasks":[]}""")
+            path.endsWith("/plan") -> HttpReply(200, plan)
             else -> HttpReply(404, """{"detail":"Not Found"}""")
         }
     }
@@ -131,6 +133,17 @@ class CrawlScreenUploadTest {
     }
 
     // -------------------------------------------------- 云端同步（显式同意的行为）
+
+    @Test
+    fun `课表同步回读不采用云端旧自习`() = runBlocking {
+        val local = listOf(SelfStudy(1, 4, "早自习", "08:45", "09:15", "本机地点"))
+        db.dao().putSelfStudy(local)
+        val plan = """{"courses":[{"id":1,"name":"数学分析"}],"selfstudy":[{"id":2,"weekday":4,"kind":"早自习","start":"08:00","end":"08:30","place":"云端旧地点"}]}"""
+        val api = CampusApi(base = "https://example.invalid", transport = server(Seen(), 200, plan))
+        assertTrue(SchoolCloudSync.uploadConsented(app(), db, api, activities) is ApiResult.Ok)
+        assertEquals(listOf("数学分析"), db.dao().allCoursesOnce().map { it.name })
+        assertEquals(local, db.dao().selfStudy().first())
+    }
 
     @Test
     fun `没有令牌时_先建随机访客_上传请求带 Bearer 令牌`() = runBlocking {

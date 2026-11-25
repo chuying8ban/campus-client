@@ -57,7 +57,7 @@ class SchedulePasteImportTest {
         assertTrue("解析阶段就该认出课程：${parsed.warnings}", parsed.courses.isNotEmpty())
 
         val json = SchoolImportPolicy.activityAllowlist(parsed.activitiesJson())
-        val res = EamsLocalImport.import(db, json, keepManual = true)
+        val res = EamsLocalImport.import(db, json)
         assertTrue("导入未生效", res.imported)
         assertEquals(3, res.counts["courses"])
         assertEquals(3, res.counts["slots"])
@@ -88,12 +88,12 @@ class SchedulePasteImportTest {
     @Test
     fun `空内容不会覆盖已有课表`() = runBlocking {
         val seed = ScheduleGridImport.parse(pasted).activitiesJson()
-        EamsLocalImport.import(db, SchoolImportPolicy.activityAllowlist(seed), keepManual = true)
+        EamsLocalImport.import(db, SchoolImportPolicy.activityAllowlist(seed))
         val before = db.dao().allCoursesOnce().size
 
         val empty = ScheduleGridImport.parse("随便一段没有课表的话")
         assertTrue(empty.isEmpty)
-        val res = EamsLocalImport.import(db, SchoolImportPolicy.activityAllowlist(empty.activitiesJson()), keepManual = true)
+        val res = EamsLocalImport.import(db, SchoolImportPolicy.activityAllowlist(empty.activitiesJson()))
         assertTrue("空课表不该被当成导入成功", !res.imported)
         assertEquals("旧课表被清掉了", before, db.dao().allCoursesOnce().size)
     }
